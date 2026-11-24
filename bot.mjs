@@ -1671,6 +1671,27 @@ function instantaneo() {
     capturados: S.capturados,
     alertas: S.alertas,
     acumulado: ACUM,
+    treinadorLt: ((e.loja?.gender === 'female') ? (e.loja?.vip ? 264 : 160) : (e.loja?.vip ? 263 : 159)),
+    extras: extrasPainel(e),
+  };
+}
+
+// campos só de leitura que o painel mostra (evento, PvP, moedas, dia do tipo, Pokédex…)
+function extrasPainel(e) {
+  const dex = Object.values(e.pokedex ?? {});
+  return {
+    evento: e.evento ? { xpTr: e.evento.xpTreinadorPct, xpPk: e.evento.xpPokemonPct, terminaEm: e.evento.terminaEm } : null,
+    bonusXp: e.bonusXp ? { tr: e.bonusXp.tr, partes: (e.bonusXp.partes ?? []).map((p) => ({ id: p.id, tr: p.tr, ate: p.ate })) } : null,
+    pvp: e.pvp ? { posicao: e.pvp.posicao, vitorias: e.pvp.vitorias, derrotas: e.pvp.derrotas, partidas: e.pvp.partidas, sequencia: e.pvp.sequencia, pico: e.pvp.pico, pontos: e.pvp.pontos, tier: e.pvp.tierId } : null,
+    coroas: e.pkCoroa ?? null, medalhas: e.pkMedalha ?? null,
+    passeDegrau: e.passe?.degrau ?? null,
+    topCatch: e.topCatch ? { n: e.topCatch.n, m: e.topCatch.m } : null,
+    diaSazonal: e.diaSazonal ? { tipo: e.diaSazonal.tipo, fim: e.diaSazonal.fim, ultimos3: e.diaSazonal.ultimos3 ?? [] } : null,
+    chocadeira: e.chocadeira ? { total: e.chocadeira.total ?? 0, ovos: (e.chocadeira.ovos ?? []).length } : null,
+    casa: e.casa ? { emUso: (e.casa.lista ?? []).length, max: e.casa.maxEmUso ?? 0 } : null,
+    bicicleta: !!e.bicicleta?.equipada,
+    pokedex: { capturadas: dex.filter((d) => d.c > 0).length, vistas: dex.length, abates: dex.reduce((t, d) => t + (d.k ?? 0), 0) },
+    tentativas: S.tentativas ?? 0,
   };
 }
 
