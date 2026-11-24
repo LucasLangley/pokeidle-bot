@@ -86,6 +86,16 @@ const CFG = {
   tcHoras: num('TOP_CATCH_HORAS', 10),          // no máximo tantas horas por semana fora da hunt de XP
   tcMinPorHora: num('TOP_CATCH_MIN_POR_HORA', 4),
   tcSemBoost: bool('TOP_CATCH_SEM_BOOST', '1'),   // espera o XP Boost acabar (não gasta boost em hunt de nível baixo) // rendendo menos que isso de espécies novas por hora, encerra a semana
+  mercadoAlerta: bool('MERCADO_ALERTA', '1'),       // avisa item abaixo da média (lista ALERTA_ITENS) e item seu bom para vender
+  mercadoAlertaMin: num('MERCADO_ALERTA_MIN', 30),   // minutos entre as checagens do Mercado
+  alertaItens: String(env('ALERTA_ITENS', 'AoE TM Disk Piece,Mega Stone Fragment,Mega Shiny Stone Fragment')).split(',').map((x) => x.trim()).filter(Boolean),
+  alertaCompraPct: num('ALERTA_COMPRA_PCT', 20),     // anúncio mais barato pelo menos X% abaixo da média (em Gemas)
+  alertaVendaPct: num('ALERTA_VENDA_PCT', 30),       // anúncio mais barato pelo menos X% acima da média: dá para vender caro
+  sniper: bool('SNIPER', '0'),                       // COMPRA SOZINHO com Gemas (dinheiro real). Desligado por padrão
+  sniperRegras: String(env('SNIPER_ITENS', '')).split(',').map((x) => x.trim()).filter(Boolean).map((r) => { const [nome, preco, qtd] = r.split(':').map((y) => y.trim()); return { nome, precoMax: Number(preco) || 0, qtdMax: Number(qtd) || 1 }; }),
+  sniperDesconto: num('SNIPER_DESCONTO', 10),        // só compra se o preço estiver pelo menos X% abaixo da média
+  sniperOrcamentoDia: num('SNIPER_ORCAMENTO_DIA', 0), // Gemas por dia; 0 = não compra nada
+  sniperMin: num('SNIPER_MIN', 5),                   // minutos entre as checagens quando o sniper está ligado
   prey: bool('PREY', '1'),                       // cartela grátis do Prey todo dia (18h), escolhendo espécie da hunt atual
   pvp: bool('PVP', '1'),                         // fila automática do PvP Ranqueado (VIP; luta sem parar a hunt)
   sacrificio: bool('SACRIFICIO', '1'),           // nota 3,5 até SACRIFICIO_NOTA_MAX vira pontos de +20% XP
@@ -638,6 +648,68 @@ function cuidarDoTopCatch() {
   if (!S.tcAtivo) { S.tcAtivo = true; log(`Top Catch: começando com ${S.tcN} espécies na semana (meta ${CFG.tcMeta}, até ${CFG.tcHoras} h, ${(T.seg / 3600).toFixed(1)} h usadas)`); }
 }
 
+// ---------- Mercado ao vivo: alertas e sniper (opcional) ----------
+// Alerta: o anúncio mais barato de um item da lista ALERTA_ITENS está X% abaixo da média de vendas em Gemas, ou um item
+// seu (livre, não preso à conta) tem o anúncio mais barato X% acima da média: dá para anunciar caro. Só avisa; não anuncia.
+// Sniper (SNIPER=1): compra com market.comprarLote quando o preço fica abaixo do teto da regra e da média − SNIPER_DESCONTO%,
+// sem passar do orçamento diário em Gemas. Ideia do pokeidle-manager-online (market_service.py).
+function cuidarDoMercadoVivo() {
+  if ((!CFG.mercadoAlerta && !CFG.sniper) || !S.eu || CFG.somenteLer || COLETA) return;
+  const agora = Date.now(); const intervalo = (CFG.sniper && CFG.sniperOrcamentoDia > 0 ? Math.min(CFG.sniperMin, CFG.mercadoAlertaMin) : CFG.mercadoAlertaMin) * 60_000;
+  if (agora - (S.ultimoMkVivo ?? 0) < intervalo) return;
+  S.ultimoMkVivo = agora; S.mkVivo = { em: agora };
+  enviar({ t: 'market.medias' }); enviar({ t: 'market.itens', elementos: [], categoria: '' });
+}
+function aoMercadoVivo(m) {
+  if (!S.mkVivo || Date.now() - S.mkVivo.em > 60_000) return;
+  if (m.aba === 'medias') S.mkVivo.medias = m.medias ?? {};
+  if (m.aba === 'itens') { S.mkVivo.resumo = m.resumo ?? {}; if (m.medias && !S.mkVivo.medias) S.mkVivo.medias = m.medias; }
+  if (!S.mkVivo.medias || !S.mkVivo.resumo || S.mkVivo.feito) return;
+  S.mkVivo.feito = true;
+  const antes = S.alertas.length;
+  try { avaliarMercado(S.mkVivo.medias, S.mkVivo.resumo); } catch (e) { log('mercado ao vivo:', e.message); }
+  log(`mercado ao vivo: ${Object.keys(S.mkVivo.resumo).length} itens conferidos, ${S.alertas.length - antes} aviso(s)${CFG.sniper && CFG.sniperOrcamentoDia > 0 ? ' · sniper ligado' : ''}`);
+}
+function avaliarMercado(medias, resumo) {
+  const agora = Date.now(); const nomeDe = new Map([...ITEM_POR_NOME].map(([n, id]) => [id, n]));
+  const avisados = (S.mkAvisos ??= {});
+  const pode = (chave, preco) => { const v = avisados[chave]; if (v && agora - v.em < 6 * 3600_000 && preco >= v.preco * 0.9) return false; avisados[chave] = { em: agora, preco }; return true; };
+  const fmt = (n) => Math.round(n).toLocaleString('pt-BR');
+  if (CFG.mercadoAlerta) {
+    for (const nome of CFG.alertaItens) {
+      const id = ITEM_POR_NOME.get(nome); const r = resumo[id]; const md = medias[id]?.orb;
+      if (!id || !r?.minOrb || !md?.media || (md.unidades ?? 0) < 3) continue;
+      if (r.minOrb < md.media * 0.1) continue; // preço de fachada (anúncio isca, ver regra de manipulação do Mercado)
+      if (r.minOrb <= md.media * (1 - CFG.alertaCompraPct / 100) && pode('c' + id, r.minOrb))
+        avisarShiny('mercado', `💰 ${nome} barato: ${fmt(r.minOrb)} Gemas`, `Média de venda ${fmt(md.media)} Gemas (${Math.round((1 - r.minOrb / md.media) * 100)}% abaixo). Só aviso: o bot não compra sozinho (SNIPER=0).`);
+    }
+    const presos = S.eu.automation?.itensPresos ?? {};
+    for (const [idStr, qtd] of Object.entries(S.eu.items ?? {})) {
+      const id = Number(idStr); const livre = (Number(qtd) || 0) - (Number(presos[idStr]) || 0);
+      const r = resumo[id]; const md = medias[id]?.orb;
+      if (livre <= 0 || !r?.minOrb || !md?.media || (md.unidades ?? 0) < 3) continue;
+      if (r.minOrb >= md.media * (1 + CFG.alertaVendaPct / 100) && pode('v' + id, -r.minOrb))
+        avisarShiny('mercado', `📈 Bom para vender: ${nomeDe.get(id) ?? 'item ' + id}`, `Você tem ${livre} livre(s). O anúncio mais barato está em ${fmt(r.minOrb)} Gemas, ${Math.round((r.minOrb / md.media - 1) * 100)}% acima da média (${fmt(md.media)}). Anunciar é com você.`);
+    }
+  }
+  if (CFG.sniper && CFG.sniperOrcamentoDia > 0) {
+    const dia = new Date().toISOString().slice(0, 10);
+    const G = (ACUM.sniper && ACUM.sniper.dia === dia) ? ACUM.sniper : (ACUM.sniper = { dia, gasto: 0, qtd: {} });
+    for (const rg of CFG.sniperRegras) {
+      const id = ITEM_POR_NOME.get(rg.nome); const r = resumo[id]; const md = medias[id]?.orb;
+      if (!id || !r?.minOrb || !rg.precoMax) { if (!id) log(`sniper: item "${rg.nome}" não existe no catálogo`); continue; }
+      const teto = Math.min(rg.precoMax, md?.media ? Math.floor(md.media * (1 - CFG.sniperDesconto / 100)) : rg.precoMax);
+      if (r.minOrb > teto || (md?.media && r.minOrb < md.media * 0.1)) continue; // acima do teto, ou isca abaixo de 10% da média
+      const resta = CFG.sniperOrcamentoDia - G.gasto; const saldo = Number(S.eu.orbs) || 0;
+      const qtd = Math.min(rg.qtdMax - (G.qtd[id] ?? 0), Math.floor(Math.min(resta, saldo) / teto), Number(r.unidades) || rg.qtdMax);
+      if (qtd < 1) continue;
+      G.gasto += qtd * teto; G.qtd[id] = (G.qtd[id] ?? 0) + qtd; S.depurarAte = Date.now() + 20_000;
+      log(`sniper: comprando até ${qtd}× ${rg.nome} a no máximo ${teto} Gemas cada (mais barato agora ${r.minOrb}; média ${md?.media ? fmt(md.media) : '?'}) · gasto hoje ${G.gasto}/${CFG.sniperOrcamentoDia} Gemas`);
+      enviar({ t: 'market.comprarLote', tipo: 'item', itemId: id, moeda: 'orb', qtd, precoMax: teto, totalMax: qtd * teto });
+    }
+  }
+}
+
 // ---------- Prey: a cartela 1 é grátis uma vez por dia (vira às 18h de Brasília) ----------
 const diaDoPrey = () => new Date(Date.now() + 3 * 3600_000).toISOString().slice(0, 10);
 function cuidarDoPrey() {
@@ -797,6 +869,7 @@ function tique() {
   rodar('passe', cuidarDoPasse);
   rodar('sacrifício', cuidarDoSacrificio);
   rodar('prey', cuidarDoPrey);
+  rodar('mercado ao vivo', cuidarDoMercadoVivo);
   rodar('top catch', cuidarDoTopCatch);
   rodar('pvp', cuidarDoPvp);
 }
@@ -804,6 +877,7 @@ function tique() {
 // ---------- mensagens do servidor ----------
 function aoEvento(ev) {
   if (Date.now() < (S.depurarAte ?? 0) && !['dano','golpe','abate','bola','xp','spawn','cura','pocao','morteSelvagem','ataque'].includes(ev.k)) log('[depurar ev]', JSON.stringify(ev).slice(0, 300));
+  if (ev.k === 'marketComprado') log(`Mercado: comprado ${ev.descricao ?? '?'} por ${ev.total ?? '?'} ${ev.moeda === 'orb' ? 'Gemas' : ev.moeda ?? ''}`);
   if (ev.k === 'preyRoletou' || ev.k === 'preyEscolheu') { S.preyCartela = { dia: diaDoPrey(), c: ev.c }; if (ev.k === 'preyEscolheu') log(`Prey: escolhido ${ESPECIES.get(Number(ev.c?.pk))?.nome ?? ev.c?.pk} · bônus ${ev.c?.bonus} ${ev.c?.est}★`); }
   switch (ev.k) {
     case 'morte':
@@ -885,6 +959,7 @@ function aoMensagem(m) {
   if (!['campo', 'chat', 'pong', 'estado', 'vivo', 'campo.init'].includes(m.t)) depurar(m.t === 'batalha' ? { t: 'batalha', ev: (m.ev ?? []).filter((e) => !['ataque', 'spawn', 'bola'].includes(e.k) && !(e.k === 'morte' && e.quem === 'selvagem')) } : m);
   if (m.t === 'estado' && m.estado && ('pokemons' in m.estado || 'pkMud' in m.estado || 'activeId' in m.estado)) depurar({ t: 'estado(equipe)', activeId: m.estado.activeId, pkMud: (m.estado.pkMud ?? []).map((p) => [p.nome, p.slot, p.hp]), pkFora: m.estado.pkFora });
   if (m.t === 'market' && m.aba === 'cotacaoLote') aoCotacao(m);
+  if (m.t === 'market' && (m.aba === 'medias' || m.aba === 'itens')) aoMercadoVivo(m);
   if (COLETA && (m.t === 'market' || m.t === 'economia' || m.t === 'orbs' || (m.t === 'erro' && /market|mercado/i.test(JSON.stringify(m))))) COLETA.respostas.push(m);
   if (Date.now() < (S.depurarAte ?? 0) && !['campo','campo.init','batalha','delta','pong','market','chat','campeonato','showdown'].includes(m.t)) log('[depurar]', JSON.stringify(m).slice(0, 400));
   switch (m.t) {
@@ -1024,7 +1099,7 @@ async function carregarCatalogos() {
   try {
     for (const f of ['creatures.json', 'creatures-novos.json']) {
       const d = await pegar(f);
-      for (const c of d.creatures ?? []) { ESPECIES.set(c.pokeId, { nome: c.name, type1: c.type1, type2: c.type2 ?? null, evolvesToId: c.evolvesToId ?? null, evolveLevel: c.evolveLevel ?? null, looktype: c.looktype ?? null, rarity: c.rarity ?? null }); if (c.looktype != null && !LOOK_POR_NOME.has(c.name)) LOOK_POR_NOME.set(c.name, c.looktype); }
+      for (const c of d.creatures ?? []) { ESPECIES.set(c.pokeId, { nome: c.name, type1: c.type1, type2: c.type2 ?? null, evolvesToId: c.evolvesToId ?? null, evolveLevel: c.evolveLevel ?? null, looktype: c.looktype ?? null, bst: ['baseHp', 'baseAtk', 'baseDef', 'baseSpAtk', 'baseSpDef', 'baseSpeed'].reduce((t, k) => t + (Number(c[k]) || 0), 0), rarity: c.rarity ?? null }); if (c.looktype != null && !LOOK_POR_NOME.has(c.name)) LOOK_POR_NOME.set(c.name, c.looktype); }
     }
     const it = await pegar('items.json');
     for (const i of it.items ?? []) { ITEM_POR_NOME.set(i.name, i.id); ICONES_ITEM[i.id] = iconeOficial(i.icon); }
@@ -1167,6 +1242,8 @@ function cuidarDaEquipe() {
 const TIPO_PEDRA_FORCADO = { 16: 'FLYING', 17: 'FLYING', 21: 'FLYING', 163: 'FLYING', 276: 'FLYING', 13276: 'FLYING', 333: 'FLYING', 13333: 'FLYING', 396: 'FLYING', 397: 'FLYING', 627: 'FLYING', 661: 'FLYING', 731: 'FLYING', 732: 'FLYING' };
 const RAMIFICADAS = new Set([44, 61, 79, 133, 236, 265, 13265, 281, 13281, 290, 13290, 361, 13361, 366, 13366, 412, 25, 102, 104, 109, 439, 156, 502, 548, 627, 704, 712, 723, 744, 550, 5079, 123, 790, 840, 646, 935, 898, 1017, 217, 680, 800]);
 const PEDRA_POR_TIPO = { NORMAL: 'Sun Stone', FIRE: 'Fire Stone', WATER: 'Water Stone', GRASS: 'Leaf Stone', ELECTRIC: 'Thunder Stone', ICE: 'Ice Stone', FIGHTING: 'Punch Stone', POISON: 'Venom Stone', GROUND: 'Earth Stone', FLYING: 'Feather Stone', PSYCHIC: 'Enigma Stone', BUG: 'Cocoon Stone', ROCK: 'Rock Stone', GHOST: 'Darkness Stone', DRAGON: 'Ancient Stone', DARK: 'Darkness Stone', STEEL: 'Metal Stone', FAIRY: 'Heart Stone' };
+// destinos das evoluções ramificadas (dados extraídos de shared/evolucoes-ramificadas.mjs do cliente; nível = do pokemon)
+const EVO_RAMIFICADAS = {"25":[{"para":26,"nivel":80},{"para":4026,"nivel":43100}],"44":[{"para":45,"nivel":70},{"para":182,"nivel":50}],"61":[{"para":62,"nivel":80},{"para":186,"nivel":70}],"79":[{"para":80,"nivel":60},{"para":199,"nivel":1000}],"102":[{"para":103,"nivel":100},{"para":4103,"nivel":34650}],"104":[{"para":105,"nivel":50},{"para":4105,"nivel":34650}],"109":[{"para":110,"nivel":60},{"para":5110,"nivel":69300}],"123":[{"para":212,"nivel":80},{"para":900,"nivel":27500}],"133":[{"para":134,"nivel":80,"fixo":true},{"para":135,"nivel":80,"fixo":true},{"para":136,"nivel":80,"fixo":true},{"para":196,"nivel":80,"fixo":true},{"para":197,"nivel":80,"fixo":true},{"para":470,"nivel":80,"fixo":true},{"para":471,"nivel":80,"fixo":true},{"para":700,"nivel":80,"fixo":true}],"156":[{"para":157,"nivel":80},{"para":6157,"nivel":86150}],"217":[{"para":901,"nivel":46150},{"para":8901,"nivel":160300}],"236":[{"para":237,"nivel":60},{"para":106,"nivel":60},{"para":107,"nivel":60}],"265":[{"para":266,"nivel":650},{"para":268,"nivel":500}],"281":[{"para":282,"nivel":100},{"para":475,"nivel":1500}],"290":[{"para":291,"nivel":700},{"para":292,"nivel":500}],"361":[{"para":362,"nivel":80},{"para":478,"nivel":1250}],"366":[{"para":367,"nivel":700},{"para":368,"nivel":550}],"412":[{"para":413,"nivel":2000},{"para":414,"nivel":1250},{"para":8413,"nivel":2000},{"para":9413,"nivel":2000}],"439":[{"para":122,"nivel":80},{"para":5122,"nivel":64000}],"502":[{"para":503,"nivel":100},{"para":6503,"nivel":86150}],"548":[{"para":549,"nivel":100},{"para":6549,"nivel":69300}],"550":[{"para":902,"nivel":69300},{"para":8902,"nivel":69300}],"627":[{"para":628,"nivel":100},{"para":6628,"nivel":69300}],"646":[{"para":8646,"nivel":8600},{"para":9646,"nivel":8600}],"680":[{"para":681,"nivel":16000},{"para":8681,"nivel":21200}],"704":[{"para":705,"nivel":40},{"para":6705,"nivel":64000}],"712":[{"para":713,"nivel":100},{"para":6713,"nivel":69300}],"723":[{"para":724,"nivel":100},{"para":6724,"nivel":86150}],"744":[{"para":745,"nivel":34650},{"para":8745,"nivel":34650},{"para":9745,"nivel":34650}],"790":[{"para":791,"nivel":7500},{"para":792,"nivel":7500}],"800":[{"para":8800,"nivel":35150},{"para":9800,"nivel":35150}],"840":[{"para":841,"nivel":30450},{"para":842,"nivel":26150},{"para":1011,"nivel":40000}],"898":[{"para":8898,"nivel":64950},{"para":9898,"nivel":64950}],"935":[{"para":936,"nivel":120550},{"para":937,"nivel":120550}],"1017":[{"para":9017,"nivel":160300},{"para":8017,"nivel":160300},{"para":12017,"nivel":160300}],"5079":[{"para":5080,"nivel":69300},{"para":5199,"nivel":69300}],"13265":[{"para":266,"nivel":650},{"para":268,"nivel":500}],"13281":[{"para":282,"nivel":100},{"para":475,"nivel":1500}],"13290":[{"para":291,"nivel":700},{"para":292,"nivel":500}],"13361":[{"para":362,"nivel":80},{"para":478,"nivel":1250}],"13366":[{"para":367,"nivel":700},{"para":368,"nivel":550}]};
 const tentativasEvo = new Set();
 let cotacaoPedra = null; // { seq, itemId, nome }
 function cuidarDaEvolucao() {
@@ -1176,8 +1253,20 @@ function cuidarDaEvolucao() {
   for (const p of equipeAtual) {
     const esp = ESPECIES.get(p.speciesId);
     // nível do catálogo (o cliente só rebaixa esse nível para espécies 252+, então para Kanto vale o do catálogo)
-    if (!esp?.evolvesToId || RAMIFICADAS.has(p.speciesId) || (p.level ?? 0) < Math.max(CFG.evoNivelMin, esp.evolveLevel ?? 0)) continue;
-    const tipo = TIPO_PEDRA_FORCADO[p.speciesId] ?? esp.type1;
+    if (!esp?.evolvesToId) continue;
+    // ramificada: entre os destinos que o nível já libera, o da pedra que já temos; senão, o de maior soma de stats base
+    let alvoId = esp.evolvesToId, tipo = TIPO_PEDRA_FORCADO[p.speciesId] ?? esp.type1;
+    const ram = EVO_RAMIFICADAS[p.speciesId];
+    if (ram) {
+      const ops = ram.filter((o) => (p.level ?? 0) >= Math.max(CFG.evoNivelMin, o.nivel) && ESPECIES.get(o.para)).map((o) => {
+        const d = ESPECIES.get(o.para); const tp = TIPO_PEDRA_FORCADO[p.speciesId] ?? d.type1 ?? esp.type1;
+        const id = ITEM_POR_NOME.get(PEDRA_POR_TIPO[String(tp).toUpperCase()]);
+        return { para: o.para, tipo: tp, pedraId: id, tem: (S.eu.items?.[id] ?? 0) > 0, bst: d.bst ?? 0 };
+      }).filter((o) => o.pedraId);
+      if (!ops.length) continue;
+      ops.sort((x, y) => (y.tem - x.tem) || (y.bst - x.bst));
+      alvoId = ops[0].para; tipo = ops[0].tipo;
+    } else if ((p.level ?? 0) < Math.max(CFG.evoNivelMin, esp.evolveLevel ?? 0)) continue;
     const nomePedra = PEDRA_POR_TIPO[String(tipo).toUpperCase()];
     const pedraId = ITEM_POR_NOME.get(nomePedra);
     if (!pedraId) continue;
@@ -1186,8 +1275,8 @@ function cuidarDaEvolucao() {
     S.ultimaEvo = Date.now();
     if ((S.eu.items?.[pedraId] ?? 0) > 0) {
       tentativasEvo.add(chave);
-      log(`evoluir ${p.nome} Nv${p.level} → ${ESPECIES.get(esp.evolvesToId)?.nome ?? esp.evolvesToId} com ${nomePedra}`);
-      return enviar({ t: 'pokemon.evoluir', pokemonId: p.id, alvoId: esp.evolvesToId });
+      log(`evoluir ${p.nome} Nv${p.level} → ${ESPECIES.get(alvoId)?.nome ?? alvoId} com ${nomePedra}${ram ? ' (evolução ramificada)' : ''}`);
+      return enviar({ t: 'pokemon.evoluir', pokemonId: p.id, alvoId });
     }
     if (!cotacaoPedra) {
       cotacaoPedra = { seq: Date.now() % 1e9, itemId: pedraId, nome: nomePedra, em: Date.now() };
