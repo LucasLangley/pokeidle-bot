@@ -641,7 +641,7 @@ function desenhar(ctx, alvo, dir, cx, chao, escala, t, opts = {}) {
     const e = f.h > 32 ? escala * 0.7 : escala;
     const w = f.w * e, h = f.h * e;
     if (img?.complete && img.naturalWidth) ctx.drawImage(img, f.x, f.y, f.w, f.h, Math.round(cx - w / 2 + treme), Math.round(chao - h), w, h);
-    topo = chao - (f.h > 32 ? h * 0.7 : h * 0.85) - 4;
+    topo = estilo === 'pkm' ? chao - h - (opts.compacto ? 6 : 30) : chao - (f.h > 32 ? h * 0.7 : h * 0.85) - 4; // pkm: placa acima da cabeça, sem cobrir o sprite
   } else {
     ctx.fillStyle = cor('line'); ctx.beginPath(); ctx.arc(cx + treme, chao - 16 * escala / 2, 12 * escala / 2, 0, 7); ctx.fill();
     ctx.fillStyle = cor('sub'); ctx.font = '600 13px system-ui'; ctx.textAlign = 'center'; ctx.fillText((alvo.nome ?? '?')[0], cx + treme, chao - 16 * escala / 2 + 5);
@@ -650,10 +650,10 @@ function desenhar(ctx, alvo, dir, cx, chao, escala, t, opts = {}) {
   ctx.globalAlpha = 1;
   if (opts.morto) return;
   const bw = Math.max(34, 12 * escala), pct = alvo.mhp ? Math.max(0, Math.min(1, alvo.hp / alvo.mhp)) : 0;
-  if (estilo === 'pkm') { const pw = Math.max(bw, 96) + 12; ctx.fillStyle = '#f7f3dc'; ctx.strokeStyle = '#3a3a3a'; ctx.lineWidth = 2; ctx.fillRect(Math.round(cx - pw / 2), Math.round(topo - 21), pw, 28); ctx.strokeRect(Math.round(cx - pw / 2), Math.round(topo - 21), pw, 28); }
+  if (estilo === 'pkm') { const pw = Math.max(bw, opts.compacto ? 70 : 96) + 12, ph = opts.compacto ? 22 : 28, py = Math.round(topo - ph + 7); ctx.fillStyle = '#f7f3dc'; ctx.strokeStyle = '#3a3a3a'; ctx.lineWidth = 2; ctx.fillRect(Math.round(cx - pw / 2), py, pw, ph); ctx.strokeRect(Math.round(cx - pw / 2), py, pw, ph); }
   ctx.fillStyle = estilo === 'pkm' ? '#46465a' : cor('tile'); ctx.fillRect(Math.round(cx - bw / 2), Math.round(topo), bw, 4);
   ctx.fillStyle = alvo.shiny ? '#e9c868' : pct < 0.25 ? cor('bad') : pct < 0.5 ? '#f8c83c' : cor('ok'); ctx.fillRect(Math.round(cx - bw / 2), Math.round(topo), Math.round(bw * pct), 4);
-  ctx.fillStyle = estilo === 'pkm' ? (alvo.shiny ? '#9a7a10' : '#262626') : (alvo.shiny ? '#e9c868' : cor('sub')); ctx.font = '12px system-ui'; ctx.textAlign = 'center';
+  ctx.fillStyle = estilo === 'pkm' ? (alvo.shiny ? '#9a7a10' : '#262626') : (alvo.shiny ? '#e9c868' : cor('sub')); ctx.font = (opts.compacto ? '10px' : '12px') + ' system-ui'; ctx.textAlign = 'center';
   ctx.fillText(`${alvo.shiny ? '✨ ' : ''}${alvo.nome ?? '?'} ${alvo.nv ?? ''}`, cx, Math.round(topo - 5));
 }
 function avatar(t) {
@@ -689,7 +689,7 @@ function quadro(t) {
     const col = i % cols, l = Math.floor(i / cols);
     const cx = area.x + (col + 0.5) * area.w / cols + (l % 2 ? area.w / cols / 4 : 0);
     const chao = H * 0.3 + (l + 1) * (H * 0.66 / linhas) - 6;
-    desenhar(ctx, m, 4, cx, chao, linhas > 2 ? 2 : 2.5, t, { morto: m.morto, treme: !m.morto && levouDano('m' + m.slot, m.hp), fase: i });
+    desenhar(ctx, m, 4, cx, chao, linhas > 2 ? 2 : 2.5, t, { compacto: linhas > 1, morto: m.morto, treme: !m.morto && levouDano('m' + m.slot, m.hp), fase: i });
   });
   if (!mobs.length) { ctx.fillStyle = cor('fraco'); ctx.font = '13px system-ui'; ctx.textAlign = 'center'; ctx.fillText('esperando selvagens…', W * 0.68, H * 0.6); }
 }

@@ -1693,7 +1693,7 @@ function instantaneo() {
     capturados: S.capturados,
     alertas: S.alertas,
     acumulado: ACUM,
-    treinadorLt: ((e.loja?.gender === 'female') ? (e.loja?.vip ? 264 : 160) : (e.loja?.vip ? 263 : 159)),
+    treinadorLt: e.loja?.looktype ?? ((e.loja?.gender === 'female') ? (e.loja?.vip ? 264 : 160) : (e.loja?.vip ? 263 : 159)),
     extras: extrasPainel(e),
   };
 }
