@@ -1008,6 +1008,14 @@ async function spriteDe(lt) {
   SPRITES.set(lt, p); p.then((s) => { if (!s) SPRITES.delete(lt); });
   return p;
 }
+// ícones oficiais (só para o painel): o jogo serve os arquivos em /assets/site, e ícone sem caminho fica em items/
+const ICONES_ITEM = {};
+function iconeOficial(icon) {
+  if (!icon) return null;
+  const base = `https://${CFG.host}`;
+  if (icon.startsWith('/img/') || icon.startsWith('/midia/')) return base + icon;
+  return base + (icon.startsWith('/assets/') ? '/assets/site' + icon : '/assets/site/assets/items/' + icon);
+}
 async function carregarCatalogos() {
   const base = `https://${CFG.host}/assets/`;
   const pegar = async (f) => (await fetch(base + f, { headers: { 'User-Agent': 'Mozilla/5.0' } })).json();
@@ -1017,7 +1025,7 @@ async function carregarCatalogos() {
       for (const c of d.creatures ?? []) { ESPECIES.set(c.pokeId, { nome: c.name, type1: c.type1, type2: c.type2 ?? null, evolvesToId: c.evolvesToId ?? null, evolveLevel: c.evolveLevel ?? null, looktype: c.looktype ?? null, rarity: c.rarity ?? null }); if (c.looktype != null && !LOOK_POR_NOME.has(c.name)) LOOK_POR_NOME.set(c.name, c.looktype); }
     }
     const it = await pegar('items.json');
-    for (const i of it.items ?? []) ITEM_POR_NOME.set(i.name, i.id);
+    for (const i of it.items ?? []) { ITEM_POR_NOME.set(i.name, i.id); ICONES_ITEM[i.id] = iconeOficial(i.icon); }
     log(`catálogos: ${ESPECIES.size} espécies, ${ITEM_POR_NOME.size} itens`);
   } catch (e) { log('não consegui baixar os catálogos (equipe por tipo e evolução ficam limitadas):', e.message); }
 }
@@ -1541,6 +1549,11 @@ async function iniciarPainel() {
       if (!Number.isInteger(lt) || lt <= 0) { res.writeHead(400); return res.end('lt?'); }
       spriteDe(lt).then((s) => { res.writeHead(s ? 200 : 404, { 'content-type': 'application/json', 'cache-control': 'max-age=3600' }); res.end(JSON.stringify(s)); });
       return;
+    }
+    if (req.url === '/icones') {
+      const base = `https://${CFG.host}`, ui = `${base}/assets/site/assets/ui`;
+      res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'max-age=3600' });
+      return res.end(JSON.stringify({ ouro: `${ui}/moeda-ouro.png`, gema: `${base}/img/moeda-gema.png`, generico: `${ui}/menu-bolsa.png`, bolas: { 1: `${ui}/ball-poke.png`, 2: `${ui}/ball-great.png`, 3: `${base}/img/ball-super.png`, 4: `${ui}/ball-ultra.png`, 5: `${base}/img/ball-beast.png` }, itens: ICONES_ITEM }));
     }
     if (req.url === '/estado') { res.writeHead(200, { 'content-type': 'application/json' }); return res.end(JSON.stringify(instantaneo())); }
     if (req.url === '/eventos') {

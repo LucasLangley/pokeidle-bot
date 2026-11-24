@@ -41,7 +41,8 @@
   .card { background:var(--card); border:1px solid var(--line); border-radius:18px; padding:20px; min-width:0; }
   .card h2 { margin:0 0 14px; font-size:14px; font-weight:600; letter-spacing:.04em; text-transform:uppercase; color:var(--a2); }
   .card h2 .num { color:var(--txt); }
-  .heroi { flex:1 1 400px; align-self:flex-start; background:linear-gradient(160deg, var(--card-hi), var(--card) 60%); border-color:var(--a); }
+  .colesq { flex:1 1 400px; display:flex; flex-direction:column; gap:16px; min-width:0; }
+  .heroi { background:linear-gradient(160deg, var(--card-hi), var(--card) 60%); border-color:var(--a); }
   .cena { flex:1.7 1 520px; }
 
   .tile { display:flex; align-items:center; gap:12px; background:var(--tile); border:1px solid var(--line); border-radius:14px; padding:12px 14px; min-width:0; }
@@ -65,6 +66,8 @@
   .xplinha { display:flex; justify-content:space-between; font-size:12px; color:var(--sub); margin:18px 0 6px; }
   .tiles { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:10px; margin-top:18px; }
 
+  .oi { image-rendering:pixelated; object-fit:contain; width:26px; height:26px; }
+  .chip .ci { width:16px; height:16px; vertical-align:-3px; margin-right:5px; image-rendering:pixelated; object-fit:contain; }
   .kpis { display:grid; grid-template-columns:repeat(auto-fit, minmax(190px, 1fr)); gap:16px; }
   .kpis .tile { padding:16px; } .kpis .ico { width:42px; height:42px; } .kpis strong { font-size:24px; font-family:'Space Grotesk', sans-serif; }
 
@@ -130,6 +133,7 @@
 
 <main>
   <div class="row">
+    <div class="colesq">
     <section class="card heroi">
       <div class="topo2">
         <canvas id="av" width="64" height="64" aria-label="Pokemon ativo"></canvas>
@@ -141,12 +145,18 @@
       <div class="xplinha"><span id="k-xplabel">XP até o próximo nível</span><span id="k-xppct">—</span></div>
       <div class="bar" title="XP até o próximo nível"><i id="k-xpbar" style="width:0"></i></div>
       <div class="tiles">
-        <div class="tile"><span class="ico"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3a9 9 0 100 18 9 9 0 000-18zM12 7v10M9.5 9.5c0-1 1-1.7 2.5-1.7s2.5.7 2.5 1.7-1 1.5-2.5 1.8-2.5.8-2.5 1.8 1 1.7 2.5 1.7 2.5-.7 2.5-1.7"/></svg></span><div><small>Ouro</small><strong class="num" id="k-ouro">—</strong></div></div>
-        <div class="tile"><span class="ico"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 4h12l3 5-9 11L3 9z"/><path d="M3 9h18"/></svg></span><div><small>Gemas</small><strong class="num" id="k-gemas">—</strong></div></div>
-        <div class="tile"><span class="ico"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 3h6M10 3v5l-5 9a3 3 0 003 4h8a3 3 0 003-4l-5-9V3"/></svg></span><div style="min-width:0"><small>Poção equipada</small><strong id="k-pocao">—</strong></div></div>
-        <div class="tile"><span class="ico"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3a9 9 0 100 18 9 9 0 000-18zM3 12h6M15 12h6"/><circle cx="12" cy="12" r="2.4"/></svg></span><div style="min-width:0"><small>Bola equipada</small><strong id="k-bola">—</strong></div></div>
+        <div class="tile"><span class="ico"><img id="i-ouro" class="oi" alt="" width="26" height="26"></span><div><small>Ouro</small><strong class="num" id="k-ouro">—</strong></div></div>
+        <div class="tile"><span class="ico"><img id="i-gema" class="oi" alt="" width="26" height="26"></span><div><small>Gemas</small><strong class="num" id="k-gemas">—</strong></div></div>
+        <div class="tile"><span class="ico"><img id="i-pocao" class="oi" alt="" width="26" height="26"></span><div style="min-width:0"><small>Poção equipada</small><strong id="k-pocao">—</strong></div></div>
+        <div class="tile"><span class="ico"><img id="i-bola" class="oi" alt="" width="26" height="26"></span><div style="min-width:0"><small>Bola equipada</small><strong id="k-bola">—</strong></div></div>
       </div>
     </section>
+
+    <section class="card">
+      <h2>Equipe</h2>
+      <ul class="lista" id="equipe"></ul>
+    </section>
+    </div>
 
     <section class="card cena">
       <div class="cabeca"><h2>No jogo agora</h2><div class="chips" id="k-chips"></div></div>
@@ -171,24 +181,20 @@
       <div class="eixo"><span>há 60 min</span><span>há 30 min</span><span>agora</span></div>
     </section>
     <section class="card" style="flex:1 1 360px">
-      <h2>Equipe</h2>
-      <ul class="lista" id="equipe"></ul>
-    </section>
-  </div>
-
-  <div class="row">
-    <section class="card" style="flex:1 1 340px">
       <h2>Bônus ativos</h2>
       <div class="chips" id="bonus"></div>
       <h2 style="margin-top:18px">Bônus das lives</h2>
       <div class="chips" id="lives"></div>
       <div class="canais" id="canais"></div>
     </section>
-    <section class="card" style="flex:1 1 340px">
+  </div>
+
+  <div class="row">
+    <section class="card" style="flex:1.7 1 520px">
       <h2>Mochila</h2>
       <div class="chips" id="mochila"></div>
     </section>
-    <section class="card" style="flex:1 1 340px">
+    <section class="card" style="flex:1 1 360px">
       <h2>Drops desta sessão</h2>
       <table class="lt" id="drops"></table>
     </section>
@@ -239,6 +245,16 @@ const NOMES = { 1:'Poke Ball', 2:'Great Ball', 3:'Super Ball', 4:'Ultra Ball', 5
 const TP = { xp: 'XP', captura: 'Captura', shiny: 'Lure' };
 const fmtMin = (m) => m >= 60 ? `${Math.floor(m / 60)} h ${m % 60} min` : `${m} min`;
 const hora = (t) => new Date(t).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+
+// ---- ícones oficiais do jogo (o bot entrega as URLs em /icones) ----
+let ICON = { ouro: '', gema: '', generico: '', bolas: {}, itens: {} };
+const imgIc = (url) => url ? `<img class="ci" src="${url}" alt="" onerror="this.onerror=null;this.src=ICON.generico">` : '';
+function trocarIcone(id, url) {
+  const el = $(id); if (!el || !url || el.getAttribute('src') === url) return;
+  el.onerror = () => { el.onerror = null; el.src = ICON.generico; };
+  el.src = url;
+}
+fetch('/icones').then((r) => r.json()).then((j) => { ICON = { ...ICON, ...j }; trocarIcone('i-ouro', ICON.ouro); trocarIcone('i-gema', ICON.gema); }).catch(() => {});
 
 // ---- temas ----
 const TEMAS = {
@@ -320,6 +336,8 @@ async function atualizar() {
   $('k-xplabel').textContent = `XP até o Nv. ${n((s.nivel ?? 0) + 1)}`;
   $('k-ouro').textContent = c(s.ouro); $('k-gemas').textContent = n(s.diamantes ?? 0);
   const eq = s.equipado ?? {};
+  if (eq.pocao) trocarIcone('i-pocao', ICON.itens[eq.pocao]);
+  if (eq.bola) trocarIcone('i-bola', ICON.bolas[eq.bola]);
   $('k-pocao').textContent = eq.pocao ? `${NOMES[eq.pocao] ?? s.nomesItens?.[eq.pocao] ?? 'item ' + eq.pocao} x${n(eq.pocaoQtd)}` : 'nenhuma';
   $('k-bola').textContent = eq.bola ? `${NOMES[eq.bola] ?? 'bola ' + eq.bola} x${n(eq.bolaQtd)}` : 'nenhuma';
 
@@ -369,7 +387,7 @@ async function atualizar() {
   $('lives').innerHTML = ativos.join(''); $('canais').textContent = canais.join(' · ');
 
   const moch = [...Object.entries(s.bolas), ...Object.entries(s.itens)].filter(([, q]) => q > 0);
-  $('mochila').innerHTML = moch.length ? moch.map(([id, q]) => `<span class="chip">${esc(NOMES[id] ?? s.nomesItens?.[id] ?? `item ${id}`)} <b class="num">${n(q)}</b></span>`).join('') : '<span class="fraco">vazia</span>';
+  $('mochila').innerHTML = moch.length ? moch.map(([id, q]) => `<span class="chip">${imgIc(s.bolas[id] != null && s.itens[id] == null ? ICON.bolas[id] : ICON.itens[id])}${esc(NOMES[id] ?? s.nomesItens?.[id] ?? `item ${id}`)} <b class="num">${n(q)}</b></span>`).join('') : '<span class="fraco">vazia</span>';
 
   tabela($('drops'), s.drops.map(([nome, q]) => `<tr><td>${esc(nome)}</td><td class="num">${n(q)}</td></tr>`), 'nada ainda');
   tabela($('capturados'), s.capturados.map((p) => `<tr><td class="${p.shiny ? 'shiny' : ''}">${p.shiny ? '✨ ' : ''}${esc(p.nome)} Nv${n(p.level)} <span class="fraco">Q${p.quality ?? '—'}</span></td><td class="num">${hora(p.em)}</td></tr>`), 'nenhuma ainda');
