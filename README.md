@@ -45,6 +45,10 @@ A caça é simulada no servidor. O navegador só escolhe a área e liga as autom
 | Histórico diário | `historico.md` tem uma linha por dia: horas online, nível de início e fim, ouro do farm, vendas da Auto Venda (já dentro do farm), prêmios, abates, desmaios, bolas, capturas, shiny e drops. Os últimos 7 dias também aparecem no painel. | — |
 | Mercado | Coleta de preços só de leitura a cada 6 h, em `mercado/`. | — |
 
+## No Mac
+
+Roda igual (Node 22+). O aviso vira notificação do macOS (`osascript`) e o "PC acordado" usa `caffeinate`. Para iniciar sozinho, use `bash instalar-mac.sh` (agente do launchd: no login e a cada 30 min). O passo a passo está no LEIA-ME.
+
 ## Tarefa do Windows
 
 A tarefa agendada **PokeIdle Bot** inicia o bot sem janela quando você entra no Windows e tenta de novo a cada 30 min. Uma cópia só roda por vez, graças à trava em `bot.pid`.

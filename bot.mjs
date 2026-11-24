@@ -1451,11 +1451,18 @@ function avisarShiny(tipo, titulo, texto, dados = {}) {
   avisarCelular(tipo, titulo, texto);
   if (!CFG.avisoWindows) return;
   try {
-    const p = spawn('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-WindowStyle', 'Hidden', '-File', join(AQUI, 'aviso.ps1')], {
-      env: { ...process.env, AVISO_TITULO: titulo, AVISO_TEXTO: texto }, detached: true, stdio: 'ignore', windowsHide: true,
-    });
-    p.unref();
-  } catch (e) { log('aviso do Windows falhou:', e.message); }
+    if (process.platform === 'darwin') {
+      // Mac: o texto vai como argumento do script (não é montado dentro do comando)
+      spawn('osascript', ['-e', 'on run argv\ndisplay notification (item 2 of argv) with title (item 1 of argv) sound name "Glass"\nend run', titulo, texto], { detached: true, stdio: 'ignore' }).unref();
+    } else if (process.platform === 'win32') {
+      const p = spawn('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-WindowStyle', 'Hidden', '-File', join(AQUI, 'aviso.ps1')], {
+        env: { ...process.env, AVISO_TITULO: titulo, AVISO_TEXTO: texto }, detached: true, stdio: 'ignore', windowsHide: true,
+      });
+      p.unref();
+    } else {
+      spawn('notify-send', [titulo, texto], { detached: true, stdio: 'ignore' }).on('error', () => {}).unref();
+    }
+  } catch (e) { log('aviso na tela falhou:', e.message); }
 }
 
 function avisarCelular(tipo, titulo, texto) {
@@ -1605,6 +1612,12 @@ if (CFG.manterAcordado && process.platform === 'win32') {
     spawn('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-WindowStyle', 'Hidden', '-File', join(AQUI, 'manter-acordado.ps1')], { env: { ...process.env, BOT_PID: String(process.pid) }, stdio: 'ignore', windowsHide: true }).unref();
     log('PC acordado enquanto o bot rodar (a tela ainda pode apagar)');
   } catch (e) { log('não consegui manter o PC acordado:', e.message); }
+} else if (CFG.manterAcordado && process.platform === 'darwin') {
+  // Mac: caffeinate -i impede a suspensão por inatividade e sai sozinho quando o bot (-w PID) termina
+  try {
+    spawn('caffeinate', ['-i', '-w', String(process.pid)], { stdio: 'ignore', detached: true }).unref();
+    log('Mac acordado enquanto o bot rodar (caffeinate; a tela ainda pode apagar, e fechar a tampa do notebook ainda suspende)');
+  } catch (e) { log('não consegui manter o Mac acordado:', e.message); }
 }
 
 process.on('SIGINT', () => { log('encerrando'); resumo(); S.parar = true; S.ws?.close(1000); setTimeout(() => process.exit(0), 300); });

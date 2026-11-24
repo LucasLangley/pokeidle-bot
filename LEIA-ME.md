@@ -49,6 +49,27 @@ Start-ScheduledTask 'PokeIdle Bot'                          # iniciar agora
 Unregister-ScheduledTask 'PokeIdle Bot' -Confirm:$false     # remover a tarefa
 ```
 
+## No Mac
+
+Os passos 1 e 2 são iguais (Node 22+ do nodejs.org, ou `brew install node`; token pelo Console do Chrome, com ⌥⌘J). O que muda:
+
+1. **Criar o `.env`:** abra o **Terminal**, entre na pasta e rode:
+   ```bash
+   cd ~/Downloads/pokeidle-bot
+   cp .env.example .env
+   open -e .env
+   ```
+   O `.env` abre no TextEdit. Troque as três linhas `POKEIDLE_…` e salve.
+2. **Testar:** feche a aba do jogo e rode `node bot.mjs`. Deve aparecer "conectado" e "welcome", e o painel abre em http://localhost:8787. Use Ctrl+C para parar.
+3. **Deixar rodando sozinho:** rode `bash instalar-mac.sh`. O bot passa a iniciar quando você entra no Mac e tenta de novo a cada 30 min.
+   - Parar agora: `kill $(cat bot.pid)`
+   - Iniciar agora: `launchctl kickstart -k gui/$(id -u)/io.pokeidle.bot`
+   - Remover: `bash instalar-mac.sh remover`
+
+No Mac:
+- O aviso de shiny aparece como notificação do sistema, e a primeira vez pode pedir permissão para o "Editor de Scripts".
+- O bot impede o Mac de dormir enquanto roda (`caffeinate`). **Num notebook, fechar a tampa suspende mesmo assim**: deixe aberto, ou ligado a um monitor e à tomada.
+
 ## 5. Aviso de shiny no celular (opcional)
 
 1. Instale o app **ntfy** (grátis, sem conta).
