@@ -1,8 +1,8 @@
 # Como a extensao "/hunt for PokeIdle" v1.0.23 ranqueia hunts
 
 Bases (so leitura estatica; nada executado):
-- EXT = C:/Users/lucas/AppData/Local/Temp/claude/bef36cd142dea233/f4506db9-23ce-4785-8db4-c422696613a9/scratchpad/hunt-ext/x/src
-- JOGO = C:/Users/lucas/AppData/Local/Temp/claude/bef36cd142dea233/f4506db9-23ce-4785-8db4-c422696613a9/scratchpad/src
+- EXT = <pasta-de-estudo>/hunt-ext/x/src
+- JOGO = <pasta-de-estudo>/src
 - jogo-bundle.js (800 KB) nao foi lido, so grep.
 
 ## 1. Origem dos dados e URLs externas

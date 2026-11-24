@@ -1,6 +1,6 @@
 # Estudo: bosses, Safari, Mística e Raid (PokeIdle)
 
-Fonte do código: `SRC` = `C:/Users/lucas/AppData/Local/Temp/claude/bef36cd142dea233/f4506db9-23ce-4785-8db4-c422696613a9/scratchpad/src`. Só leitura; nada foi executado.
+Fonte do código: `SRC` = `<pasta-de-estudo>/src`. Só leitura; nada foi executado.
 Dump: `mercado/welcome-catalogos.json` (uma linha só; campos `bossesCatalogo`, `mega`). Preços: `MERCADO.md` e `mercado/coleta-2026-11-23T17-35-45-665Z.json` (aba `itens`/`medias`).
 Marca **[?]** = não confirmado.
 
