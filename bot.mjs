@@ -286,7 +286,17 @@ function regioesAtivas() {
 }
 // chave das medições: 'r' para várias regiões (é a mesma desde a versão 2 das medições)
 const areaChave = (regs) => (CFG.regioesAuto || regs.length !== 1 ? 'r' : regs[0]);
-function medValida(m, lv) { return m && m.lv >= lv - CFG.medirValidadeNiveis && m.seg >= CFG.medirMin * 60; }
+// a medição vale por MEDIR_VALIDADE_NIVEIS níveis, ou pelos níveis que a conta sobe em 30 min, o que for maior
+// (com boost forte, tipo XP ×10, sobe ~1 nível/min e 5 níveis venciam antes dos 10 min de medição)
+function validadeNiveis() {
+  const lv = S.eu?.level ?? 0; const agora = Date.now();
+  const h = (ACUM.lvHist ??= []); if (!h.length || agora - h[h.length - 1][0] > 60_000) h.push([agora, lv]);
+  while (h.length > 2 && agora - h[1][0] > 3600_000) h.shift();
+  const [t0, lv0] = h[0]; const horas = (agora - t0) / 3600_000;
+  const porMeiaHora = horas > 0.05 ? Math.ceil(((lv - lv0) / horas) / 2) : 0;
+  return Math.max(CFG.medirValidadeNiveis, porMeiaHora);
+}
+function medValida(m, lv) { return m && m.lv >= lv - validadeNiveis() && m.seg >= CFG.medirMin * 60; }
 function degrauMedido(candsIn, lv, regioes) {
   let cands = candsIn;
   if (cands.length < 2) return cands[0] ?? null;
@@ -348,7 +358,7 @@ function medirDegrau() {
   const naFaixaOutland = e.level >= CFG.outlandDe && e.level <= CFG.outlandAte;
   const area = naFaixaOutland && h.area === 'outland' ? 'outland' : areaChave(regioesAtivas());
   const k = `${area}:${h.nivel}`; const M = medicoes();
-  if (!M[k] || M[k].lv < e.level - CFG.medirValidadeNiveis) M[k] = { xp: 0, seg: 0, lv: e.level };
+  if (!M[k] || M[k].lv < e.level - validadeNiveis()) M[k] = { xp: 0, seg: 0, lv: e.level };
   M[k].xp += xpAgora - ant.xp; M[k].seg += dt; // o tempo no Centro e a XP perdida ao morrer entram: é o custo real
   // ouro: a venda das capturas entra (é o farm); saltos grandes sem venda (prêmio, pedra no Mercado) ficam fora
   const dOuro = patAgora - (ant.pat ?? patAgora);
@@ -371,7 +381,7 @@ function huntAlvo() {
     if (!naFaixaOutland) return false;
     const M = medicoes();
     const o = Object.entries(M).find(([k, m]) => k.startsWith('outland:') && medValida(m, lv));
-    const lembra = () => lv - (ACUM.outlandPerdeLv ?? -1e9) < CFG.medirValidadeNiveis;
+    const lembra = () => lv - (ACUM.outlandPerdeLv ?? -1e9) < validadeNiveis();
     if (!o) return lembra();
     const topo = Math.max(0, ...S.hunts.filter((h) => regioesAtivas().includes(h.area) && h.nivel <= teto).map((h) => h.nivel));
     const r = M[`${areaChave(regioesAtivas())}:${topo}`];
