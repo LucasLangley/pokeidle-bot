@@ -372,8 +372,11 @@ function huntAlvo() {
   const lv = S.eu?.level ?? 1;
   const agora = Date.now();
   S.mortes = S.mortes.filter((t) => agora - t < 10 * 60_000);
-  const recuos = Math.floor(S.mortes.length / Math.max(1, CFG.mortesParaRecuar));
-  if (recuos > 0 && S.eu?.huntSlug) { const h = S.hunts.find((x) => x.slug === S.eu.huntSlug); if (h && (S.desistiDegrau ?? {})[h.nivel] !== lv) { (S.desistiDegrau ??= {})[h.nivel] = lv; ACUM.desistiDegrau = S.desistiDegrau; log(`hunt: ${h.nome} (nível ${h.nivel}) mata demais; fica de lado até o próximo nível`); } }
+  // só contam as mortes na hunt atual: as de uma hunt que já ficou para trás não penalizam a nova
+  const mortesAqui = (S.mortesHunt ?? []).filter(([t, h]) => h === S.eu?.huntSlug && agora - t < 10 * 60_000).length;
+  const recuos = Math.floor(mortesAqui / Math.max(1, CFG.mortesParaRecuar));
+  // degrau que mata fica de lado pelos níveis que a conta sobe em 30 min (mín. MEDIR_VALIDADE_NIVEIS), não só até o próximo nível
+  if (recuos > 0 && S.eu?.huntSlug) { const h = S.hunts.find((x) => x.slug === S.eu.huntSlug); if (h && !((S.desistiDegrau ?? {})[h.nivel] >= lv)) { (S.desistiDegrau ??= {})[h.nivel] = lv + validadeNiveis(); ACUM.desistiDegrau = S.desistiDegrau; log(`hunt: ${h.nome} (nível ${h.nivel}) mata demais; fica de lado até o Nv ${S.desistiDegrau[h.nivel]}`); } }
   const teto = lv - CFG.margemNivel;
   const naFaixaOutland = lv >= CFG.outlandDe && lv <= CFG.outlandAte;
   // Outland não tem shiny: só fica lá se o XP/h medido dela (10 min) for maior que o da hunt normal mais alta
@@ -456,7 +459,7 @@ function cuidarDaHunt() {
   }
   // não trocou em 10 min: o degrau fica de fora até o próximo nível (evita insistir para sempre)
   if (agora - S.huntPendente.desde > 600_000) {
-    (S.desistiDegrau ??= {})[S.huntPendente.nivel] = S.eu?.level ?? 0; ACUM.desistiDegrau = S.desistiDegrau;
+    (S.desistiDegrau ??= {})[S.huntPendente.nivel] = (S.eu?.level ?? 0) + validadeNiveis(); ACUM.desistiDegrau = S.desistiDegrau;
     log(`hunt: não consegui trocar para ${alvo.nome} em 10 min; deixo o nível ${S.huntPendente.nivel} de lado até o próximo nível`);
     S.huntPendente = null;
   }
@@ -470,11 +473,23 @@ function tentarTrocaPendente() {
     if (Date.now() - q.desde > 300_000) { log('equipe: não consegui aplicar a mudança em 5 min; tento de novo depois'); S.equipePendente = null; S.ultimaEquipe = Date.now() + 300_000; }
     else if (!vivoNoCampo() && Date.now() - (S.ultimaEquipeEnvio ?? 0) > 2000) { S.ultimaEquipeEnvio = Date.now(); enviar(q.msg); S.equipePendente = null; S.ultimaEquipe = Date.now(); }
   }
+  // fuga: religa revive e voltar-à-hunt quando a troca acontece, quando não há mais troca pendente ou depois de 5 min
+  if (S.fuga && S.eu?.automation && (!S.huntPendente || S.eu.huntSlug === S.huntPendente.slug || Date.now() - S.fuga.desde > 300_000)) {
+    log(`fuga: ${S.huntPendente && S.eu.huntSlug !== S.huntPendente.slug ? 'não deu em 5 min' : 'troca feita'}; religando revive e voltar à hunt`);
+    S.fuga = null; enviar(pacoteAuto(S.eu.automation, { autoRevive: true, autoVoltarHunt: true }));
+  }
   const p = S.huntPendente; if (!p || !S.eu) return;
   if (S.eu.huntSlug === p.slug) { S.huntPendente = null; return; }
   const agora = Date.now();
   if (agora < (S.eu.trocaLivreEm ?? 0) || agora - (S.ultimaTrocaHunt ?? 0) < 2000) return;
   const vivo = [...S.mobs.values()].some((m) => !m.treinador && !m.morto);
+  // preso numa hunt que mata (o revive devolve o time à mesma luta e o campo nunca esvazia): desliga revive e
+  // voltar-à-hunt, o time cai, o bot cura no Centro e de lá a troca entra. Com o Boost dos Atrasados, desmaiar não tira XP.
+  if (vivo && S.eu.huntSlug && !S.eu.noCentro && !S.fuga && S.eu.automation && agora - p.desde > 45_000 && (S.mortesHunt ?? []).filter(([t, h]) => h === S.eu.huntSlug && agora - t < 120_000).length >= 2) {
+    S.fuga = { desde: agora };
+    log(`fuga: preso em ${S.eu.huntSlug} morrendo e sem conseguir trocar; desligo o revive para o time cair, curar no Centro e trocar para ${p.slug}`);
+    enviar(pacoteAuto(S.eu.automation, { autoRevive: false, autoVoltarHunt: false }));
+  }
   if (vivo && S.eu.huntSlug && !S.eu.noCentro) return;
   p.tentativas++;
   S.ultimaTrocaHunt = agora;
@@ -814,6 +829,7 @@ function garantirAutomacoes() {
     enviar(pacoteAuto(a, { autoPotion: true, hpLimiar: CFG.hpLimiar, potionIds: ordem }));
     return;
   }
+  if (S.fuga) return; // saindo de hunt que mata: revive e voltar-à-hunt ficam desligados de propósito
   if (a.autoRevive && a.autoPotion && a.autoVoltarHunt) return;
   const pacote = pacoteAuto(a, { autoRevive: true, autoPotion: true, autoVoltarHunt: true });
   log('religando automações grátis (revive, poção, voltar à hunt)');
@@ -900,7 +916,7 @@ function aoEvento(ev) {
           hoje().drops[nome] = (hoje().drops[nome] ?? 0) + (Number(d.qtd) || 1);
           if (!/potion|ball/i.test(nome) && !S.dropsVistos.has(nome)) { S.dropsVistos.add(nome); log(`drop novo: ${nome}`); }
         }
-      } else { S.stats.desmaios++; ACUM.desmaios++; hoje().desmaios++; S.mortes.push(Date.now()); ACUM.mortesRecentes = S.mortes.slice(-20); log(`desmaiou! (${S.eu?.huntSlug ?? '?'})`); }
+      } else { S.stats.desmaios++; ACUM.desmaios++; hoje().desmaios++; S.mortes.push(Date.now()); (S.mortesHunt ??= []).push([Date.now(), S.eu?.huntSlug]); S.mortesHunt = S.mortesHunt.slice(-30); ACUM.mortesRecentes = S.mortes.slice(-20); log(`desmaiou! (${S.eu?.huntSlug ?? '?'})`); }
       break;
     case 'capturado':
       S.stats.capturas++; ACUM.capturas++; hoje().capturas++; if (ev.pokemon?.shiny) { ACUM.shinyCapturados++; hoje().shiny++; }
