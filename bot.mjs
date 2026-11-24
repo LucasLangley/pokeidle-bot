@@ -1236,9 +1236,11 @@ function aoPvp(m) {
   if (m.rank && S.pvpRankLog !== `${m.rank.pontos}:${m.rank.partidas}`) { S.pvpRankLog = `${m.rank.pontos}:${m.rank.partidas}`; log(`pvp: ${m.rank.tierId} ${m.rank.divisaoNum} · ${m.rank.pontos} PR · ${m.rank.vitorias}V/${m.rank.derrotas}D · posição ${m.posicao ?? '-'} de ${m.totalClassificados ?? '?'} (prêmio mensal até a 2.000ª)`); }
   if (!CFG.pvp || CFG.somenteLer || (S.eu?.level ?? 0) < 150) return;
   // sem time salvo: monta com os 5 de maior nível (só uma vez por execução; time escolhido por você é mantido)
-  if (Array.isArray(m.time) && !m.time.length && !S.pvpTimeTentado) {
-    S.pvpTimeTentado = true;
-    const ok = [...S.pokemons.values()].sort((x, y) => (y.level ?? 0) - (x.level ?? 0)).slice(0, 5);
+  const melhorPvp = [...S.pokemons.values()].sort(porPoder()).slice(0, 5);
+  const difere = Array.isArray(m.time) && melhorPvp.length && (m.time.length < melhorPvp.length || melhorPvp.some((p) => !m.time.map(Number).includes(Number(p.id))));
+  if (difere && Date.now() - (S.pvpTimeEm ?? 0) > 3600_000) {
+    S.pvpTimeEm = Date.now();
+    const ok = melhorPvp;
     if (ok.length) { log(`pvp: salvando o time ${ok.map((p) => `${p.nome} Nv${p.level}`).join(', ')}`); S.depurarAte = Date.now() + 15_000; enviar({ t: 'pvp.time.salvar', pokemonIds: ok.map((p) => p.id) }); setTimeout(() => { S.ultimoPvp = 0; }, 5000); }
     return;
   }
@@ -1257,10 +1259,10 @@ function aoShowdown(m) {
   if (m.acao) { log('showdown:', m.acao); return; }
   // inscrito sem equipe = W.O.: monta a equipe (até 5; sem shiny, P5, lendário nem espécie da Outland, ids 2000+)
   const C = m.campeonato;
-  if (C?.id && C.tipo === 'showdown' && m.eu?.inscrito && C.equipeAberta && !(m.eu.equipe?.ids?.length) && S.sdEquipeTentada !== C.id) {
-    S.sdEquipeTentada = C.id;
-    const ok = [...S.pokemons.values()].filter((p) => !p.shiny && !(p.potencia >= 5) && !p.legendary && !p.lendario && !(p.speciesId >= 2000))
-      .sort((x, y) => (y.level ?? 0) - (x.level ?? 0)).slice(0, 5);
+  if (C?.id && C.tipo === 'showdown' && m.eu?.inscrito && C.equipeAberta && equipeTorneioRuim(m.eu.equipe?.ids) && S.sdEquipeTentada !== C.id + assinaturaAoe()) {
+    S.sdEquipeTentada = C.id + assinaturaAoe();
+    const ok = [...S.pokemons.values()].filter((p) => !p.shiny && !(p.potencia >= 5) && !p.legendary && !p.lendario && !(p.speciesId >= 2000) && !temAoe(p))
+      .sort(porPoder(150)).slice(0, 5);
     if (ok.length) { log(`showdown: montando a equipe de ${C.id}: ${ok.map((p) => `${p.nome} Nv${p.level}`).join(', ')}`); S.depurarAte = Date.now() + 15_000; enviar({ t: 'showdown.equipe', id: C.id, pokemonIds: ok.map((p) => p.id) }); setTimeout(() => enviar({ t: 'showdown.info' }), 5000); }
   }
   const lv = S.eu?.level ?? 0; const agora = Date.now();
@@ -1277,11 +1279,29 @@ function aoShowdown(m) {
     enviar({ t: 'showdown.inscrever', id: E.id });
   }
 }
+// poder na arena (PvP, campeonato, Showdown): o nível acima de 150 é comprimido em 150×(n/150)^0,45; os stats
+// crescem em linha com o nível, então valem stats × (nível da arena / nível). Poder ≈ dano × vida × defesa.
+// (fórmula do pokeidle-manager-online, pvp_power.py; sem o golpe, que não temos no catálogo)
+function poderArena(p, teto = null) {
+  const n = Math.max(1, Number(p?.level) || 1);
+  const la = teto ? Math.min(n, teto) : (n <= 150 ? n : Math.max(150, Math.round(150 * (n / 150) ** 0.45)));
+  const st = p?.stats ?? {}; const f = la / n;
+  const atk = Math.max(Number(st.atk) || 0, Number(st.spAtk) || 0) * f;
+  const dfn = ((Number(st.def) || 0) + (Number(st.spDef) || 0)) / 2 * f;
+  const hp = Math.max(24, (Number(st.hp) || 0) * f * 12);
+  return ((2 * la) / 5 + 2) * atk * hp * dfn;
+}
+const porPoder = (teto) => (x, y) => poderArena(y, teto) - poderArena(x, teto);
+// pokemon com TM AoE não luta em campeonato nem Showdown (guia Campeonatos e Showdown)
+const temAoe = (p) => !!(p?.tmAoe || p?.aoe);
+const assinaturaAoe = () => ':' + [...S.pokemons.values()].filter(temAoe).map((p) => p.id).join(',');
+const equipeTorneioRuim = (ids) => !Array.isArray(ids) || !ids.length || ids.some((id) => { const p = S.pokemons.get(id); return !p || temAoe(p); });
 function aoCampeonato(m) {
   guardarTorneio(m.andou ? 'campeonato-andou' : m.fita ? 'campeonato-fita' : 'campeonato', m);
   if (m.recusa) { log('campeonato: recusado —', m.recusa); return; }
   if (m.andou || m.fita) return;
-  if (m.acao === 'inscreveu') { log(`campeonato: inscrito! seed ${m.eu?.seed ?? '?'}`); return; }
+  if (m.acao === 'inscreveu') { log(`campeonato: inscrito! seed ${m.eu?.seed ?? '?'}`); setTimeout(() => enviar({ t: 'campeonato.info', id: null }), 5000); return; }
+  if (m.acao) { log('campeonato:', m.acao); return; }
   const C = m.campeonato; if (!C?.id) return;
   const inscrito = m.eu?.inscrito === true || m.eu?.seed != null;
   const lv = S.eu?.level ?? 0; const agora = Date.now();
@@ -1289,6 +1309,14 @@ function aoCampeonato(m) {
   const nivelOk = lv >= (C.nivelMin ?? 0) && (!C.nivelMax || lv <= C.nivelMax);
   const resumo = `${C.nome ?? C.id}: nível ${C.nivelMin ?? 0}${C.nivelMax ? `-${C.nivelMax}` : '+'}, ${janelaOk ? 'inscrições abertas' : 'fora da janela de inscrição'}${inscrito ? ', já inscrito' : ''}`;
   if (S.ultimoResumoCamp !== resumo) { S.ultimoResumoCamp = resumo; log('campeonato:', resumo); }
+  // inscrito sem equipe (ou com pokemon de AoE) = W.O.: monta com os 5 de maior nível que podem lutar
+  if (inscrito && C.equipeAberta !== false && equipeTorneioRuim(m.eu?.equipe?.ids) && S.campEquipeTentada !== C.id + assinaturaAoe()) {
+    S.campEquipeTentada = C.id + assinaturaAoe();
+    const R = C.restricoes ?? {};
+    const ok = [...S.pokemons.values()].filter((p) => !temAoe(p) && !(R.semShiny && p.shiny) && !(R.semP5 && p.potencia >= 5) && !(R.semLendario && (p.legendary || p.lendario)))
+      .sort(porPoder()).slice(0, 5);
+    if (ok.length) { log(`campeonato: montando a equipe de ${C.nome ?? C.id}: ${ok.map((p) => `${p.nome} Nv${p.level}`).join(', ')}`); S.depurarAte = Date.now() + 15_000; enviar({ t: 'campeonato.equipe', id: C.id, pokemonIds: ok.map((p) => p.id) }); setTimeout(() => enviar({ t: 'campeonato.info', id: null }), 5000); }
+  }
   if (inscrito || C.temSenha || !janelaOk || !nivelOk || tentadosCamp.has(C.id)) return;
   tentadosCamp.add(C.id);
   log(`campeonato: inscrevendo em ${C.nome ?? C.id}`);
@@ -1519,6 +1547,7 @@ function instantaneo() {
       };
     })(),
     totalPokemons: S.pokemons.size,
+    atrasados: { alvo: e.loja?.alvoAtrasados ?? null, ativo: e.loja?.atrasados ?? null, xp: xpAtualDe(e) },
     huntSessao: { desde: hs.desde, abates: hs.abates }, abatesh: Math.round(S.stats.abates / horas), equipado: equipados(e),
     bolas: e.balls ?? {}, itens: e.items ?? {},
     nomesItens: Object.fromEntries([...ITEM_POR_NOME].filter(([, id]) => (e.items ?? {})[id] > 0).map(([nome, id]) => [id, nome])),
