@@ -649,6 +649,7 @@ function desenhar(ctx, alvo, dir, cx, chao, escala, t, opts = {}) {
   }
   ctx.globalAlpha = 1;
   if (opts.morto) return;
+  if (estilo === 'pkm') topo = chao + (opts.compacto ? 19 : 25); // pkm: placa abaixo do pokemon
   const bw = Math.max(34, 12 * escala), pct = alvo.mhp ? Math.max(0, Math.min(1, alvo.hp / alvo.mhp)) : 0;
   if (estilo === 'pkm') { const pw = Math.max(bw, opts.compacto ? 70 : 96) + 12, ph = opts.compacto ? 22 : 28, py = Math.round(topo - ph + 7); ctx.fillStyle = '#f7f3dc'; ctx.strokeStyle = '#3a3a3a'; ctx.lineWidth = 2; ctx.fillRect(Math.round(cx - pw / 2), py, pw, ph); ctx.strokeRect(Math.round(cx - pw / 2), py, pw, ph); }
   ctx.fillStyle = estilo === 'pkm' ? '#46465a' : cor('tile'); ctx.fillRect(Math.round(cx - bw / 2), Math.round(topo), bw, 4);
@@ -682,13 +683,13 @@ function quadro(t) {
   ctx.globalAlpha = 1;
   if (s.noCentro) { ctx.fillStyle = cor('sub'); ctx.font = '14px system-ui'; ctx.textAlign = 'center'; ctx.fillText('No Centro Pokemon, curando', W / 2, H / 2); return; }
   const eu = s.equipe.find((p) => p.ativo);
-  if (eu) desenhar(ctx, eu, 2, Math.max(70, W * 0.18), H * 0.78, 3, t, { treme: levouDano('eu', eu.hp) });
+  if (eu) desenhar(ctx, eu, 2, Math.max(70, W * 0.18), H * (estilo === 'pkm' ? 0.66 : 0.78), 3, t, { treme: levouDano('eu', eu.hp) });
   const mobs = [...s.campo].sort((a, b) => (a.slot ?? 0) - (b.slot ?? 0)).slice(0, 12);
   const area = { x: W * 0.4, w: W * 0.56 }, cols = Math.min(4, Math.max(1, Math.ceil(mobs.length / 2))), linhas = Math.ceil(mobs.length / cols) || 1;
   mobs.forEach((m, i) => {
     const col = i % cols, l = Math.floor(i / cols);
     const cx = area.x + (col + 0.5) * area.w / cols + (l % 2 ? area.w / cols / 4 : 0);
-    const chao = H * 0.3 + (l + 1) * (H * 0.66 / linhas) - 6;
+    const chao = estilo === 'pkm' ? H * 0.2 + (l + 1) * (H * 0.64 / linhas) - 26 : H * 0.3 + (l + 1) * (H * 0.66 / linhas) - 6;
     desenhar(ctx, m, 4, cx, chao, linhas > 2 ? 2 : 2.5, t, { compacto: linhas > 1, morto: m.morto, treme: !m.morto && levouDano('m' + m.slot, m.hp), fase: i });
   });
   if (!mobs.length) { ctx.fillStyle = cor('fraco'); ctx.font = '13px system-ui'; ctx.textAlign = 'center'; ctx.fillText('esperando selvagens…', W * 0.68, H * 0.6); }
