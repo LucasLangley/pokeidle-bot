@@ -52,7 +52,8 @@ const CFG = {
   minRevives: num('MIN_REVIVES', 10),
   minBolas: num('MIN_BOLAS', 100),
   gastoMaxFracao: num('GASTO_MAX_FRACAO', 0.4), // por compra, fração do ouro em caixa
-  margemNivel: num('MARGEM_NIVEL', 0),        // hunt alvo = maior nivel <= (nivelTreinador - margem)
+  margemNivel: num('MARGEM_NIVEL', 0),
+  huntAcimaPokemon: num('HUNT_ACIMA_POKEMON', 20), // hunt no máximo N níveis acima do pokemon ativo (com boost o treinador dispara na frente)        // hunt alvo = maior nivel <= (nivelTreinador - margem)
   // auto (padrão): as regiões principais conforme abrem (Johto no Nv 200); ou uma lista fixa, ex.: kanto,orre
   regioesAuto: /^(auto|)$/i.test(String(env('REGIOES', 'auto')).trim()),
   regioes: String(env('REGIOES', 'auto')).split(',').map((s) => s.trim().toLowerCase()).filter((s) => s && s !== 'auto'),
@@ -377,7 +378,12 @@ function huntAlvo() {
   const recuos = Math.floor(mortesAqui / Math.max(1, CFG.mortesParaRecuar));
   // degrau que mata fica de lado pelos níveis que a conta sobe em 30 min (mín. MEDIR_VALIDADE_NIVEIS), não só até o próximo nível
   if (recuos > 0 && S.eu?.huntSlug) { const h = S.hunts.find((x) => x.slug === S.eu.huntSlug); if (h && !((S.desistiDegrau ?? {})[h.nivel] >= lv)) { (S.desistiDegrau ??= {})[h.nivel] = lv + validadeNiveis(); ACUM.desistiDegrau = S.desistiDegrau; log(`hunt: ${h.nome} (nível ${h.nivel}) mata demais; fica de lado até o Nv ${S.desistiDegrau[h.nivel]}`); } }
-  const teto = lv - CFG.margemNivel;
+  // teto pelo treinador e pelo pokemon ativo: quem luta é o pokemon. Medido em 24/11: Charizard rende até ~20 níveis
+  // acima dele (Sunflora 290 com ele no 265: 465 M XP/h); a ~35 fica lento e a ~50 morre (Politoed 410 com ele no 360)
+  const pkAtivo = S.pokemons.get(S.eu?.activeId);
+  const tetoPk = pkAtivo?.level ? pkAtivo.level + CFG.huntAcimaPokemon : Infinity;
+  const teto = Math.min(lv - CFG.margemNivel, tetoPk);
+  if (tetoPk < lv - CFG.margemNivel && S.logTetoPk !== Math.floor(tetoPk / 10)) { S.logTetoPk = Math.floor(tetoPk / 10); log(`hunt: teto pelo pokemon ativo (${pkAtivo.nome} Nv${pkAtivo.level} + ${CFG.huntAcimaPokemon}) = nível ${tetoPk}, abaixo do treinador (Nv ${lv})`); }
   const naFaixaOutland = lv >= CFG.outlandDe && lv <= CFG.outlandAte;
   // Outland não tem shiny: só fica lá se o XP/h medido dela (10 min) for maior que o da hunt normal mais alta
   const outlandPerde = (() => {
