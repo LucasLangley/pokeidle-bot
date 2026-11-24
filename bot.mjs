@@ -304,7 +304,9 @@ function degrauMedido(candsIn, lv, regioes) {
   const area = areaChave(regioes);
   const M = medicoes();
   const largados = S.desistiDegrau ?? {};
-  cands = cands.filter((n) => !(largados[n] != null && largados[n] >= lv));
+  const pkLv = S.pokemons.get(S.eu?.activeId)?.level ?? 0;
+  const mataPk = S.mataPk ?? {};
+  cands = cands.filter((n) => !(largados[n] != null && largados[n] >= lv) && !(mataPk[n] != null && pkLv < mataPk[n]));
   if (cands.length < 2) return cands[0] ?? null;
   // degrau mais baixo que já perdeu para um mais alto (medição deste ainda válida) não é medido de novo:
   // com o treinador subindo, a vantagem do degrau de cima só aumenta
@@ -377,7 +379,10 @@ function huntAlvo() {
   const mortesAqui = (S.mortesHunt ?? []).filter(([t, h]) => h === S.eu?.huntSlug && agora - t < 10 * 60_000).length;
   const recuos = Math.floor(mortesAqui / Math.max(1, CFG.mortesParaRecuar));
   // degrau que mata fica de lado pelos níveis que a conta sobe em 30 min (mín. MEDIR_VALIDADE_NIVEIS), não só até o próximo nível
-  if (recuos > 0 && S.eu?.huntSlug) { const h = S.hunts.find((x) => x.slug === S.eu.huntSlug); if (h && !((S.desistiDegrau ?? {})[h.nivel] >= lv)) { (S.desistiDegrau ??= {})[h.nivel] = lv + validadeNiveis(); ACUM.desistiDegrau = S.desistiDegrau; log(`hunt: ${h.nome} (nível ${h.nivel}) mata demais; fica de lado até o Nv ${S.desistiDegrau[h.nivel]}`); } }
+  if (recuos > 0 && S.eu?.huntSlug) { const h = S.hunts.find((x) => x.slug === S.eu.huntSlug); if (h && !((S.desistiDegrau ?? {})[h.nivel] >= lv)) { (S.desistiDegrau ??= {})[h.nivel] = lv + validadeNiveis(); ACUM.desistiDegrau = S.desistiDegrau;
+    // o que mata é o pokemon fraco, não o treinador: só volta quando o ativo subir 15 níveis além do que tinha (cada reincidência soma mais 15)
+    const pkAt = S.pokemons.get(S.eu?.activeId)?.level ?? 0; S.mataPk ??= {}; S.mataPk[h.nivel] = Math.max(pkAt, S.mataPk[h.nivel] ?? 0) + 15; ACUM.mataPk = S.mataPk;
+    log(`hunt: ${h.nome} (nível ${h.nivel}) mata demais; fica de lado até o Nv ${S.desistiDegrau[h.nivel]} e o pokemon ativo no Nv ${S.mataPk[h.nivel]}`); } }
   // teto pelo treinador e pelo pokemon ativo: quem luta é o pokemon. Medido em 24/11: Charizard rende até ~20 níveis
   // acima dele (Sunflora 290 com ele no 265: 465 M XP/h); a ~35 fica lento e a ~50 morre (Politoed 410 com ele no 360)
   const pkAtivo = S.pokemons.get(S.eu?.activeId);
@@ -998,7 +1003,7 @@ function aoMensagem(m) {
     case 'welcome':
       S.welcome = true;
       S.conectadoEm = Date.now();
-      if (!S.restaurado) { S.restaurado = true; S.mortes = (ACUM.mortesRecentes ?? []).filter((t) => Date.now() - t < 10 * 60_000); S.desistiDegrau = { ...(ACUM.desistiDegrau ?? {}) }; }
+      if (!S.restaurado) { S.restaurado = true; S.mortes = (ACUM.mortesRecentes ?? []).filter((t) => Date.now() - t < 10 * 60_000); S.desistiDegrau = { ...(ACUM.desistiDegrau ?? {}) }; S.mataPk = { ...(ACUM.mataPk ?? {}) }; }
       S.tentativas = 0;
       S.hunts = m.hunts ?? [];
       S.bolas = m.catalogoBolas ?? [];
