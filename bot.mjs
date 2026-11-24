@@ -211,6 +211,8 @@ function aplicarCampo(m) {
     if (b.n !== undefined) e.nome = b.n;
     if (b.nv !== undefined) e.nivel = b.nv;
     if (b.hp !== undefined) e.hp = b.hp;
+    if (b.c !== undefined) e.c = b.c;
+    if (b.r !== undefined) e.r = b.r;
     if (b.mhp !== undefined) e.mhp = b.mhp;
     if (b.sh !== undefined) e.shiny = !!b.sh;
     if (b.tr !== undefined) e.treinador = !!b.tr;
@@ -1520,6 +1522,7 @@ function instantaneo() {
     huntSessao: { desde: hs.desde, abates: hs.abates }, abatesh: Math.round(S.stats.abates / horas), equipado: equipados(e),
     bolas: e.balls ?? {}, itens: e.items ?? {},
     nomesItens: Object.fromEntries([...ITEM_POR_NOME].filter(([, id]) => (e.items ?? {})[id] > 0).map(([nome, id]) => [id, nome])),
+    posicoes: [...S.mobs.values()].map((m) => ({ s: m.slot, c: m.c, r: m.r, tr: !!m.treinador, ns: !!m.naoSelvagem, x: !!m.morto, n: m.nome })),
     campo: [...S.mobs.values()].filter((m) => !m.treinador).map((m) => ({ nome: m.nome, nv: m.nivel, hp: m.hp, mhp: m.mhp, morto: !!m.morto, shiny: !!m.shiny, lt: LOOK_POR_NOME.get(m.nome) ?? null, slot: m.slot })),
     lives: ['twitch', 'kick'].map((k) => {
       const x = e[k] ?? {};
@@ -1541,6 +1544,7 @@ async function iniciarPainel() {
   const html = () => { try { return readFileSync(join(AQUI, 'painel.html'), 'utf8'); } catch (e) { return 'painel.html ilegível: ' + e.message; } };
   const srv = createServer((req, res) => {
     if (req.url === '/mercado/coletar') { const ok = coletarMercado('painel'); res.writeHead(ok ? 202 : 409, { 'content-type': 'text/plain; charset=utf-8' }); return res.end(ok ? 'coletando' : 'ocupado ou desconectado'); }
+    if ((req.url ?? '').startsWith('/resgatar/') && req.method === 'POST') { const codigo = req.url.slice(10).toUpperCase(); if (!/^[A-Z0-9]{4,20}$/.test(codigo)) { res.writeHead(400); return res.end('codigo invalido'); } S.depurarAte = Date.now() + 20_000; log(`resgatar: enviando código de vínculo (${codigo.length} caracteres)`); enviar({ t: 'convite.resgatar', codigo }); res.writeHead(202, { 'content-type': 'text/plain; charset=utf-8' }); return res.end('enviado; veja o log'); }
     if (req.url === '/vender-reservas' && req.method === 'POST') { const r = venderReservas(); res.writeHead(200, { 'content-type': 'application/json' }); return res.end(JSON.stringify(r)); }
     if (req.url === '/teste-aviso') { avisarShiny('teste', '✨ Teste: shiny de mentira', 'Só testando o aviso do painel e do Windows.', { nome: 'Teste', level: 0, teste: true }); res.writeHead(200); return res.end('ok'); }
     if (req.url.startsWith('/preco')) { const nome = new URL(req.url, 'http://x').searchParams.get('nome') ?? ''; res.writeHead(200, { 'content-type': 'application/json; charset=utf-8' }); return res.end(JSON.stringify(precoShiny(nome))); }
