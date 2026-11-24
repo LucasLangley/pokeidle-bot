@@ -53,7 +53,9 @@ const CFG = {
   minBolas: num('MIN_BOLAS', 100),
   gastoMaxFracao: num('GASTO_MAX_FRACAO', 0.4), // por compra, fração do ouro em caixa
   margemNivel: num('MARGEM_NIVEL', 0),        // hunt alvo = maior nivel <= (nivelTreinador - margem)
-  regioes: env('REGIOES', 'kanto,orre').split(',').map((s) => s.trim()).filter(Boolean),
+  // auto (padrão): as regiões principais conforme abrem (Johto no Nv 200); ou uma lista fixa, ex.: kanto,orre
+  regioesAuto: /^(auto|)$/i.test(String(env('REGIOES', 'auto')).trim()),
+  regioes: String(env('REGIOES', 'auto')).split(',').map((s) => s.trim().toLowerCase()).filter((s) => s && s !== 'auto'),
   huntFixa: env('HUNT_FIXA', ''),             // slug para travar numa hunt
   mortesParaRecuar: num('MORTES_PARA_RECUAR', 3), // desmaios em 10 min para descer um degrau
   logArquivo: env('LOG_ARQUIVO', join(AQUI, 'bot.log')),
@@ -77,7 +79,9 @@ const CFG = {
   ntfyTopico: env('NTFY_TOPICO', ''),            // canal do app ntfy no celular; vazio = desligado
   colecaoNota: bool('COLECAO_NOTA', '1'),        // guardar capturas com nota alta em vez de vender
   colecaoNotaMin: num('COLECAO_NOTA_MIN', 3.5),  // 3,5 = mínimo do Sacrifício e do Mercado
-  topCatch: bool('TOP_CATCH', '1'),              // rota semanal por espécies novas (marcos dão XP Boost e Shiny Secret Lure)
+  // rota semanal por espécies novas. Desligada: leva o treinador para hunts de nível 1 (~43 mil XP/h contra ~12 mi)
+  // e em 10 h chega só ao marco de 100 (Lure de 30 min). Medido em 24/11.
+  topCatch: bool('TOP_CATCH', '0'),
   tcMeta: num('TOP_CATCH_META', 200),           // para ao chegar a tantas espécies na semana
   tcHoras: num('TOP_CATCH_HORAS', 10),          // no máximo tantas horas por semana fora da hunt de XP
   tcMinPorHora: num('TOP_CATCH_MIN_POR_HORA', 4),
@@ -102,6 +106,10 @@ const CFG = {
   huntMedir: bool('HUNT_MEDIR', '1'),          // escolher entre os 2 degraus de cima pelo XP/h medido
   medirMin: num('MEDIR_MIN', 10),             // minutos de medição por degrau
   medirValidadeNiveis: num('MEDIR_VALIDADE_NIVEIS', 5), // medição vence após N níveis do treinador
+  // degrau de baixo que perdeu por esta folga (1,3 = 30%) não é medido de novo a cada 5 níveis:
+  // em 24/11 ir ao nível 80 só para remedir tomou 80 de 248 min, a ~4,4 mi XP/h contra ~11,5 mi no nível 100
+  medirFolga: num('MEDIR_FOLGA', 1.3),
+  medirPerdedorNiveis: num('MEDIR_PERDEDOR_NIVEIS', 30), // depois de tantos níveis, o perdedor é medido de novo
 };
 
 // shared/outland-tiers.mjs: [nível mínimo, multiplicador de drop]; tier = 101 + índice
@@ -256,11 +264,21 @@ const timeCaido = () => { const t = equipe(); return t.length > 0 && t.every((p)
 // ---------- XP/h medido por degrau ----------
 // chave: região:nível do degrau → { xp, seg, mortes, lv (nível do treinador quando começou a medir) }
 function medicoes() { if (ACUM.medicoesVersao !== 2) { ACUM.medicoes = {}; ACUM.medicoesVersao = 2; } ACUM.medicoes ??= {}; return ACUM.medicoes; }
+// regiões: com REGIOES=auto entram todas as áreas de hunt menos a Outland (que tem regra própria), cada uma
+// quando o treinador alcança a hunt mais baixa dela. Em 24/11 o jogo tinha kanto (1–470, Johto incluída) e orre (500+).
+function regioesAtivas() {
+  if (!CFG.regioesAuto) return CFG.regioes;
+  const lv = S.eu?.level ?? 1; const min = {};
+  for (const h of S.hunts) if (h.area && h.area !== 'outland') min[h.area] = Math.min(min[h.area] ?? Infinity, h.nivel ?? 0);
+  return Object.keys(min).filter((a) => lv >= min[a]);
+}
+// chave das medições: 'r' para várias regiões (é a mesma desde a versão 2 das medições)
+const areaChave = (regs) => (CFG.regioesAuto || regs.length !== 1 ? 'r' : regs[0]);
 function medValida(m, lv) { return m && m.lv >= lv - CFG.medirValidadeNiveis && m.seg >= CFG.medirMin * 60; }
 function degrauMedido(candsIn, lv, regioes) {
   let cands = candsIn;
   if (cands.length < 2) return cands[0] ?? null;
-  const area = regioes.length === 1 ? regioes[0] : 'r';
+  const area = areaChave(regioes);
   const M = medicoes();
   const largados = S.desistiDegrau ?? {};
   cands = cands.filter((n) => !(largados[n] != null && largados[n] >= lv));
@@ -269,13 +287,19 @@ function degrauMedido(candsIn, lv, regioes) {
   // com o treinador subindo, a vantagem do degrau de cima só aumenta
   const chave = (n) => `${area}:${n}`;
   const taxa = (n) => { const m = M[chave(n)]; return m && m.seg >= CFG.medirMin * 60 ? m.xp / m.seg : null; };
-  // desligado: a nova medição mostrou que o degrau de baixo pode voltar a ganhar (Nv 42: nível 30 389 mil × nível 40 348 mil XP/h)
-  if (process.env.PULAR_REMEDIR === '1') cands = cands.filter((n) => medValida(M[chave(n)], lv) || !cands.some((o) => o > n && medValida(M[chave(o)], lv) && taxa(n) != null && taxa(o) > taxa(n)));
-  if (cands.length < 2) {
-    if (cands[0] != null && S.ultimoDegrauMed !== cands[0]) { S.ultimoDegrauMed = cands[0]; log(`degrau medido → nível ${cands[0]} (o de baixo já perdeu; não meço de novo)`); }
-    return cands[0] ?? null;
-  }
   const eco = modoEconomia();
+  // o de baixo pode voltar a ganhar quando a diferença é pequena (Nv 42: nível 30 389 mil × nível 40 348 mil XP/h),
+  // então só pula a remedição quando o de cima, com medição válida, ganhou com folga
+  if (!eco && CFG.medirFolga > 0) {
+    const vencedor = (n) => { const tn = taxa(n); const mn = M[chave(n)]; if (tn == null || medValida(mn, lv) || mn.lv < lv - CFG.medirPerdedorNiveis) return null; return cands.find((o) => o > n && medValida(M[chave(o)], lv) && taxa(o) >= tn * CFG.medirFolga) ?? null; };
+    const largar = cands.map((n) => [n, vencedor(n)]).filter(([, o]) => o != null);
+    if (largar.length) {
+      cands = cands.filter((n) => !largar.some(([x]) => x === n));
+      const txt = largar.map(([n, o]) => `nível ${n} perdeu para o ${o} por ${(taxa(o) / taxa(n)).toFixed(1)}×`).join(', ');
+      if (S.ultimoPulo !== txt) { S.ultimoPulo = txt; log(`degrau medido: não meço de novo (${txt}; volto a medir em ${CFG.medirPerdedorNiveis} níveis)`); }
+    }
+    if (cands.length < 2) return cands[0] ?? null;
+  }
   const valida = (n) => { const m = M[`${area}:${n}`]; return medValida(m, lv) && (!eco || (m.ouroSeg ?? 0) >= CFG.medirMin * 60); };
   const sem = cands.find((n) => !valida(n));
   if (sem != null) return sem; // explora (o mais alto primeiro, pela ordem)
@@ -305,18 +329,19 @@ function medirDegrau() {
   const agora = Date.now();
   const xpAgora = xpAtualDe(e);
   const patAgora = patrimonioOuro(e);
-  const ant = S.medAnterior; S.medAnterior = { em: agora, xp: xpAgora, pat: patAgora, slug: e.huntSlug, centro: !!e.noCentro };
+  const ant = S.medAnterior; S.medAnterior = { em: agora, xp: xpAgora, pat: patAgora, vendas: S.vendasTotal, slug: e.huntSlug, centro: !!e.noCentro };
   if (!ant || ant.slug !== e.huntSlug || !e.huntSlug) return;
   const h = S.hunts.find((x) => x.slug === e.huntSlug); if (!h) return;
   const dt = (agora - ant.em) / 1000; if (dt <= 0 || dt > 60) return;
   const naFaixaOutland = e.level >= CFG.outlandDe && e.level <= CFG.outlandAte;
-  const area = naFaixaOutland && h.area === 'outland' ? 'outland' : (CFG.regioes.length === 1 ? CFG.regioes[0] : 'r');
+  const area = naFaixaOutland && h.area === 'outland' ? 'outland' : areaChave(regioesAtivas());
   const k = `${area}:${h.nivel}`; const M = medicoes();
   if (!M[k] || M[k].lv < e.level - CFG.medirValidadeNiveis) M[k] = { xp: 0, seg: 0, lv: e.level };
   M[k].xp += xpAgora - ant.xp; M[k].seg += dt; // o tempo no Centro e a XP perdida ao morrer entram: é o custo real
-  // ouro: ignora saltos grandes (prêmio do passe, venda no Mercado) e começa a contar à parte em medições antigas
+  // ouro: a venda das capturas entra (é o farm); saltos grandes sem venda (prêmio, pedra no Mercado) ficam fora
   const dOuro = patAgora - (ant.pat ?? patAgora);
-  if (ant.pat != null && Math.abs(dOuro) < CFG.ouroSaltoMin) { M[k].ouro = (M[k].ouro ?? 0) + dOuro; M[k].ouroSeg = (M[k].ouroSeg ?? 0) + dt; }
+  const dVendas = S.vendasTotal - (ant.vendas ?? S.vendasTotal);
+  if (ant.pat != null && Math.abs(dOuro - dVendas) < CFG.ouroSaltoMin) { M[k].ouro = (M[k].ouro ?? 0) + dOuro; M[k].ouroSeg = (M[k].ouroSeg ?? 0) + dt; }
 }
 
 function huntAlvo() {
@@ -336,8 +361,8 @@ function huntAlvo() {
     const o = Object.entries(M).find(([k, m]) => k.startsWith('outland:') && medValida(m, lv));
     const lembra = () => lv - (ACUM.outlandPerdeLv ?? -1e9) < CFG.medirValidadeNiveis;
     if (!o) return lembra();
-    const topo = Math.max(0, ...S.hunts.filter((h) => CFG.regioes.includes(h.area) && h.nivel <= teto).map((h) => h.nivel));
-    const r = M[`${CFG.regioes.length === 1 ? CFG.regioes[0] : 'r'}:${topo}`];
+    const topo = Math.max(0, ...S.hunts.filter((h) => regioesAtivas().includes(h.area) && h.nivel <= teto).map((h) => h.nivel));
+    const r = M[`${areaChave(regioesAtivas())}:${topo}`];
     if (!r || r.seg < CFG.medirMin * 60) return lembra();
     const perde = o[1].xp / o[1].seg < r.xp / r.seg;
     if (perde) ACUM.outlandPerdeLv = o[1].lv; else if (ACUM.outlandPerdeLv != null) delete ACUM.outlandPerdeLv;
@@ -345,7 +370,9 @@ function huntAlvo() {
     if (S.logOutland !== chave) { S.logOutland = chave; log(`Outland ${perde ? 'perde' : 'ganha'}: ${Math.round(o[1].xp / o[1].seg * 3600).toLocaleString('pt-BR')} XP/h × nível ${topo} ${Math.round(r.xp / r.seg * 3600).toLocaleString('pt-BR')} XP/h${perde ? ' → volto para a hunt normal (tem shiny) e meço de novo em ' + CFG.medirValidadeNiveis + ' níveis' : ''}`); }
     return perde;
   })();
-  const regioes = naFaixaOutland && recuos === 0 && !outlandPerde ? ['outland'] : CFG.regioes;
+  const regioes = naFaixaOutland && recuos === 0 && !outlandPerde ? ['outland'] : regioesAtivas();
+  const chaveReg = regioes.join(',');
+  if (S.ultimasRegioes !== chaveReg) { if (S.ultimasRegioes != null) log(`regiões de hunt: ${chaveReg}`); S.ultimasRegioes = chaveReg; }
   const niveis = [...new Set(S.hunts.filter((h) => regioes.includes(h.area) && h.nivel <= teto).map((h) => h.nivel))].sort((a, b) => b - a);
   if (!niveis.length) return null;
   let nivel = niveis[Math.min(recuos, niveis.length - 1)];
@@ -521,6 +548,7 @@ function cuidarDaCaptura() {
 }
 
 // ---------- Sacrifício: capturas de nota 3,5+ viram pontos; a barra cheia vira +20% de XP ----------
+const RARIDADE_PROTEGIDA = new Set(['LEGENDARY', 'MYTHIC', 'EPIC', 'SEM_CATALOGO']); // sem catálogo, não sacrifica nada
 const PONTOS_SAC = [10, 12, 14, 17, 20, 25, 30, 35, 42, 50, 60, 70, 80, 90, 100, 110, 125, 140, 155, 170, 190, 210, 235, 260, 290, 320, 360, 400, 450, 500, 560, 620, 700, 780, 870, 1000];
 const pontosDaNota = (n) => { const d = Math.floor(Math.round(Number(n) * 1000) / 100) - 35; return d < 0 || !Number.isFinite(d) ? 0 : PONTOS_SAC[Math.min(d, PONTOS_SAC.length - 1)]; };
 function cuidarDoSacrificio() {
@@ -536,7 +564,9 @@ function cuidarDoSacrificio() {
   }
   if (pts >= 1000) return; // barra cheia, esperando caber no teto
   const todos = [...S.pokemons.values()];
+  // lendário, mítico e épico (rarity do catálogo; o pokemon não traz esse campo) podem valer Gemas: nunca vão para o altar
   const cands = todos.filter((p) => p.id !== S.eu.activeId && p.slot == null && !p.starter && !p.shiny && !(p.potencia >= 4) && !p.heldItemId
+    && !RARIDADE_PROTEGIDA.has(ESPECIES.get(p.speciesId)?.rarity ?? (ESPECIES.size ? '' : 'SEM_CATALOGO'))
     && pontosDaNota(p.nota) > 0 && Number(p.nota) < CFG.sacNotaMax).sort((x, y) => (x.nota ?? 0) - (y.nota ?? 0));
   // o jogo recusa se sobrar menos de 2 pokemon na conta
   const n = Math.min(cands.length, 50, todos.length - 2);
@@ -736,25 +766,37 @@ function vigiarLives() {
   }
 }
 
+// erro numa rotina não derruba as outras nem o bot: vai para o bot.log (o iniciar-oculto.vbs descarta o stderr)
+const ERROS_VISTOS = new Map();
+function logErro(onde, e) {
+  const msg = `${onde}: ${e?.stack ?? e}`; const chave = msg.slice(0, 200);
+  if (Date.now() - (ERROS_VISTOS.get(chave) ?? 0) < 10 * 60_000) return; // o mesmo erro, no máximo a cada 10 min
+  ERROS_VISTOS.set(chave, Date.now());
+  log('ERRO em', msg.split('\n').slice(0, 4).join(' | '));
+}
+process.on('uncaughtException', (e) => logErro('não tratado', e));
+process.on('unhandledRejection', (e) => logErro('promessa', e));
 function tique() {
   if (!S.welcome || !S.eu) return;
-  vigiarLives();
-  cuidarDaRotina();
-  cuidarDosBosses();
-  cuidarDaRaid();
+  const rodar = (nome, f) => { try { f(); } catch (e) { logErro(nome, e); } };
+  rodar('lives', vigiarLives);
+  rodar('rotina', cuidarDaRotina);
+  rodar('bosses', cuidarDosBosses);
+  rodar('raid', cuidarDaRaid);
   if (CFG.radar && Date.now() - (S.ultimoRadar ?? 0) > 6 * 3600_000) { S.ultimoRadar = Date.now(); carregarRadar(); }
-  medirDegrau();
-  if (Date.now() - (S.ultimaColeta ?? 0) > 6 * 3600_000 && Date.now() - S.conectadoEm > 30_000) { S.ultimaColeta = Date.now(); coletarMercado('automática'); }
-  garantirAutomacoes();
-  cuidarDaEquipe();
-  cuidarDaEvolucao();
-  cuidarDaHunt();
-  cuidarDoEstoque();
-  cuidarDoPasse();
-  cuidarDoSacrificio();
-  cuidarDoPrey();
-  cuidarDoTopCatch();
-  cuidarDoPvp();
+  rodar('vendas', conciliarSaltos);
+  rodar('medição', medirDegrau);
+  if (Date.now() - (S.ultimaColeta ?? 0) > 6 * 3600_000 && Date.now() - S.conectadoEm > 30_000) { S.ultimaColeta = Date.now(); rodar('mercado', () => coletarMercado('automática')); }
+  rodar('automações', garantirAutomacoes);
+  rodar('equipe', cuidarDaEquipe);
+  rodar('evolução', cuidarDaEvolucao);
+  rodar('hunt', cuidarDaHunt);
+  rodar('estoque', cuidarDoEstoque);
+  rodar('passe', cuidarDoPasse);
+  rodar('sacrifício', cuidarDoSacrificio);
+  rodar('prey', cuidarDoPrey);
+  rodar('top catch', cuidarDoTopCatch);
+  rodar('pvp', cuidarDoPvp);
 }
 
 // ---------- mensagens do servidor ----------
@@ -777,7 +819,8 @@ function aoEvento(ev) {
     case 'capturado':
       S.stats.capturas++; ACUM.capturas++; hoje().capturas++; if (ev.pokemon?.shiny) { ACUM.shinyCapturados++; hoje().shiny++; }
       S.capturados.unshift({ em: Date.now(), ...ev.pokemon }); S.capturados.length = Math.min(S.capturados.length, 30);
-      log(`capturou ${ev.pokemon?.shiny ? '✨ ' : ''}${ev.pokemon?.nome} Nv${ev.pokemon?.level} Q${ev.pokemon?.quality}`);
+      log(`capturou ${ev.pokemon?.shiny ? '✨ ' : ''}${ev.pokemon?.nome} Nv${ev.pokemon?.level} Q${ev.pokemon?.quality}${ev.vendidoAuto ? ` · Auto Venda ${Number(ev.vendidoAuto).toLocaleString('pt-BR')} de ouro` : ''}`);
+      if (Number(ev.vendidoAuto) > 0) { S.ultimoVendidoAuto = { valor: Number(ev.vendidoAuto), em: Date.now() }; registrarVenda(Number(ev.vendidoAuto), 'auto'); }
       if (ev.pokemon?.shiny) {
         const p = precoShiny(ev.pokemon.nome);
         const txtPreco = p.sugerido ? `Preço sugerido ~${p.sugerido.toLocaleString('pt-BR')} Gemas (≈ US$ ${p.usd}), ${p.base}.` : 'Sem histórico de preço para essa espécie.';
@@ -798,7 +841,41 @@ function aoEvento(ev) {
     case 'hunt': if (ev.trocaLivreEm) S.eu.trocaLivreEm = ev.trocaLivreEm; break;
     case 'autoHuntSemItens': log('sem itens para a automação — vai comprar'); S.ultimaCompra = 0; break;
     case 'centro': log('foi ao Centro:', ev.motivo ?? ''); break;
+    case 'venda': { // venda ao NPC (Depot); a da Auto Venda já veio no 'capturado'
+      const v = Number(ev.ganho) || 0; const u = S.ultimoVendidoAuto;
+      if (!(u && u.valor === v && Date.now() - u.em < 3000)) registrarVenda(v, 'npc');
+      break;
+    }
   }
+}
+
+// ---------- vendas da Auto Venda × prêmios ----------
+// Quase todo o ouro vem da captura vendida ao NPC (Pinsir Nv100 = 120 mil × qualidade). Antes ela caía como
+// "prêmio" e sumia do ouro/h, do histórico e da medição de hunt no modo economia.
+S.saltos = []; S.vendas = []; S.vendasTotal = 0;
+function registrarVenda(valor, origem) {
+  if (!(valor > 0)) return;
+  S.vendasTotal += valor; ACUM.vendas = (ACUM.vendas ?? 0) + valor; hoje().vendas = (hoje().vendas ?? 0) + valor;
+  S.vendas.push({ valor, em: Date.now(), origem });
+  conciliarSaltos();
+}
+function conciliarSaltos() {
+  const agora = Date.now();
+  // um salto é explicado pelas vendas dos 5 s em volta (a diferença é o ouro dos abates do mesmo pacote)
+  for (const s of [...S.saltos]) {
+    const perto = S.vendas.filter((v) => Math.abs(v.em - s.em) <= 5000);
+    const soma = perto.reduce((t, v) => t + v.valor, 0);
+    if (soma > 0 && s.valor - soma < CFG.ouroSaltoMin) {
+      S.saltos.splice(S.saltos.indexOf(s), 1);
+      for (const v of perto) S.vendas.splice(S.vendas.indexOf(v), 1);
+      log(`venda da captura +${s.valor.toLocaleString('pt-BR')} de ouro (conta no farm)`);
+    } else if (agora - s.em > 5000) {
+      S.saltos.splice(S.saltos.indexOf(s), 1);
+      S.stats.ouroExtra = (S.stats.ouroExtra ?? 0) + s.valor; hoje().ouroExtra += s.valor;
+      log(`ouro extra +${s.valor.toLocaleString('pt-BR')} (prêmio; não conta no ouro/h)`);
+    }
+  }
+  S.vendas = S.vendas.filter((v) => agora - v.em <= 10_000);
 }
 
 function depurar(o) { if (process.env.DEBUG_MSGS === '1') { try { appendFileSync(join(AQUI, 'debug.log'), `[${new Date().toLocaleTimeString('pt-BR')}] ${JSON.stringify(o).slice(0, 700)}\n`); } catch {} } }
@@ -822,16 +899,22 @@ function aoMensagem(m) {
       try { mkdirSync(join(AQUI, 'mercado'), { recursive: true }); writeFileSync(join(AQUI, 'mercado', 'welcome-catalogos.json'), JSON.stringify({ em: new Date().toISOString(), lojaProdutos: m.lojaProdutos, tiposBoost: m.tiposBoost, economia: m.economia, catalogoBolas: m.catalogoBolas, itensCompraveis: m.itensCompraveis, chanceShiny: m.chanceShiny, captura: m.captura, mercado: m.mercado, casas: m.casas, bicicletas: m.bicicletas, shinyStone: m.shinyStone, oferenda: m.oferenda, mega: m.mega, bossesCatalogo: m.bossesCatalogo })); } catch {}
       mesclarEstado({ ...(m.estado ?? {}), cheio: true });
       log(`welcome: ${S.hunts.length} hunts, Nv ${S.eu?.level}, ouro ${S.eu?.gold}`);
+      if (!S.areasLogadas) {
+        S.areasLogadas = true;
+        const por = {}; for (const h of S.hunts) { const a = (por[h.area] ??= { n: 0, min: Infinity, max: 0 }); a.n++; a.min = Math.min(a.min, h.nivel ?? 0); a.max = Math.max(a.max, h.nivel ?? 0); }
+        log('áreas das hunts: ' + Object.entries(por).map(([a, x]) => `${a} ${x.n} (nível ${x.min}–${x.max})`).join(', ') + ` · ativas agora: ${regioesAtivas().join(',') || '-'}`);
+        log(`campos da hunt: ${Object.keys(S.hunts[0] ?? {}).join(',')} · campos do pokemon: ${[...new Set([...S.pokemons.values()].flatMap((p) => Object.keys(p)))].join(',')}`);
+        try { writeFileSync(join(AQUI, 'mercado', 'welcome-hunts.json'), JSON.stringify(S.hunts.map(({ especies, ...h }) => ({ ...h, especies: (especies ?? []).length })))); } catch {}
+      }
       break;
     case 'estado': {
       const antes = S.eu?.gold;
       mesclarEstado(m.estado);
       const depois = S.eu?.gold;
-      // salto de ouro que nenhum abate explica: prêmio, venda grande etc. Fica fora do ouro/h.
-      if (antes != null && depois != null && depois - antes >= CFG.ouroSaltoMin) {
-        S.stats.ouroExtra = (S.stats.ouroExtra ?? 0) + (depois - antes); hoje().ouroExtra += depois - antes;
-        log(`ouro extra +${(depois - antes).toLocaleString('pt-BR')} (prêmio ou venda; não conta no ouro/h)`);
-      }
+      // salto de ouro que nenhum abate explica. A venda da captura (Auto Venda) chega no mesmo segundo,
+      // antes ou depois do salto: espera até 5 s por ela; o que sobrar sem venda é prêmio e fica fora do ouro/h.
+      if (antes != null && depois != null && depois - antes >= CFG.ouroSaltoMin) S.saltos.push({ valor: depois - antes, em: Date.now() });
+      conciliarSaltos();
       break;
     }
     case 'passe': log('passe de batalha:', JSON.stringify(m).slice(0, 300)); break;
@@ -878,7 +961,7 @@ function conectar() {
   ws.onmessage = (ev) => {
     ultimaMsg = Date.now();
     let m; try { m = JSON.parse(ev.data); } catch { return; }
-    aoMensagem(m);
+    try { aoMensagem(m); } catch (e) { logErro(`mensagem ${m?.t ?? '?'}`, e); }
   };
   ws.onerror = (e) => log('erro de socket:', e?.message ?? '');
   ws.onclose = (ev) => {
@@ -931,7 +1014,7 @@ async function carregarCatalogos() {
   try {
     for (const f of ['creatures.json', 'creatures-novos.json']) {
       const d = await pegar(f);
-      for (const c of d.creatures ?? []) { ESPECIES.set(c.pokeId, { nome: c.name, type1: c.type1, type2: c.type2 ?? null, evolvesToId: c.evolvesToId ?? null, evolveLevel: c.evolveLevel ?? null, looktype: c.looktype ?? null }); if (c.looktype != null && !LOOK_POR_NOME.has(c.name)) LOOK_POR_NOME.set(c.name, c.looktype); }
+      for (const c of d.creatures ?? []) { ESPECIES.set(c.pokeId, { nome: c.name, type1: c.type1, type2: c.type2 ?? null, evolvesToId: c.evolvesToId ?? null, evolveLevel: c.evolveLevel ?? null, looktype: c.looktype ?? null, rarity: c.rarity ?? null }); if (c.looktype != null && !LOOK_POR_NOME.has(c.name)) LOOK_POR_NOME.set(c.name, c.looktype); }
     }
     const it = await pegar('items.json');
     for (const i of it.items ?? []) ITEM_POR_NOME.set(i.name, i.id);
@@ -1303,9 +1386,9 @@ function escreverHistorico() {
   const linhas = Object.entries(ACUM.dias ?? {}).sort(([a], [b]) => b.localeCompare(a)).map(([dia, d]) => {
     const farm = (d.ouroFim ?? 0) - (d.ouroIni ?? 0) - (d.ouroExtra ?? 0);
     const drops = Object.entries(d.drops ?? {}).sort((a, b) => b[1] - a[1]).map(([n, q]) => `${n} ${q}`).join(', ') || '—';
-    return `| ${dia} | ${(d.segundosOnline / 3600).toFixed(1)} | ${d.nivelIni ?? '?'} → ${d.nivelFim ?? '?'} | ${fmt(farm)} | ${fmt(d.ouroExtra)} | ${fmt(d.abates)} | ${fmt(d.desmaios)} | ${fmt(d.bolas)} | ${fmt(d.capturas)} | ${fmt(d.shiny)} (${fmt(d.shinyCampo)} no campo) | ${drops} |`;
+    return `| ${dia} | ${(d.segundosOnline / 3600).toFixed(1)} | ${d.nivelIni ?? '?'} → ${d.nivelFim ?? '?'} | ${fmt(farm)} | ${fmt(d.vendas)} | ${fmt(d.ouroExtra)} | ${fmt(d.abates)} | ${fmt(d.desmaios)} | ${fmt(d.bolas)} | ${fmt(d.capturas)} | ${fmt(d.shiny)} (${fmt(d.shinyCampo)} no campo) | ${drops} |`;
   });
-  const txt = `# Histórico do PokeIdle bot\n\nGerado pelo bot a partir de stats.json (atualiza a cada minuto). "Ouro do farm" é a variação do ouro sem os prêmios e as vendas grandes, que ficam em "Prêmios". O ouro gasto em bolas, poções e pedras já está descontado.\n\n| Dia | Horas online | Nível | Ouro do farm | Prêmios | Abates | Desmaios | Bolas confirmadas | Capturas | Shiny | Drops |\n|---|---|---|---|---|---|---|---|---|---|---|\n${linhas.join('\n')}\n`;
+  const txt = `# Histórico do PokeIdle bot\n\nGerado pelo bot a partir de stats.json (atualiza a cada minuto). "Ouro do farm" é a variação do ouro sem os prêmios. Ele inclui as "Vendas", que é o que a Auto Venda pagou pelas capturas. O ouro gasto em bolas, poções e pedras já está descontado.\n\n| Dia | Horas online | Nível | Ouro do farm | Vendas | Prêmios | Abates | Desmaios | Bolas confirmadas | Capturas | Shiny | Drops |\n|---|---|---|---|---|---|---|---|---|---|---|---|\n${linhas.join('\n')}\n`;
   try { writeFileSync(join(AQUI, 'historico.md'), txt); } catch {}
 }
 
@@ -1461,5 +1544,5 @@ if (CFG.manterAcordado && process.platform === 'win32') {
 }
 
 process.on('SIGINT', () => { log('encerrando'); resumo(); S.parar = true; S.ws?.close(1000); setTimeout(() => process.exit(0), 300); });
-log(`PokeIdle bot — ${CFG.nick}${CFG.somenteLer ? ' (SOMENTE_LER)' : ''} · regiões ${CFG.regioes.join(',')} · captura ${CFG.modoCaptura}`);
+log(`PokeIdle bot — ${CFG.nick}${CFG.somenteLer ? ' (SOMENTE_LER)' : ''} · regiões ${CFG.regioesAuto ? 'auto' : CFG.regioes.join(',')} · captura ${CFG.modoCaptura}`);
 conectar();

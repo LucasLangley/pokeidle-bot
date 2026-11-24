@@ -16,3 +16,14 @@
 - [ ] **Medir o shiny:** depois de alguns dias, ler `stats.json` (bolas confirmadas e shiny capturados) e decidir se o Shiny Secret Lure compensa.
 - [ ] **Evolução:** confirmar no log a primeira evolução real (Charmander no Nv 20+).
 - [ ] **Hunt por tipo:** conferir a escolha na troca de degrau (Nv 20).
+
+## Rodada "melhorias de XP" (24/11/2026)
+- [x] Remedição de degrau só quando o de baixo perdeu por menos de 30% (`MEDIR_FOLGA`); antes tomava 1/3 do tempo no nível 80
+- [x] Top Catch desligado por padrão (`TOP_CATCH=0`): ia para hunts de nível 1, ~43 mil XP/h contra ~12 mi
+- [x] Venda da Auto Venda (`vendidoAuto`, evento `venda`) conta como farm, não como prêmio; coluna "Vendas" no histórico; 24/11 corrigido no `stats.json`
+- [x] `REGIOES=auto` e áreas das hunts no log da partida (Johto fica dentro de `kanto`, níveis 1–470; Orre começa no 500)
+- [x] Sacrifício não leva espécie LEGENDARY, MYTHIC nem EPIC (`rarity` do catálogo)
+- [x] Erro numa rotina vai para o `bot.log` e não derruba o bot
+- [x] Repositório público: https://github.com/LucasLangley/pokeidle-bot
+- [ ] Conferir no log, na próxima volta para a hunt normal, a linha "degrau medido: não meço de novo (nível 80 …)"
+- [ ] Convidar o colaborador (falta o usuário do GitHub dele)
