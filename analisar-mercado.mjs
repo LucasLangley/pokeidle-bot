@@ -1,0 +1,32 @@
+// Lê a coleta mais recente de mercado/ e imprime as tabelas usadas no MERCADO.md.
+import { readFileSync, readdirSync } from 'node:fs';
+const arqItens = process.argv[2];
+const itens = new Map(JSON.parse(readFileSync(arqItens, 'utf8')).items.map((i) => [String(i.id), i]));
+const arq = readdirSync('mercado').filter((f) => f.startsWith('coleta-')).sort().pop();
+const c = JSON.parse(readFileSync('mercado/' + arq, 'utf8'));
+const R = c.respostas;
+const medias = R.find((r) => r.aba === 'medias');
+const nome = (id) => itens.get(String(id))?.name ?? `item ${id}`;
+const rows = Object.entries(medias.medias).map(([id, m]) => ({ id, nome: nome(id), cat: itens.get(id)?.category, npc: itens.get(id)?.npcPrice, g: m.gold?.media, gu: m.gold?.unidades, o: m.orb?.media, ou: m.orb?.unidades }));
+const comAmbos = rows.filter((r) => r.g && r.o && r.ou >= 50);
+const razoes = comAmbos.map((r) => r.g / r.o).sort((a, b) => a - b);
+const mediana = razoes[Math.floor(razoes.length / 2)];
+console.log(`coleta ${arq} · médias de ${medias.dias} dias · ${rows.length} itens com média`);
+console.log(`ouro por Orb (mediana de ${comAmbos.length} itens com ≥50 un. em Orb): ${Math.round(mediana).toLocaleString('pt-BR')}  [p25 ${Math.round(razoes[Math.floor(razoes.length*.25)]).toLocaleString('pt-BR')} · p75 ${Math.round(razoes[Math.floor(razoes.length*.75)]).toLocaleString('pt-BR')}]`);
+console.log('\nTOP por valor unitário em Orbs (≥10 un. vendidas em Orb):');
+for (const r of rows.filter((r) => r.o && r.ou >= 10).sort((a, b) => b.o - a.o).slice(0, 30)) console.log(`${r.id}\t${r.nome}\t${r.cat}\t${r.o} orb (${r.ou} un)\t${r.g ? r.g.toLocaleString('pt-BR') + ' ouro' : '-'} (${r.gu ?? 0} un)\tNPC ${r.npc}`);
+console.log('\nTOP por volume em Orbs (orb × unidades):');
+for (const r of rows.filter((r) => r.o).sort((a, b) => b.o * b.ou - a.o * a.ou).slice(0, 20)) console.log(`${r.nome}\t${r.o} orb × ${r.ou} = ${(r.o * r.ou).toLocaleString('pt-BR')} orb`);
+console.log('\nTOP por volume em ouro:');
+for (const r of rows.filter((r) => r.g).sort((a, b) => b.g * b.gu - a.g * a.gu).slice(0, 15)) console.log(`${r.nome}\t${r.g.toLocaleString('pt-BR')} × ${r.gu.toLocaleString('pt-BR')}`);
+const hist = R.filter((r) => r.aba === 'historicoGlobal').flatMap((r) => r.linhas);
+const vistos = new Set(); const H = hist.filter((l) => !vistos.has(l.id) && vistos.add(l.id));
+const shiny = H.filter((l) => l.tipo === 'pokemon' && /shiny|✨/i.test(l.descricao + JSON.stringify(l.ficha ?? {})) );
+console.log(`\nhistórico: ${H.length} vendas únicas, de ${new Date(Math.min(...H.map((l) => l.em))).toLocaleString('pt-BR')} a ${new Date(Math.max(...H.map((l) => l.em))).toLocaleString('pt-BR')}`);
+console.log('\nVENDAS DE POKEMON (amostra, orb):');
+for (const l of H.filter((l) => l.tipo === 'pokemon' && l.moeda === 'orb').slice(0, 40)) console.log(`${new Date(l.em).toLocaleString('pt-BR')}\t${l.descricao}\t${l.bruto} orb\t${l.ficha ? JSON.stringify(l.ficha).slice(0, 160) : ''}`);
+const saques = H.filter((l) => l.tipo === 'saque' || /saque/i.test(l.descricao));
+console.log(`\nSAQUES (${saques.length}):`); for (const l of saques.slice(0, 30)) console.log(`${new Date(l.em).toLocaleString('pt-BR')}\t${l.descricao}\t${l.bruto} ${l.moeda}`);
+const vit = R.filter((r) => r.aba === 'vitrine');
+for (const v of vit) { console.log(`\nVITRINE total=${v.total} ordem=${v.ordem}`); for (const l of v.linhas.slice(0, 24)) console.log(JSON.stringify(l).slice(0, 230)); }
+const it = R.find((r) => r.aba === 'itens'); console.log('\nITENS resumo amostra', JSON.stringify(it.resumo).slice(0, 1500));

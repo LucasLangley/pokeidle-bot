@@ -1,0 +1,16 @@
+# segredo: nick e token da conta
+.env
+
+# dados da conta e do jogo, gerados pelo bot
+bot.log
+debug.log
+bot.pid
+PAUSADO
+stats.json
+historico.md
+shinies.log
+mercado/
+torneios/
+
+# cópias antigas (o histórico agora fica no git)
+*.bak-*

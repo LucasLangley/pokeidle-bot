@@ -1,0 +1,436 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PokeIdle bot</title>
+<style>
+  /* Cor só para estado: verde = vivo/online, vermelho = problema, dourado = shiny. O resto é cinza. */
+  :root {
+    --fundo:#111316; --painel:#181b20; --linha:#252930; --linha-forte:#323741;
+    --txt:#e6e8eb; --sub:#8b919b; --fraco:#5d636d;
+    --ok:#6cc08a; --mau:#e3684f; --shiny:#e9c868; --shiny-fundo:#2c2614;
+    --r:6px; --e1:4px; --e2:8px; --e3:12px; --e4:16px; --e5:24px;
+  }
+  * { box-sizing:border-box; }
+  html { background:var(--fundo); }
+  body { margin:0; color:var(--txt); font:14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; font-variant-numeric:tabular-nums; }
+  .num { font-variant-numeric:tabular-nums; }
+  .sub { color:var(--sub); }
+  .fraco { color:var(--fraco); }
+
+  /* barra de status: a primeira coisa que o olho pega */
+  .status { display:grid; grid-template-columns:1fr auto; gap:var(--e2) var(--e5); align-items:center; padding:var(--e3) var(--e5); border-bottom:1px solid var(--linha); background:var(--painel); }
+  .quem { display:flex; flex-wrap:wrap; gap:var(--e1) var(--e3); align-items:baseline; min-width:0; }
+  .quem b { font-size:15px; font-weight:600; }
+  .ponto { display:inline-block; width:8px; height:8px; border-radius:50%; background:var(--fraco); margin-right:6px; transform:translateY(-1px); }
+  .ponto.on { background:var(--ok); } .ponto.off { background:var(--mau); }
+  .nivel { display:flex; gap:var(--e3); align-items:center; justify-self:end; }
+  .nivel strong { font-size:22px; font-weight:600; line-height:1; }
+  .barra { width:160px; height:6px; border-radius:3px; background:var(--linha); overflow:hidden; }
+  .barra i { display:block; height:100%; background:var(--ok); }
+  .onde { grid-column:1 / -1; color:var(--sub); font-size:13px; }
+
+  /* shiny */
+  .shiny-faixa { display:flex; gap:var(--e4); align-items:center; justify-content:space-between; flex-wrap:wrap; margin:var(--e4) var(--e5) 0; padding:var(--e3) var(--e4); border-radius:var(--r); background:var(--shiny-fundo); border:1px solid var(--shiny); }
+  .shiny-faixa[hidden] { display:none; }
+  .shiny-faixa b { color:var(--shiny); font-size:16px; margin-right:var(--e2); }
+  .shiny-faixa span { color:#e7dcb6; }
+  .shiny-faixa button { background:var(--shiny); color:#1a1710; border:0; border-radius:var(--r); padding:6px 14px; font:600 13px system-ui, sans-serif; cursor:pointer; }
+  .shiny-faixa.novo { animation:pisca 1s ease-in-out 6; }
+  @keyframes pisca { 50% { background:#4a3d14; } }
+
+  main { display:grid; grid-template-columns:minmax(0, 3fr) minmax(0, 2fr); gap:var(--e4); padding:var(--e4) var(--e5) var(--e5); }
+  section { background:var(--painel); border:1px solid var(--linha); border-radius:var(--r); padding:var(--e4); min-width:0; }
+  h2 { font-size:13px; font-weight:600; color:var(--sub); margin:0 0 var(--e3); }
+  h2 .num { color:var(--txt); font-weight:600; }
+
+  /* ritmo: o bloco principal */
+  .coluna { display:flex; flex-direction:column; gap:var(--e4); min-width:0; }
+  main > section { align-self:start; }
+  .grande span.espera { font-size:14px; font-weight:400; color:var(--fraco); line-height:2.4; }
+  .grandes { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:var(--e4); margin-bottom:var(--e4); }
+  .grande span { display:block; font-size:30px; font-weight:600; line-height:1.1; }
+  .grande small { color:var(--sub); font-size:13px; }
+  .linha-nums { display:flex; flex-wrap:wrap; gap:var(--e1) var(--e5); padding:var(--e3) 0; border-top:1px solid var(--linha); border-bottom:1px solid var(--linha); margin-bottom:var(--e4); color:var(--sub); }
+  .linha-nums b { color:var(--txt); font-weight:600; }
+  .linha-nums .ruim b { color:var(--mau); }
+
+  /* listas com barra de HP (equipe e campo usam o mesmo desenho) */
+  .lista { list-style:none; margin:0; padding:0; }
+  .lista li { display:grid; grid-template-columns:minmax(0, 1fr) 96px 64px; gap:var(--e3); align-items:center; padding:6px 0; border-bottom:1px solid var(--linha); }
+  .lista li:last-child { border-bottom:0; }
+  .lista .nome { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .lista .nome small { color:var(--fraco); margin-left:6px; }
+  .lista .hp { height:5px; border-radius:3px; background:var(--linha); overflow:hidden; }
+  .lista .hp i { display:block; height:100%; background:var(--ok); }
+  .lista .hp i.baixo { background:var(--mau); }
+  .lista .v { text-align:right; color:var(--sub); font-size:13px; }
+  .lista li.ativo .nome::before { content:"▸ "; color:var(--ok); }
+  .lista li.caido .nome { color:var(--fraco); }
+  .lista li.caido .hp { visibility:hidden; }
+  .lista li.shiny .nome { color:var(--shiny); }
+  .vazio, table td.vazio { color:var(--fraco); padding:6px 0; text-align:left; }
+
+  /* faixas finas */
+  .tiras { grid-column:1 / -1; display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:var(--e4); }
+  .tira { background:var(--painel); border:1px solid var(--linha); border-radius:var(--r); padding:var(--e3) var(--e4); min-width:0; }
+  .tira h2 { margin-bottom:var(--e2); }
+  .pares { display:flex; flex-wrap:wrap; gap:var(--e1) var(--e4); }
+  .pares span { white-space:nowrap; color:var(--sub); }
+  .pares b { color:var(--txt); font-weight:600; }
+  .pares .ativo b { color:var(--ok); }
+  .pares .shiny b { color:var(--shiny); }
+  .canais { margin-top:var(--e2); font-size:12px; color:var(--fraco); }
+
+  .duas { grid-column:1 / -1; display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:var(--e4); }
+  table { width:100%; border-collapse:collapse; }
+  td { padding:5px 0; border-bottom:1px solid var(--linha); }
+  tr:last-child td { border-bottom:0; }
+  td:last-child { text-align:right; color:var(--sub); }
+  td.shiny { color:var(--shiny); }
+
+  .dias { grid-column:1 / -1; }
+  .rolar { overflow-x:auto; }
+  #dias { min-width:640px; }
+  #dias th { text-align:right; font-weight:600; font-size:12px; color:var(--sub); padding:0 0 6px; border-bottom:1px solid var(--linha-forte); }
+  #dias th:first-child, #dias td:first-child { text-align:left; }
+  #dias td { text-align:right; color:var(--txt); }
+  #dias td.zero { color:var(--fraco); }
+  #dias td.ruim { color:var(--mau); }
+  #dias td.shiny { color:var(--shiny); }
+  .log { grid-column:1 / -1; }
+  .log pre { margin:0; max-height:300px; overflow:auto; font:12px/1.55 ui-monospace, Consolas, monospace; color:#b9bec6; white-space:pre-wrap; word-break:break-word; }
+
+  /* cena: o pokemon ativo de frente para os selvagens, com os sprites do próprio jogo */
+  .bonus { margin-bottom:var(--e3); }
+  #cena { display:block; width:100%; height:290px; margin-bottom:var(--e3); border-radius:var(--r); background:#14171b; border:1px solid var(--linha); image-rendering:pixelated; }
+
+  @media (max-width: 860px) {
+    main, .duas, .tiras { grid-template-columns:minmax(0, 1fr); }
+    .status { padding:var(--e3) var(--e4); grid-template-columns:1fr; }
+    .nivel { justify-self:start; }
+    main { padding:var(--e4); }
+    .shiny-faixa { margin:var(--e4) var(--e4) 0; }
+    .grande span { font-size:26px; }
+    .lista li { grid-template-columns:minmax(0, 1fr) 64px 56px; }
+  }
+</style>
+</head>
+<body>
+<header class="status">
+  <div class="quem">
+    <span><span class="ponto" id="ponto"></span><b id="nick">PokeIdle bot</b></span>
+    <span class="sub" id="con">conectando…</span>
+  </div>
+  <div class="nivel">
+    <span class="sub">Nv</span><strong class="num" id="nivel">—</strong>
+    <div class="barra" title="XP até o próximo nível"><i id="xpbar" style="width:0"></i></div>
+    <span class="sub num" id="xppct">—</span>
+  </div>
+  <div class="onde" id="hunt">—</div>
+</header>
+
+<div class="shiny-faixa" id="alerta" hidden>
+  <div><b id="alerta-titulo"></b><span id="alerta-texto"></span></div>
+  <button id="alerta-ok" type="button">Visto</button>
+</div>
+
+<main>
+  <div class="coluna">
+  <section class="ritmo">
+    <div class="grandes">
+      <div class="grande"><span class="num" id="xph">—</span><small>XP por hora</small></div>
+      <div class="grande"><span class="num" id="ouroh">—</span><small>ouro por hora (farm)</small></div>
+    </div>
+    <div class="linha-nums">
+      <span>ouro <b class="num" id="ouro">—</b></span>
+      <span>abates <b class="num" id="abates">—</b></span>
+      <span id="desm-box">desmaios <b class="num" id="desmaios">—</b></span>
+      <span id="extra-box" hidden>prêmios <b class="num" id="extra">—</b></span>
+    </div>
+    <h2>Equipe</h2>
+    <ul class="lista" id="equipe"></ul>
+  </section>
+
+  <section>
+    <h2>Shiny <span class="num" id="nshiny">0</span></h2>
+    <div class="pares" id="shinyacum"></div>
+    <table id="shinies" style="margin-top:var(--e3)"></table>
+  </section>
+  </div>
+
+  <section>
+    <h2>No jogo agora</h2>
+    <div class="pares bonus" id="bonus"></div>
+    <canvas id="cena" aria-label="Seu pokemon ativo e os selvagens do campo"></canvas>
+    <ul class="lista" id="campo"></ul>
+  </section>
+
+  <div class="tiras">
+    <div class="tira">
+      <h2>Bônus das lives</h2>
+      <div class="pares" id="lives"></div>
+      <div class="canais" id="canais"></div>
+    </div>
+    <div class="tira">
+      <h2>Mochila</h2>
+      <div class="pares" id="mochila"></div>
+    </div>
+    <div class="tira">
+      <h2>Capturas nesta sessão</h2>
+      <div class="pares" id="captsessao"></div>
+    </div>
+  </div>
+
+  <div class="duas">
+    <section>
+      <h2>Drops desta sessão</h2>
+      <table id="drops"></table>
+    </section>
+    <section>
+      <h2>Capturados recentes</h2>
+      <table id="capturados"></table>
+    </section>
+  </div>
+
+  <section class="dias">
+    <h2>Últimos dias</h2>
+    <div class="rolar">
+      <table id="dias">
+        <thead><tr><th>Dia</th><th>Online</th><th>Nível</th><th>Ouro do farm</th><th>Abates</th><th>Desmaios</th><th>Bolas</th><th>Capturas</th><th>Shiny</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="log">
+    <h2>Log</h2>
+    <pre id="logtxt"></pre>
+  </section>
+</main>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[c]));
+const n = (v) => v == null || Number.isNaN(v) ? '—' : Number(v).toLocaleString('pt-BR');
+// número compacto: 264.677 → 264,7 mil; 15.010.478 → 15 mi
+function c(v) {
+  if (v == null || Number.isNaN(v)) return '—';
+  const a = Math.abs(v);
+  if (a >= 1e9) return (v / 1e9).toLocaleString('pt-BR', { maximumFractionDigits: 1 }) + ' bi';
+  if (a >= 1e6) return (v / 1e6).toLocaleString('pt-BR', { maximumFractionDigits: 1 }) + ' mi';
+  if (a >= 1e4) return (v / 1e3).toLocaleString('pt-BR', { maximumFractionDigits: 1 }) + ' mil';
+  return Math.round(v).toLocaleString('pt-BR');
+}
+const NOMES = { 1:'Poke Ball', 2:'Great Ball', 3:'Super Ball', 4:'Ultra Ball', 5:'Beast Ball', 200:'Small Potion', 201:'Great Potion', 202:'Ultra Potion', 203:'Hyper Potion', 204:'Ultimate Potion', 205:'Revive', 206:'Max Revive', 70000:'Boss Token' };
+const TP = { xp: 'XP', captura: 'Captura', shiny: 'Lure' };
+const fmtMin = (m) => m >= 60 ? `${Math.floor(m / 60)} h ${m % 60} min` : `${m} min`;
+
+function linhaHp({ nome, extra, hp, mhp, classes = '' , direita }) {
+  const pct = mhp ? Math.max(0, Math.min(100, 100 * hp / mhp)) : 0;
+  return `<li class="${classes}"><span class="nome">${nome}${extra ? `<small>${extra}</small>` : ''}</span>` +
+    `<span class="hp"><i class="${pct < 30 ? 'baixo' : ''}" style="width:${pct}%"></i></span>` +
+    `<span class="v num">${direita ?? `${c(hp)}/${c(mhp)}`}</span></li>`;
+}
+function lista(el, html, vazio) { el.innerHTML = html.length ? html.join('') : `<li class="vazio" style="display:block">${vazio}</li>`; }
+function tabela(el, html, vazio) { el.innerHTML = html.length ? html.join('') : `<tr><td class="vazio" colspan="2">${vazio}</td></tr>`; }
+
+let ultimoEstado = null;
+async function atualizar() {
+  let s;
+  try { s = await (await fetch('/estado')).json(); }
+  catch { $('ponto').className = 'ponto off'; $('con').textContent = 'painel sem resposta (o bot está rodando?)'; return; }
+  ultimoEstado = s;
+  $('nick').textContent = s.nick + (s.somenteLer ? ' · só leitura' : '');
+  $('ponto').className = 'ponto ' + (s.conectado ? 'on' : 'off');
+  const tempo = s.minutos < 60 ? `${s.minutos} min` : `${(s.minutos / 60).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} h`;
+  $('con').textContent = (s.conectado ? 'online' : 'reconectando') + ` · ${tempo} desde o último início`;
+
+  $('nivel').textContent = n(s.nivel);
+  const pct = 100 * (s.progresso ?? 0);
+  $('xpbar').style.width = pct + '%';
+  $('xppct').textContent = s.xpProximo ? `${Math.floor(pct)}%` : '—';
+  $('hunt').textContent = s.noCentro ? 'No Centro Pokemon'
+    : s.hunt ? `${s.hunt.nome}, nível ${n(s.hunt.nivel)} (${s.hunt.area}${s.hunt.area === 'outland' ? `, tier ${s.outlandTier - 100}` : ''})` : 'Sem hunt';
+
+  // taxa só depois de 5 min: antes disso ela engana
+  const cedo = s.minutos < 5;
+  const espera = `medindo… ${Math.max(1, 5 - s.minutos)} min`;
+  $('xph').textContent = cedo ? espera : c(s.xph);
+  $('ouroh').textContent = cedo ? espera : c(s.ouroh);
+  $('xph').className = $('ouroh').className = cedo ? 'num espera' : 'num';
+  $('ouro').textContent = c(s.ouro);
+  $('abates').textContent = n(s.stats.abates);
+  $('desmaios').textContent = n(s.stats.desmaios);
+  $('desm-box').className = s.stats.desmaios > 0 ? 'ruim' : '';
+  $('extra-box').hidden = !s.ouroExtra; $('extra').textContent = c(s.ouroExtra);
+
+  lista($('equipe'), s.equipe.map((p) => linhaHp({
+    nome: `${p.shiny ? '✨ ' : ''}${esc(p.nome)} Nv${n(p.nv)}`, extra: `P${p.p} · Q${p.q} · N${p.nota ?? '—'}`,
+    hp: p.hp, mhp: p.mhp, classes: `${p.ativo ? 'ativo' : ''} ${p.shiny ? 'shiny' : ''} ${p.hp <= 0 ? 'caido' : ''}`,
+  })), 'vazia');
+
+  const campo = [...s.campo].sort((a, b) => (a.morto - b.morto) || (b.shiny - a.shiny));
+  lista($('campo'), campo.map((m) => linhaHp({
+    nome: `${m.shiny ? '✨ ' : ''}${esc(m.nome)} Nv${n(m.nv)}`, hp: m.hp, mhp: m.mhp,
+    classes: `${m.morto ? 'caido' : ''} ${m.shiny ? 'shiny' : ''}`, direita: m.morto ? 'caído' : undefined,
+  })), 'nenhum selvagem');
+
+  const ac = s.acumulado ?? {};
+  $('shinyacum').innerHTML = [
+    `<span class="${ac.shinyCapturados ? 'shiny' : ''}">capturados <b class="num">${n(ac.shinyCapturados ?? 0)}</b></span>`,
+    `<span>vistos no campo <b class="num">${n(ac.shinyNoCampo ?? 0)}</b></span>`,
+    `<span>bolas confirmadas <b class="num">${n(ac.bolasConfirmadas ?? 0)}</b></span>`,
+    `<span>capturas <b class="num">${n(ac.capturas ?? 0)}</b></span>`,
+  ].join('');
+  $('shinyacum').title = ac.desde ? `Somado desde ${new Date(ac.desde).toLocaleString('pt-BR')} (stats.json)` : '';
+
+  const ativos = [], canais = [];
+  for (const l of s.lives ?? []) {
+    const nome = l.plataforma === 'twitch' ? 'Twitch' : 'Kick';
+    if (!l.vinculado) { ativos.push(`<span>${nome} <b>não vinculada</b></span>`); continue; }
+    const on = Object.entries(l.bonus).filter(([, m]) => m > 0);
+    ativos.push(on.length ? on.map(([tp, m]) => `<span class="ativo">${nome} ${TP[tp]} <b>${fmtMin(m)}</b></span>`).join('') : `<span>${nome} <b class="fraco">nenhum</b></span>`);
+    if (l.noAr.length) canais.push(`${nome} no ar: ${esc(l.noAr.slice(0, 6).join(', '))}${l.noAr.length > 6 ? ` +${l.noAr.length - 6}` : ''}`);
+  }
+  $('lives').innerHTML = ativos.join('');
+  $('canais').textContent = canais.join(' · ');
+
+  const moch = [...Object.entries(s.bolas), ...Object.entries(s.itens)].filter(([, q]) => q > 0);
+  $('mochila').innerHTML = moch.length ? moch.map(([id, q]) => `<span>${esc(NOMES[id] ?? s.nomesItens?.[id] ?? `item ${id}`)} <b class="num">${n(q)}</b></span>`).join('') : '<span class="fraco">vazia</span>';
+
+  $('captsessao').innerHTML = `<span>capturas <b class="num">${n(s.stats.capturas)}</b></span><span>bolas confirmadas <b class="num">${n(s.stats.bolasServidor ?? 0)}</b></span>`;
+
+  tabela($('drops'), s.drops.map(([nome, q]) => `<tr><td>${esc(nome)}</td><td class="num">${n(q)}</td></tr>`), 'nada ainda');
+  tabela($('capturados'), s.capturados.map((p) => `<tr><td class="${p.shiny ? 'shiny' : ''}">${p.shiny ? '✨ ' : ''}${esc(p.nome)} Nv${n(p.level)} <span class="fraco">Q${p.quality ?? '—'}</span></td><td class="num">${new Date(p.em).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</td></tr>`), 'nenhuma ainda');
+
+  const dias = Object.entries(ac.dias ?? {}).sort(([a], [b]) => b.localeCompare(a)).slice(0, 7);
+  const cel = (v, cls = '') => `<td class="num ${v ? cls : 'zero'}">${typeof v === 'string' ? v : c(v)}</td>`;
+  $('dias').querySelector('tbody').innerHTML = dias.length ? dias.map(([dia, d]) => {
+    const farm = (d.ouroFim ?? 0) - (d.ouroIni ?? 0) - (d.ouroExtra ?? 0);
+    const [, m, dd] = dia.split('-');
+    return `<tr><td>${dd}/${m}</td>${cel(`${((d.segundosOnline ?? 0) / 3600).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} h`)}` +
+      `${cel(`${d.nivelIni ?? '?'} → ${d.nivelFim ?? '?'}`)}${cel(farm)}${cel(d.abates)}${cel(d.desmaios, 'ruim')}${cel(d.bolas)}${cel(d.capturas)}${cel(d.shiny, 'shiny')}</tr>`;
+  }).join('') : '<tr><td class="vazio" colspan="9">o primeiro dia aparece em até 1 min</td></tr>';
+
+  mostrarBonus(s);
+  mostrarAlertas(s.alertas);
+}
+
+// ---- bônus ativos ----
+const NOME_BOOST = { xp: 'XP', pokexp: 'XP de pokemon', loot: 'Loot', captura: 'Captura', shiny: 'Shiny' };
+const dur = (m) => m >= 2880 ? `${Math.floor(m / 1440)} dias` : m >= 120 ? `${Math.floor(m / 60)} h` : `${m} min`;
+function mostrarBonus(s) {
+  const b = s.bonus ?? {}, on = [];
+  if (b.vip) on.push(`<span class="ativo">VIP <b>${b.vipPermanente ? 'permanente' : dur(b.vipMin)}</b></span>`);
+  if (b.passeVipMin > 0) on.push(`<span class="ativo">VIP do passe <b>${dur(b.passeVipMin)}</b></span>`);
+  for (const [k, m] of Object.entries(b.boosts ?? {})) on.push(`<span class="ativo">Boost ${esc(NOME_BOOST[k] ?? k)} <b>${dur(m)}</b></span>`);
+  for (const [k, m] of Object.entries(b.pausados ?? {})) on.push(`<span>Boost ${esc(NOME_BOOST[k] ?? k)} <b class="fraco">pausado, ${dur(m)}</b></span>`);
+  for (const l of s.lives ?? []) for (const [tp, m] of Object.entries(l.bonus ?? {})) if (m > 0) on.push(`<span class="ativo">${l.plataforma === 'twitch' ? 'Twitch' : 'Kick'} ${TP[tp]} <b>${dur(m)}</b></span>`);
+  if (b.guildPct > 0) on.push(`<span class="ativo">Guild <b>+${b.guildPct}%</b></span>`);
+  $('bonus').innerHTML = on.length ? on.join('') : '<span class="fraco">nenhum bônus ativo</span>';
+}
+
+// ---- cena: sprites do jogo (/sprite devolve os quadros; as imagens vêm de pokeidle.io) ----
+const SPR = new Map();
+function sprite(lt) {
+  if (!lt) return null;
+  if (SPR.has(lt)) { const v = SPR.get(lt); return v === 'carregando' ? null : v; }
+  SPR.set(lt, 'carregando');
+  fetch('/sprite?lt=' + lt).then((r) => r.ok ? r.json() : null).then((s) => {
+    SPR.set(lt, s ? { s, imgs: s.paginas.map((u) => { const i = new Image(); i.src = u; return i; }) } : null);
+  }).catch(() => SPR.set(lt, null));
+  return null;
+}
+const golpe = new Map(); // chave → { hp, em } para tremer quem levou dano
+function levouDano(chave, hp) {
+  const g = golpe.get(chave);
+  if (g && hp < g.hp) g.em = performance.now();
+  golpe.set(chave, { hp, em: g?.em ?? 0 });
+  return performance.now() - (golpe.get(chave).em) < 260;
+}
+function desenhar(ctx, alvo, dir, cx, chao, escala, t, opts = {}) {
+  const sp = sprite(alvo.lt);
+  const q = sp && (sp.s.dirs[dir] ?? sp.s.dirs[3] ?? Object.values(sp.s.dirs)[0]);
+  const treme = opts.treme ? Math.sin(t / 18) * 3 : 0;
+  ctx.globalAlpha = opts.morto ? 0.28 : 1;
+  let topo;
+  if (q?.length) {
+    const f = q[opts.morto ? 0 : Math.floor(t / 170 + (opts.fase ?? 0)) % q.length];
+    const img = sp.imgs[f.p];
+    const e = f.h > 32 ? escala * 0.7 : escala; // sprite de 2×2 quadros já é grande
+    const w = f.w * e, h = f.h * e;
+    if (img?.complete && img.naturalWidth) ctx.drawImage(img, f.x, f.y, f.w, f.h, Math.round(cx - w / 2 + treme), Math.round(chao - h), w, h);
+    topo = chao - (f.h > 32 ? h * 0.7 : h * 0.85) - 4;
+  } else {
+    ctx.fillStyle = '#323741'; ctx.beginPath(); ctx.arc(cx + treme, chao - 16 * escala / 2, 12 * escala / 2, 0, 7); ctx.fill();
+    ctx.fillStyle = '#8b919b'; ctx.font = '600 13px system-ui'; ctx.textAlign = 'center'; ctx.fillText((alvo.nome ?? '?')[0], cx + treme, chao - 16 * escala / 2 + 5);
+    topo = chao - 16 * escala - 6;
+  }
+  ctx.globalAlpha = 1;
+  if (opts.morto) return;
+  const bw = Math.max(34, 12 * escala), pct = alvo.mhp ? Math.max(0, Math.min(1, alvo.hp / alvo.mhp)) : 0;
+  ctx.fillStyle = '#252930'; ctx.fillRect(Math.round(cx - bw / 2), Math.round(topo), bw, 4);
+  ctx.fillStyle = alvo.shiny ? '#e9c868' : pct < 0.3 ? '#e3684f' : '#6cc08a'; ctx.fillRect(Math.round(cx - bw / 2), Math.round(topo), Math.round(bw * pct), 4);
+  ctx.fillStyle = alvo.shiny ? '#e9c868' : '#8b919b'; ctx.font = '12px system-ui'; ctx.textAlign = 'center';
+  ctx.fillText(`${alvo.shiny ? '✨ ' : ''}${alvo.nome ?? '?'} ${alvo.nv ?? ''}`, cx, Math.round(topo - 5));
+}
+function quadro(t) {
+  requestAnimationFrame(quadro);
+  const cv = $('cena'), s = ultimoEstado; if (!cv || !s) return;
+  const dpr = window.devicePixelRatio || 1, W = cv.clientWidth, H = cv.clientHeight;
+  if (cv.width !== Math.round(W * dpr) || cv.height !== Math.round(H * dpr)) { cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); }
+  const ctx = cv.getContext('2d'); ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.imageSmoothingEnabled = false;
+  ctx.clearRect(0, 0, W, H);
+  // chão: linhas de piso em perspectiva leve
+  ctx.strokeStyle = '#1d2126'; ctx.lineWidth = 1;
+  for (let y = H * 0.45; y < H; y += 22) { ctx.beginPath(); ctx.moveTo(0, Math.round(y) + 0.5); ctx.lineTo(W, Math.round(y) + 0.5); ctx.stroke(); }
+  if (s.noCentro) { ctx.fillStyle = '#8b919b'; ctx.font = '14px system-ui'; ctx.textAlign = 'center'; ctx.fillText('No Centro Pokemon, curando', W / 2, H / 2); return; }
+  const eu = s.equipe.find((p) => p.ativo);
+  if (eu) desenhar(ctx, eu, 2, Math.max(70, W * 0.18), H * 0.78, 3, t, { treme: levouDano('eu', eu.hp) });
+  const mobs = [...s.campo].sort((a, b) => (a.slot ?? 0) - (b.slot ?? 0)).slice(0, 12);
+  const area = { x: W * 0.4, w: W * 0.56 }, cols = Math.min(4, Math.max(1, Math.ceil(mobs.length / 2))), linhas = Math.ceil(mobs.length / cols) || 1;
+  mobs.forEach((m, i) => {
+    const c = i % cols, l = Math.floor(i / cols);
+    const cx = area.x + (c + 0.5) * area.w / cols + (l % 2 ? area.w / cols / 4 : 0);
+    const chao = H * 0.3 + (l + 1) * (H * 0.66 / linhas) - 6;
+    desenhar(ctx, m, 4, cx, chao, linhas > 2 ? 2 : 2.5, t, { morto: m.morto, treme: !m.morto && levouDano('m' + m.slot, m.hp), fase: i });
+  });
+  if (!mobs.length) { ctx.fillStyle = '#5d636d'; ctx.font = '13px system-ui'; ctx.textAlign = 'center'; ctx.fillText('esperando selvagens…', W * 0.68, H * 0.6); }
+}
+requestAnimationFrame(quadro);
+
+// ---- shiny: faixa, som, título piscando ----
+let vistoAte = 0; try { vistoAte = Number(localStorage.getItem('shinyVistoAte')) || 0; } catch {}
+let ultimoAlerta = null, piscador = null;
+function bip() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    [880, 1175, 1568].forEach((f, i) => { const o = ctx.createOscillator(), g = ctx.createGain(); o.frequency.value = f; o.connect(g); g.connect(ctx.destination); const t = ctx.currentTime + i * 0.18; g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.25, t + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.16); o.start(t); o.stop(t + 0.17); });
+  } catch {}
+}
+function mostrarAlertas(alertas) {
+  const reais = alertas ?? [];
+  $('nshiny').textContent = reais.filter((a) => a.tipo === 'capturado').length;
+  tabela($('shinies'), reais.slice(0, 10).map((a) => `<tr><td class="shiny">${a.tipo === 'capturado' ? 'capturado' : a.tipo === 'campo' ? 'no campo' : 'teste'} · ${esc(a.nome ?? '')} Nv${n(a.level)}${a.deOutro ? ' <span class="fraco">(de outro jogador)</span>' : ''}</td><td class="num">${new Date(a.em).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</td></tr>`), 'nenhum nesta sessão');
+  const novo = reais.find((a) => a.em > vistoAte);
+  const el = $('alerta');
+  if (!novo) { el.hidden = true; document.title = 'PokeIdle bot'; clearInterval(piscador); piscador = null; return; }
+  el.hidden = false;
+  $('alerta-titulo').textContent = novo.titulo; $('alerta-texto').textContent = novo.texto;
+  if (ultimoAlerta !== novo.em) {
+    ultimoAlerta = novo.em; el.classList.remove('novo'); void el.offsetWidth; el.classList.add('novo'); bip();
+    clearInterval(piscador); let on = false; piscador = setInterval(() => { on = !on; document.title = on ? '✨ SHINY!' : 'PokeIdle bot'; }, 900);
+  }
+}
+$('alerta-ok').onclick = () => { vistoAte = Date.now(); try { localStorage.setItem('shinyVistoAte', String(vistoAte)); } catch {} $('alerta').hidden = true; clearInterval(piscador); piscador = null; document.title = 'PokeIdle bot'; };
+
+setInterval(atualizar, 2000); atualizar();
+
+const pre = $('logtxt');
+const es = new EventSource('/eventos');
+es.onmessage = (e) => { const fim = pre.scrollTop + pre.clientHeight >= pre.scrollHeight - 20; pre.textContent += JSON.parse(e.data) + '\n'; if (pre.textContent.length > 60000) pre.textContent = pre.textContent.slice(-40000); if (fim) pre.scrollTop = pre.scrollHeight; };
+</script>
+</body>
+</html>
