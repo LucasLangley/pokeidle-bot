@@ -806,7 +806,7 @@ function aoEvento(ev) {
   switch (ev.k) {
     case 'morte':
       if (ev.quem === 'selvagem') {
-        S.stats.abates++; ACUM.abates++; hoje().abates++;
+        S.stats.abates++; ACUM.abates++; hoje().abates++; huntSessao().abates++;
         for (const d of ev.drops ?? []) {
           const nome = d.nome ?? `item ${d.itemId}`;
           S.drops.set(nome, (S.drops.get(nome) ?? 0) + (Number(d.qtd) || 1));
@@ -1469,8 +1469,25 @@ function salvarToken(token) {
 }
 
 // ---------- painel ao vivo (só em 127.0.0.1) ----------
+// tempo e abates desde que entrou na hunt atual (zera quando a hunt muda)
+function huntSessao() {
+  const slug = S.eu?.huntSlug ?? null;
+  if (!S.huntSessao || S.huntSessao.slug !== slug) S.huntSessao = { slug, desde: Date.now(), abates: 0 };
+  return S.huntSessao;
+}
+
+// o que está equipado: a primeira da lista das automações que ainda tem estoque
+function equipados(e) {
+  const a = e.automation ?? {};
+  const pocao = (a.potionIds ?? []).find((id) => (e.items?.[id] ?? 0) > 0) ?? null;
+  const porTaxa = [...(S.bolas ?? [])].sort((x, y) => y.catchRate - x.catchRate).map((b) => b.id);
+  const bola = [...(a.ballIds ?? []), ...porTaxa].find((id) => (e.balls?.[id] ?? 0) > 0) ?? null;
+  return { pocao, pocaoQtd: pocao ? e.items[pocao] : 0, bola, bolaQtd: bola ? e.balls[bola] : 0 };
+}
+
 function instantaneo() {
   const e = S.eu ?? {};
+  const hs = huntSessao();
   const horas = Math.max(1 / 60, (Date.now() - S.stats.inicio) / 3600_000);
   const xpAgora = e.level ? xpAtualDe(e) : 0;
   const hunt = S.hunts.find((h) => h.slug === e.huntSlug);
@@ -1492,6 +1509,7 @@ function instantaneo() {
       };
     })(),
     totalPokemons: S.pokemons.size,
+    huntSessao: { desde: hs.desde, abates: hs.abates }, abatesh: Math.round(S.stats.abates / horas), equipado: equipados(e),
     bolas: e.balls ?? {}, itens: e.items ?? {},
     nomesItens: Object.fromEntries([...ITEM_POR_NOME].filter(([, id]) => (e.items ?? {})[id] > 0).map(([nome, id]) => [id, nome])),
     campo: [...S.mobs.values()].filter((m) => !m.treinador).map((m) => ({ nome: m.nome, nv: m.nivel, hp: m.hp, mhp: m.mhp, morto: !!m.morto, shiny: !!m.shiny, lt: LOOK_POR_NOME.get(m.nome) ?? null, slot: m.slot })),

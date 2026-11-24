@@ -5,131 +5,123 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>PokeIdle bot</title>
 <style>
-  /* Cor só para estado: verde = vivo/online, vermelho = problema, dourado = shiny. O resto é cinza. */
+  /* Tema por variáveis CSS: a cor do painel é escolhida no cabeçalho e fica salva no navegador. */
   :root {
-    --fundo:#111316; --painel:#181b20; --linha:#252930; --linha-forte:#323741;
-    --txt:#e6e8eb; --sub:#8b919b; --fraco:#5d636d;
-    --ok:#6cc08a; --mau:#e3684f; --shiny:#e9c868; --shiny-fundo:#2c2614;
-    --r:6px; --e1:4px; --e2:8px; --e3:12px; --e4:16px; --e5:24px;
+    --a:#8b5cf6; --a2:#c4a8ff; --a-soft:#8b5cf626; --bg:#0f0b1c; --card:#1a1430; --card-hi:#241a45; --tile:#221a3c; --line:#352a5a;
+    --txt:#efeaff; --sub:#a99fd0; --fraco:#7a6fa3; --glow:#8b5cf655; --glow2:#2a1b55; --scene1:#150f29; --scene2:#1f1640;
+    --ok:#4ade80; --ok-soft:#4ade8022; --bad:#f87171; --shiny:#e9c868; --shiny-fundo:#2c2614;
   }
   * { box-sizing:border-box; }
-  html { background:var(--fundo); }
-  body { margin:0; color:var(--txt); font:14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; font-variant-numeric:tabular-nums; }
+  html { background:var(--bg); }
+  body { margin:0; min-height:100vh; color:var(--txt); font:14px/1.45 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif; font-variant-numeric:tabular-nums;
+    background:radial-gradient(1100px 520px at 15% -8%, var(--glow2), var(--bg) 62%), var(--bg); background-attachment:fixed; padding-bottom:48px; }
+  h1, h2, .disp { font-family:'Space Grotesk', 'Inter', system-ui, sans-serif; }
   .num { font-variant-numeric:tabular-nums; }
-  .sub { color:var(--sub); }
-  .fraco { color:var(--fraco); }
+  .sub { color:var(--sub); } .fraco { color:var(--fraco); }
+  b { font-weight:600; }
 
-  /* barra de status: a primeira coisa que o olho pega */
-  .status { display:grid; grid-template-columns:1fr auto; gap:var(--e2) var(--e5); align-items:center; padding:var(--e3) var(--e5); border-bottom:1px solid var(--linha); background:var(--painel); }
-  .quem { display:flex; flex-wrap:wrap; gap:var(--e1) var(--e3); align-items:baseline; min-width:0; }
-  .quem b { font-size:15px; font-weight:600; }
-  .ponto { display:inline-block; width:8px; height:8px; border-radius:50%; background:var(--fraco); margin-right:6px; transform:translateY(-1px); }
-  .ponto.on { background:var(--ok); } .ponto.off { background:var(--mau); }
-  .nivel { display:flex; gap:var(--e3); align-items:center; justify-self:end; }
-  .nivel strong { font-size:22px; font-weight:600; line-height:1; }
-  .barra { width:160px; height:6px; border-radius:3px; background:var(--linha); overflow:hidden; }
-  .barra i { display:block; height:100%; background:var(--ok); }
-  .onde { grid-column:1 / -1; color:var(--sub); font-size:13px; }
+  /* cabeçalho */
+  .topo { border-bottom:1px solid var(--line); background:var(--card); }
+  .topo > div { max-width:1320px; margin:0 auto; padding:14px 24px; display:flex; flex-wrap:wrap; align-items:center; gap:14px 22px; }
+  .marca { display:flex; align-items:center; gap:12px; }
+  .logo { width:38px; height:38px; border-radius:11px; background:linear-gradient(135deg, var(--a), var(--a2)); display:flex; align-items:center; justify-content:center; }
+  .marca .t { font-size:18px; font-weight:700; line-height:1.1; }
+  .marca .s { font-size:12px; color:var(--sub); }
+  .pill { display:inline-flex; align-items:center; gap:6px; font-size:12px; font-weight:600; padding:5px 11px; border-radius:999px; background:var(--ok-soft); color:var(--ok); border:1px solid var(--ok); white-space:nowrap; }
+  .pill i { width:7px; height:7px; border-radius:50%; background:var(--ok); display:block; }
+  .pill.off { background:#f8717122; color:var(--bad); border-color:var(--bad); } .pill.off i { background:var(--bad); }
+  .esp { flex:1 1 0; min-width:0; }
+  .cores { display:flex; align-items:center; gap:12px; font-size:12px; color:var(--sub); }
+  .cores div { display:flex; gap:8px; }
+  .sw { width:30px; height:30px; border-radius:50%; border:2px solid var(--card); cursor:pointer; padding:0; }
+  .sw:focus-visible { outline:2px solid var(--txt); outline-offset:2px; }
 
-  /* shiny */
-  .shiny-faixa { display:flex; gap:var(--e4); align-items:center; justify-content:space-between; flex-wrap:wrap; margin:var(--e4) var(--e5) 0; padding:var(--e3) var(--e4); border-radius:var(--r); background:var(--shiny-fundo); border:1px solid var(--shiny); }
+  main { max-width:1320px; margin:0 auto; padding:24px 24px 0; display:flex; flex-direction:column; gap:16px; }
+  .row { display:flex; flex-wrap:wrap; gap:16px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:18px; padding:20px; min-width:0; }
+  .card h2 { margin:0 0 14px; font-size:14px; font-weight:600; letter-spacing:.04em; text-transform:uppercase; color:var(--a2); }
+  .card h2 .num { color:var(--txt); }
+  .heroi { flex:1 1 400px; align-self:flex-start; background:linear-gradient(160deg, var(--card-hi), var(--card) 60%); border-color:var(--a); }
+  .cena { flex:1.7 1 520px; }
+
+  .tile { display:flex; align-items:center; gap:12px; background:var(--tile); border:1px solid var(--line); border-radius:14px; padding:12px 14px; min-width:0; }
+  .tile small { display:block; font-size:12px; color:var(--sub); }
+  .tile strong { display:block; font-size:18px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .tile .sb { font-size:12px; color:var(--sub); }
+  .ico { width:36px; height:36px; border-radius:10px; background:var(--a-soft); color:var(--a2); display:flex; align-items:center; justify-content:center; flex:none; }
+  .bar { height:8px; border-radius:5px; background:var(--tile); overflow:hidden; }
+  .bar i { display:block; height:100%; border-radius:5px; background:linear-gradient(90deg, var(--a), var(--a2)); transition:width .6s; }
+  .bar i.ok { background:var(--ok); } .bar i.low { background:var(--bad); }
+  .chip { display:inline-block; font-size:12px; font-weight:500; padding:4px 10px; border-radius:8px; background:var(--tile); border:1px solid var(--line); color:var(--sub); }
+  .chip b { color:var(--txt); }
+  .chip.on { border-color:var(--ok); } .chip.on b { color:var(--ok); }
+  .chip.shiny b { color:var(--shiny); }
+  .chips { display:flex; flex-wrap:wrap; gap:8px; }
+
+  .heroi .topo2 { display:flex; align-items:center; gap:14px; }
+  .heroi canvas { width:64px; height:64px; border-radius:50%; background:radial-gradient(circle at 35% 30%, var(--a2), var(--a)); flex:none; image-rendering:pixelated; }
+  .heroi .nome { font-size:24px; font-weight:700; margin-right:8px; }
+  .heroi .niv { font-size:13px; color:var(--sub); margin-top:2px; } .heroi .niv b { color:var(--txt); }
+  .xplinha { display:flex; justify-content:space-between; font-size:12px; color:var(--sub); margin:18px 0 6px; }
+  .tiles { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:10px; margin-top:18px; }
+
+  .kpis { display:grid; grid-template-columns:repeat(auto-fit, minmax(190px, 1fr)); gap:16px; }
+  .kpis .tile { padding:16px; } .kpis .ico { width:42px; height:42px; } .kpis strong { font-size:24px; font-family:'Space Grotesk', sans-serif; }
+
+  #cena { display:block; width:100%; height:290px; border-radius:14px; background:linear-gradient(180deg, var(--scene1), var(--scene2)); border:1px solid var(--line); image-rendering:pixelated; margin-bottom:12px; }
+  .cabeca { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:8px; margin-bottom:14px; } .cabeca h2 { margin:0; }
+
+  .lista { list-style:none; margin:0; padding:0; }
+  .lista li { display:grid; grid-template-columns:minmax(0, 1fr) 110px 120px; gap:12px; align-items:center; padding:9px 0; border-bottom:1px solid var(--line); }
+  .lista li:last-child { border-bottom:0; }
+  .lista .nome { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .lista .nome small { color:var(--sub); margin-left:6px; font-size:12px; }
+  .lista .v { white-space:nowrap; text-align:right; color:var(--sub); font-size:13px; }
+  .lista li.ativo .nome::before { content:"▸ "; color:var(--a2); }
+  .lista li.caido .nome { color:var(--fraco); } .lista li.caido .bar { visibility:hidden; }
+  .lista li.shiny .nome { color:var(--shiny); }
+  .vazio { color:var(--fraco); padding:6px 0; }
+
+  table { width:100%; border-collapse:collapse; font-size:14px; }
+  th { text-align:right; font-size:12px; font-weight:600; color:var(--sub); padding:0 0 10px; border-bottom:1px solid var(--line); }
+  td { text-align:right; padding:10px 0; border-bottom:1px solid var(--line); }
+  th:first-child, td:first-child { text-align:left; }
+  tr:last-child td { border-bottom:0; }
+  td.zero { color:var(--fraco); } td.ruim { color:var(--bad); } td.shiny { color:var(--shiny); }
+  .lt td:last-child { color:var(--sub); } .lt td.vazio { text-align:left; }
+  .rolar { overflow-x:auto; } #dias { min-width:640px; }
+
+  .grafico { display:block; width:100%; overflow:visible; }
+  .grafico .g { stroke:var(--line); } .grafico .l { stroke:var(--a2); fill:none; } .grafico .ar { fill:var(--a-soft); }
+  .grafico .pt { fill:var(--a2); stroke:var(--card); }
+  .eixo { display:flex; justify-content:space-between; font-size:12px; color:var(--sub); margin-top:6px; }
+  .log { margin:0; font:12.5px/1.7 ui-monospace, Consolas, monospace; color:var(--sub); white-space:pre-wrap; word-break:break-word; max-height:260px; overflow:auto; }
+  .canais { margin-top:10px; font-size:12px; color:var(--fraco); }
+
+  .shiny-faixa { display:flex; gap:16px; align-items:center; justify-content:space-between; flex-wrap:wrap; max-width:1272px; margin:16px auto 0; padding:12px 16px; border-radius:14px; background:var(--shiny-fundo); border:1px solid var(--shiny); }
   .shiny-faixa[hidden] { display:none; }
-  .shiny-faixa b { color:var(--shiny); font-size:16px; margin-right:var(--e2); }
-  .shiny-faixa span { color:#e7dcb6; }
-  .shiny-faixa button { background:var(--shiny); color:#1a1710; border:0; border-radius:var(--r); padding:6px 14px; font:600 13px system-ui, sans-serif; cursor:pointer; }
+  .shiny-faixa b { color:var(--shiny); font-size:16px; margin-right:8px; } .shiny-faixa span { color:#e7dcb6; }
+  .shiny-faixa button { background:var(--shiny); color:#1a1710; border:0; border-radius:8px; padding:6px 14px; font:600 13px system-ui, sans-serif; cursor:pointer; }
   .shiny-faixa.novo { animation:pisca 1s ease-in-out 6; }
   @keyframes pisca { 50% { background:#4a3d14; } }
 
-  main { display:grid; grid-template-columns:minmax(0, 3fr) minmax(0, 2fr); gap:var(--e4); padding:var(--e4) var(--e5) var(--e5); }
-  section { background:var(--painel); border:1px solid var(--linha); border-radius:var(--r); padding:var(--e4); min-width:0; }
-  h2 { font-size:13px; font-weight:600; color:var(--sub); margin:0 0 var(--e3); }
-  h2 .num { color:var(--txt); font-weight:600; }
-
-  /* ritmo: o bloco principal */
-  .coluna { display:flex; flex-direction:column; gap:var(--e4); min-width:0; }
-  main > section { align-self:start; }
-  .grande span.espera { font-size:14px; font-weight:400; color:var(--fraco); line-height:2.4; }
-  .grandes { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:var(--e4); margin-bottom:var(--e4); }
-  .grande span { display:block; font-size:30px; font-weight:600; line-height:1.1; }
-  .grande small { color:var(--sub); font-size:13px; }
-  .linha-nums { display:flex; flex-wrap:wrap; gap:var(--e1) var(--e5); padding:var(--e3) 0; border-top:1px solid var(--linha); border-bottom:1px solid var(--linha); margin-bottom:var(--e4); color:var(--sub); }
-  .linha-nums b { color:var(--txt); font-weight:600; }
-  .linha-nums .ruim b { color:var(--mau); }
-
-  /* listas com barra de HP (equipe e campo usam o mesmo desenho) */
-  .lista { list-style:none; margin:0; padding:0; }
-  .lista li { display:grid; grid-template-columns:minmax(0, 1fr) 96px 64px; gap:var(--e3); align-items:center; padding:6px 0; border-bottom:1px solid var(--linha); }
-  .lista li:last-child { border-bottom:0; }
-  .lista .nome { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-  .lista .nome small { color:var(--fraco); margin-left:6px; }
-  .lista .hp { height:5px; border-radius:3px; background:var(--linha); overflow:hidden; }
-  .lista .hp i { display:block; height:100%; background:var(--ok); }
-  .lista .hp i.baixo { background:var(--mau); }
-  .lista .v { text-align:right; color:var(--sub); font-size:13px; }
-  .lista li.ativo .nome::before { content:"▸ "; color:var(--ok); }
-  .lista li.caido .nome { color:var(--fraco); }
-  .lista li.caido .hp { visibility:hidden; }
-  .lista li.shiny .nome { color:var(--shiny); }
-  .vazio, table td.vazio { color:var(--fraco); padding:6px 0; text-align:left; }
-
-  /* faixas finas */
-  .tiras { grid-column:1 / -1; display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:var(--e4); }
-  .tira { background:var(--painel); border:1px solid var(--linha); border-radius:var(--r); padding:var(--e3) var(--e4); min-width:0; }
-  .tira h2 { margin-bottom:var(--e2); }
-  .pares { display:flex; flex-wrap:wrap; gap:var(--e1) var(--e4); }
-  .pares span { white-space:nowrap; color:var(--sub); }
-  .pares b { color:var(--txt); font-weight:600; }
-  .pares .ativo b { color:var(--ok); }
-  .pares .shiny b { color:var(--shiny); }
-  .canais { margin-top:var(--e2); font-size:12px; color:var(--fraco); }
-
-  .duas { grid-column:1 / -1; display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:var(--e4); }
-  table { width:100%; border-collapse:collapse; }
-  td { padding:5px 0; border-bottom:1px solid var(--linha); }
-  tr:last-child td { border-bottom:0; }
-  td:last-child { text-align:right; color:var(--sub); }
-  td.shiny { color:var(--shiny); }
-
-  .dias { grid-column:1 / -1; }
-  .rolar { overflow-x:auto; }
-  #dias { min-width:640px; }
-  #dias th { text-align:right; font-weight:600; font-size:12px; color:var(--sub); padding:0 0 6px; border-bottom:1px solid var(--linha-forte); }
-  #dias th:first-child, #dias td:first-child { text-align:left; }
-  #dias td { text-align:right; color:var(--txt); }
-  #dias td.zero { color:var(--fraco); }
-  #dias td.ruim { color:var(--mau); }
-  #dias td.shiny { color:var(--shiny); }
-  .log { grid-column:1 / -1; }
-  .log pre { margin:0; max-height:300px; overflow:auto; font:12px/1.55 ui-monospace, Consolas, monospace; color:#b9bec6; white-space:pre-wrap; word-break:break-word; }
-
-  /* cena: o pokemon ativo de frente para os selvagens, com os sprites do próprio jogo */
-  .bonus { margin-bottom:var(--e3); }
-  #cena { display:block; width:100%; height:290px; margin-bottom:var(--e3); border-radius:var(--r); background:#14171b; border:1px solid var(--linha); image-rendering:pixelated; }
-
-  @media (max-width: 860px) {
-    main, .duas, .tiras { grid-template-columns:minmax(0, 1fr); }
-    .status { padding:var(--e3) var(--e4); grid-template-columns:1fr; }
-    .nivel { justify-self:start; }
-    main { padding:var(--e4); }
-    .shiny-faixa { margin:var(--e4) var(--e4) 0; }
-    .grande span { font-size:26px; }
-    .lista li { grid-template-columns:minmax(0, 1fr) 64px 56px; }
+  @media (max-width:700px) {
+    main { padding:16px 16px 0; } .topo > div { padding:12px 16px; }
+    .lista li { grid-template-columns:minmax(0, 1fr) 60px 70px; }
+    .cores span { display:none; }
   }
 </style>
 </head>
 <body>
-<header class="status">
-  <div class="quem">
-    <span><span class="ponto" id="ponto"></span><b id="nick">PokeIdle bot</b></span>
-    <span class="sub" id="con">conectando…</span>
+<header class="topo"><div>
+  <div class="marca">
+    <div class="logo" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h6M15 12h6"/><circle cx="12" cy="12" r="2.4"/></svg></div>
+    <div><div class="t disp">PokeIdle bot</div><div class="s" id="con">conectando…</div></div>
   </div>
-  <div class="nivel">
-    <span class="sub">Nv</span><strong class="num" id="nivel">—</strong>
-    <div class="barra" title="XP até o próximo nível"><i id="xpbar" style="width:0"></i></div>
-    <span class="sub num" id="xppct">—</span>
-  </div>
-  <div class="onde" id="hunt">—</div>
-</header>
+  <span class="pill off" id="pilula"><i></i><span id="pilula-t">DESCONECTADO</span></span>
+  <div class="esp"></div>
+  <div class="cores"><span>Cor do painel</span><div id="temas" role="group" aria-label="Escolher cor do painel"></div></div>
+</div></header>
 
 <div class="shiny-faixa" id="alerta" hidden>
   <div><b id="alerta-titulo"></b><span id="alerta-texto"></span></div>
@@ -137,64 +129,84 @@
 </div>
 
 <main>
-  <div class="coluna">
-  <section class="ritmo">
-    <div class="grandes">
-      <div class="grande"><span class="num" id="xph">—</span><small>XP por hora</small></div>
-      <div class="grande"><span class="num" id="ouroh">—</span><small>ouro por hora (farm)</small></div>
-    </div>
-    <div class="linha-nums">
-      <span>ouro <b class="num" id="ouro">—</b></span>
-      <span>abates <b class="num" id="abates">—</b></span>
-      <span id="desm-box">desmaios <b class="num" id="desmaios">—</b></span>
-      <span id="extra-box" hidden>prêmios <b class="num" id="extra">—</b></span>
-    </div>
-    <h2>Equipe</h2>
-    <ul class="lista" id="equipe"></ul>
-  </section>
+  <div class="row">
+    <section class="card heroi">
+      <div class="topo2">
+        <canvas id="av" width="64" height="64" aria-label="Pokemon ativo"></canvas>
+        <div style="flex:1;min-width:0">
+          <div><span class="nome disp" id="k-nick">—</span><span class="chip" id="k-regiao">—</span></div>
+          <div class="niv">Treinador Nv. <b id="k-nivel">—</b> · <span id="k-poke">—</span></div>
+        </div>
+      </div>
+      <div class="xplinha"><span id="k-xplabel">XP até o próximo nível</span><span id="k-xppct">—</span></div>
+      <div class="bar" title="XP até o próximo nível"><i id="k-xpbar" style="width:0"></i></div>
+      <div class="tiles">
+        <div class="tile"><span class="ico"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3a9 9 0 100 18 9 9 0 000-18zM12 7v10M9.5 9.5c0-1 1-1.7 2.5-1.7s2.5.7 2.5 1.7-1 1.5-2.5 1.8-2.5.8-2.5 1.8 1 1.7 2.5 1.7 2.5-.7 2.5-1.7"/></svg></span><div><small>Ouro</small><strong class="num" id="k-ouro">—</strong></div></div>
+        <div class="tile"><span class="ico"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 4h12l3 5-9 11L3 9z"/><path d="M3 9h18"/></svg></span><div><small>Gemas</small><strong class="num" id="k-gemas">—</strong></div></div>
+        <div class="tile"><span class="ico"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 3h6M10 3v5l-5 9a3 3 0 003 4h8a3 3 0 003-4l-5-9V3"/></svg></span><div style="min-width:0"><small>Poção equipada</small><strong id="k-pocao">—</strong></div></div>
+        <div class="tile"><span class="ico"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3a9 9 0 100 18 9 9 0 000-18zM3 12h6M15 12h6"/><circle cx="12" cy="12" r="2.4"/></svg></span><div style="min-width:0"><small>Bola equipada</small><strong id="k-bola">—</strong></div></div>
+      </div>
+    </section>
 
-  <section>
-    <h2>Shiny <span class="num" id="nshiny">0</span></h2>
-    <div class="pares" id="shinyacum"></div>
-    <table id="shinies" style="margin-top:var(--e3)"></table>
-  </section>
+    <section class="card cena">
+      <div class="cabeca"><h2>No jogo agora</h2><div class="chips" id="k-chips"></div></div>
+      <canvas id="cena" aria-label="Seu pokemon ativo e os selvagens do campo"></canvas>
+      <ul class="lista" id="campo"></ul>
+    </section>
   </div>
 
-  <section>
-    <h2>No jogo agora</h2>
-    <div class="pares bonus" id="bonus"></div>
-    <canvas id="cena" aria-label="Seu pokemon ativo e os selvagens do campo"></canvas>
-    <ul class="lista" id="campo"></ul>
-  </section>
+  <div class="kpis">
+    <div class="tile"><span class="ico"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z"/></svg></span><div><small>XP por hora</small><strong id="m-xph">—</strong><span class="sb" id="m-xph-s"></span></div></div>
+    <div class="tile"><span class="ico"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3a9 9 0 100 18 9 9 0 000-18zM12 7v10M9.5 9.5c0-1 1-1.7 2.5-1.7s2.5.7 2.5 1.7-1 1.5-2.5 1.8-2.5.8-2.5 1.8 1 1.7 2.5 1.7 2.5-.7 2.5-1.7"/></svg></span><div><small>Ouro por hora</small><strong id="m-ouroh">—</strong><span class="sb" id="m-ouroh-s"></span></div></div>
+    <div class="tile"><span class="ico"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 5l14 14M19 5L5 19M3 9l6-6M21 9l-6-6"/></svg></span><div><small>Abates por hora</small><strong id="m-abh">—</strong><span class="sb" id="m-abh-s"></span></div></div>
+    <div class="tile"><span class="ico"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s-7-4.5-9-9a5 5 0 019-3 5 5 0 019 3c-2 4.5-9 9-9 9z"/></svg></span><div><small>Desmaios</small><strong id="m-des">—</strong><span class="sb" id="m-des-s"></span></div></div>
+    <div class="tile"><span class="ico"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3a9 9 0 100 18 9 9 0 000-18zM3 12h6M15 12h6M12 10a2 2 0 100 4 2 2 0 000-4z"/></svg></span><div><small>Capturas</small><strong id="m-cap">—</strong><span class="sb" id="m-cap-s"></span></div></div>
+    <div class="tile"><span class="ico"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8zM19 16l.8 2.2L22 19l-2.2.8L19 22l-.8-2.2L16 19l2.2-.8z"/></svg></span><div><small>Shiny</small><strong id="m-sh">—</strong><span class="sb" id="m-sh-s"></span></div></div>
+  </div>
 
-  <div class="tiras">
-    <div class="tira">
-      <h2>Bônus das lives</h2>
-      <div class="pares" id="lives"></div>
+  <div class="row">
+    <section class="card" style="flex:1.7 1 520px">
+      <div class="cabeca" style="margin-bottom:6px"><h2>XP por hora · última hora</h2><span class="chip" id="g-chip">coletando…</span></div>
+      <svg class="grafico" id="grafico" viewBox="0 0 600 190" role="img" aria-label="Gráfico de XP por hora na última hora"></svg>
+      <div class="eixo"><span>há 60 min</span><span>há 30 min</span><span>agora</span></div>
+    </section>
+    <section class="card" style="flex:1 1 360px">
+      <h2>Equipe</h2>
+      <ul class="lista" id="equipe"></ul>
+    </section>
+  </div>
+
+  <div class="row">
+    <section class="card" style="flex:1 1 340px">
+      <h2>Bônus ativos</h2>
+      <div class="chips" id="bonus"></div>
+      <h2 style="margin-top:18px">Bônus das lives</h2>
+      <div class="chips" id="lives"></div>
       <div class="canais" id="canais"></div>
-    </div>
-    <div class="tira">
+    </section>
+    <section class="card" style="flex:1 1 340px">
       <h2>Mochila</h2>
-      <div class="pares" id="mochila"></div>
-    </div>
-    <div class="tira">
-      <h2>Capturas nesta sessão</h2>
-      <div class="pares" id="captsessao"></div>
-    </div>
-  </div>
-
-  <div class="duas">
-    <section>
+      <div class="chips" id="mochila"></div>
+    </section>
+    <section class="card" style="flex:1 1 340px">
       <h2>Drops desta sessão</h2>
-      <table id="drops"></table>
-    </section>
-    <section>
-      <h2>Capturados recentes</h2>
-      <table id="capturados"></table>
+      <table class="lt" id="drops"></table>
     </section>
   </div>
 
-  <section class="dias">
+  <div class="row">
+    <section class="card" style="flex:1 1 420px">
+      <h2>Shiny <span class="num" id="nshiny">0</span></h2>
+      <div class="chips" id="shinyacum" style="margin-bottom:12px"></div>
+      <table class="lt" id="shinies"></table>
+    </section>
+    <section class="card" style="flex:1 1 420px">
+      <h2>Capturados recentes</h2>
+      <table class="lt" id="capturados"></table>
+    </section>
+  </div>
+
+  <section class="card">
     <h2>Últimos dias</h2>
     <div class="rolar">
       <table id="dias">
@@ -204,9 +216,9 @@
     </div>
   </section>
 
-  <section class="log">
-    <h2>Log</h2>
-    <pre id="logtxt"></pre>
+  <section class="card">
+    <h2>Log ao vivo</h2>
+    <pre class="log" id="logtxt"></pre>
   </section>
 </main>
 
@@ -214,8 +226,7 @@
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[c]));
 const n = (v) => v == null || Number.isNaN(v) ? '—' : Number(v).toLocaleString('pt-BR');
-// número compacto: 264.677 → 264,7 mil; 15.010.478 → 15 mi
-function c(v) {
+function c(v) { // 264.677 → 264,7 mil; 15.010.478 → 15 mi
   if (v == null || Number.isNaN(v)) return '—';
   const a = Math.abs(v);
   if (a >= 1e9) return (v / 1e9).toLocaleString('pt-BR', { maximumFractionDigits: 1 }) + ' bi';
@@ -223,87 +234,145 @@ function c(v) {
   if (a >= 1e4) return (v / 1e3).toLocaleString('pt-BR', { maximumFractionDigits: 1 }) + ' mil';
   return Math.round(v).toLocaleString('pt-BR');
 }
+const sinal = (v) => (v > 0 ? '+' : '') + c(v);
 const NOMES = { 1:'Poke Ball', 2:'Great Ball', 3:'Super Ball', 4:'Ultra Ball', 5:'Beast Ball', 200:'Small Potion', 201:'Great Potion', 202:'Ultra Potion', 203:'Hyper Potion', 204:'Ultimate Potion', 205:'Revive', 206:'Max Revive', 70000:'Boss Token' };
 const TP = { xp: 'XP', captura: 'Captura', shiny: 'Lure' };
 const fmtMin = (m) => m >= 60 ? `${Math.floor(m / 60)} h ${m % 60} min` : `${m} min`;
+const hora = (t) => new Date(t).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 
-function linhaHp({ nome, extra, hp, mhp, classes = '' , direita }) {
+// ---- temas ----
+const TEMAS = {
+  roxo:    { nome:'Roxo',    a:'#8b5cf6', a2:'#c4a8ff', bg:'#0f0b1c', card:'#1a1430', hi:'#241a45', tile:'#221a3c', line:'#352a5a', txt:'#efeaff', sub:'#a99fd0', fraco:'#7a6fa3', glow:'#8b5cf655', glow2:'#2a1b55', s1:'#150f29', s2:'#1f1640', ok:'#4ade80', bad:'#f87171' },
+  azul:    { nome:'Azul',    a:'#3b82f6', a2:'#8ec5ff', bg:'#0a1020', card:'#111b33', hi:'#162447', tile:'#172444', line:'#243a68', txt:'#e8f0ff', sub:'#9db0d6', fraco:'#6f84ae', glow:'#3b82f655', glow2:'#12285a', s1:'#0c1428', s2:'#14224a', ok:'#4ade80', bad:'#f87171' },
+  verde:   { nome:'Verde',   a:'#10b981', a2:'#6ee7b7', bg:'#08130f', card:'#0f1f19', hi:'#13291f', tile:'#142a21', line:'#1f4234', txt:'#e6fbf1', sub:'#95c2ae', fraco:'#648f7b', glow:'#10b98155', glow2:'#0d3a2a', s1:'#0a1812', s2:'#10281f', ok:'#86efac', bad:'#fb7185' },
+  rosa:    { nome:'Rosa',    a:'#ec4899', a2:'#f9a8d4', bg:'#1a0b14', card:'#2a1220', hi:'#381829', tile:'#321728', line:'#5a2a45', txt:'#ffe9f4', sub:'#d5a3bd', fraco:'#a06f88', glow:'#ec489955', glow2:'#4a1636', s1:'#1f0d18', s2:'#34162a', ok:'#4ade80', bad:'#fca5a5' },
+  laranja: { nome:'Laranja', a:'#f97316', a2:'#fdba74', bg:'#170e07', card:'#261710', hi:'#321e12', tile:'#2f1d12', line:'#55341f', txt:'#fff0e3', sub:'#d1ac90', fraco:'#9c7a60', glow:'#f9731655', glow2:'#4a2410', s1:'#1c1109', s2:'#2d1b10', ok:'#4ade80', bad:'#fca5a5' },
+  claro:   { nome:'Claro',   a:'#7c3aed', a2:'#6d28d9', bg:'#f4f1ff', card:'#ffffff', hi:'#f3edff', tile:'#f5f1ff', line:'#ddd3f7', txt:'#1e1538', sub:'#5b4f86', fraco:'#7d71a6', glow:'#7c3aed33', glow2:'#e4d9ff', s1:'#f1ecff', s2:'#e6ddff', ok:'#15803d', bad:'#b91c1c' },
+};
+let temaAtual = 'roxo';
+try { const t = localStorage.getItem('pk-tema'); if (TEMAS[t]) temaAtual = t; } catch {}
+function aplicarTema(k) {
+  const t = TEMAS[k] ?? TEMAS.roxo; temaAtual = TEMAS[k] ? k : 'roxo';
+  const v = { a:t.a, a2:t.a2, 'a-soft':t.a + '26', bg:t.bg, card:t.card, 'card-hi':t.hi, tile:t.tile, line:t.line, txt:t.txt, sub:t.sub, fraco:t.fraco, glow:t.glow, glow2:t.glow2, scene1:t.s1, scene2:t.s2, ok:t.ok, 'ok-soft':t.ok + '22', bad:t.bad };
+  for (const [nome, val] of Object.entries(v)) document.documentElement.style.setProperty('--' + nome, val);
+  try { localStorage.setItem('pk-tema', temaAtual); } catch {}
+  $('temas').innerHTML = Object.entries(TEMAS).map(([id, x]) =>
+    `<button class="sw" type="button" data-t="${id}" title="${x.nome}" aria-label="Tema ${x.nome}" aria-pressed="${id === temaAtual}" style="background:linear-gradient(135deg,${x.a},${x.a2});box-shadow:0 0 0 2px ${id === temaAtual ? x.a2 : 'transparent'}"></button>`).join('');
+  desenharGrafico();
+}
+$('temas').addEventListener('click', (e) => { const b = e.target.closest('button[data-t]'); if (b) aplicarTema(b.dataset.t); });
+const cor = (nome) => getComputedStyle(document.documentElement).getPropertyValue('--' + nome).trim();
+
+// ---- listas ----
+function linhaHp({ nome, extra, hp, mhp, classes = '', direita }) {
   const pct = mhp ? Math.max(0, Math.min(100, 100 * hp / mhp)) : 0;
   return `<li class="${classes}"><span class="nome">${nome}${extra ? `<small>${extra}</small>` : ''}</span>` +
-    `<span class="hp"><i class="${pct < 30 ? 'baixo' : ''}" style="width:${pct}%"></i></span>` +
+    `<span class="bar"><i class="${pct < 30 ? 'low' : 'ok'}" style="width:${pct}%"></i></span>` +
     `<span class="v num">${direita ?? `${c(hp)}/${c(mhp)}`}</span></li>`;
 }
 function lista(el, html, vazio) { el.innerHTML = html.length ? html.join('') : `<li class="vazio" style="display:block">${vazio}</li>`; }
 function tabela(el, html, vazio) { el.innerHTML = html.length ? html.join('') : `<tr><td class="vazio" colspan="2">${vazio}</td></tr>`; }
 
+// ---- histórico de XP/h (amostra a cada 30 s, guarda 1 h no navegador) ----
+let amostras = [];
+try { amostras = (JSON.parse(localStorage.getItem('pk-xph')) ?? []).filter((p) => Date.now() - p[0] < 3600_000); } catch {}
+let ultimaAmostra = 0;
+function amostrar(s) {
+  if (!s.conectado || s.minutos < 5 || !s.xph || Date.now() - ultimaAmostra < 30_000) return;
+  ultimaAmostra = Date.now(); amostras.push([Date.now(), s.xph]);
+  amostras = amostras.filter((p) => Date.now() - p[0] < 3600_000);
+  try { localStorage.setItem('pk-xph', JSON.stringify(amostras)); } catch {}
+  desenharGrafico();
+}
+function desenharGrafico() {
+  const el = $('grafico'); if (!el) return;
+  const W = 600, H = 190, pad = 20;
+  let html = [20, 70, 120, 170].map((y) => `<line class="g" x1="0" y1="${y}" x2="${W}" y2="${y}" stroke-width="1"/>`).join('');
+  if (amostras.length < 2) { el.innerHTML = html + `<text x="${W / 2}" y="${H / 2}" text-anchor="middle" fill="${cor('sub')}" font-size="14">coletando os primeiros pontos…</text>`; $('g-chip').textContent = 'coletando…'; return; }
+  const t1 = Date.now(), t0 = t1 - 3600_000, vs = amostras.map((p) => p[1]);
+  let lo = Math.min(...vs), hi = Math.max(...vs); const folga = Math.max((hi - lo) * 0.15, hi * 0.02, 1); lo -= folga; hi += folga;
+  const pts = amostras.map(([t, v]) => [Math.round((t - t0) / (t1 - t0) * W), Math.round(H - pad - (v - lo) / (hi - lo) * (H - 2 * pad))]);
+  const linha = pts.map((p) => p.join(',')).join(' ');
+  const ult = pts[pts.length - 1];
+  el.innerHTML = html + `<polygon class="ar" points="${pts[0][0]},${H - pad} ${linha} ${ult[0]},${H - pad}"/><polyline class="l" points="${linha}" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/><circle class="pt" cx="${ult[0]}" cy="${ult[1]}" r="5" stroke-width="3"/>`;
+  $('g-chip').innerHTML = `pico <b>${c(Math.max(...vs))}</b> · média <b>${c(vs.reduce((a, b) => a + b, 0) / vs.length)}</b>`;
+}
+
+// ---- estado ----
 let ultimoEstado = null;
 async function atualizar() {
   let s;
   try { s = await (await fetch('/estado')).json(); }
-  catch { $('ponto').className = 'ponto off'; $('con').textContent = 'painel sem resposta (o bot está rodando?)'; return; }
+  catch { $('pilula').className = 'pill off'; $('pilula-t').textContent = 'SEM RESPOSTA'; $('con').textContent = 'painel sem resposta (o bot está rodando?)'; return; }
   ultimoEstado = s;
-  $('nick').textContent = s.nick + (s.somenteLer ? ' · só leitura' : '');
-  $('ponto').className = 'ponto ' + (s.conectado ? 'on' : 'off');
   const tempo = s.minutos < 60 ? `${s.minutos} min` : `${(s.minutos / 60).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} h`;
-  $('con').textContent = (s.conectado ? 'online' : 'reconectando') + ` · ${tempo} desde o último início`;
+  $('con').textContent = `${s.nick}${s.somenteLer ? ' · só leitura' : ''} · ${s.conectado ? 'online' : 'reconectando'} há ${tempo}`;
+  $('pilula').className = 'pill' + (s.conectado ? '' : ' off'); $('pilula-t').textContent = s.conectado ? 'CONECTADO' : 'DESCONECTADO';
 
-  $('nivel').textContent = n(s.nivel);
+  const eu = s.equipe.find((p) => p.ativo), hs = s.huntSessao ?? {}, cedo = s.minutos < 5;
+  const area = s.noCentro ? 'Centro' : s.hunt?.area ?? '—';
+  $('k-nick').textContent = s.nick ?? '—';
+  $('k-regiao').textContent = area.charAt(0).toUpperCase() + area.slice(1) + (area === 'outland' && s.outlandTier ? ` · tier ${s.outlandTier - 100}` : '');
+  $('k-nivel').textContent = n(s.nivel);
+  $('k-poke').textContent = eu ? `${eu.nome} Nv. ${n(eu.nv)}` : 'sem ativo';
   const pct = 100 * (s.progresso ?? 0);
-  $('xpbar').style.width = pct + '%';
-  $('xppct').textContent = s.xpProximo ? `${Math.floor(pct)}%` : '—';
-  $('hunt').textContent = s.noCentro ? 'No Centro Pokemon'
-    : s.hunt ? `${s.hunt.nome}, nível ${n(s.hunt.nivel)} (${s.hunt.area}${s.hunt.area === 'outland' ? `, tier ${s.outlandTier - 100}` : ''})` : 'Sem hunt';
+  $('k-xpbar').style.width = pct + '%'; $('k-xppct').textContent = s.xpProximo ? `${Math.floor(pct)}%` : '—';
+  $('k-xplabel').textContent = `XP até o Nv. ${n((s.nivel ?? 0) + 1)}`;
+  $('k-ouro').textContent = c(s.ouro); $('k-gemas').textContent = n(s.diamantes ?? 0);
+  const eq = s.equipado ?? {};
+  $('k-pocao').textContent = eq.pocao ? `${NOMES[eq.pocao] ?? s.nomesItens?.[eq.pocao] ?? 'item ' + eq.pocao} x${n(eq.pocaoQtd)}` : 'nenhuma';
+  $('k-bola').textContent = eq.bola ? `${NOMES[eq.bola] ?? 'bola ' + eq.bola} x${n(eq.bolaQtd)}` : 'nenhuma';
 
-  // taxa só depois de 5 min: antes disso ela engana
-  const cedo = s.minutos < 5;
-  const espera = `medindo… ${Math.max(1, 5 - s.minutos)} min`;
-  $('xph').textContent = cedo ? espera : c(s.xph);
-  $('ouroh').textContent = cedo ? espera : c(s.ouroh);
-  $('xph').className = $('ouroh').className = cedo ? 'num espera' : 'num';
-  $('ouro').textContent = c(s.ouro);
-  $('abates').textContent = n(s.stats.abates);
-  $('desmaios').textContent = n(s.stats.desmaios);
-  $('desm-box').className = s.stats.desmaios > 0 ? 'ruim' : '';
-  $('extra-box').hidden = !s.ouroExtra; $('extra').textContent = c(s.ouroExtra);
+  const seg = Math.max(0, Math.floor((s.agora - (hs.desde ?? s.agora)) / 1000));
+  const durHunt = seg >= 3600 ? `${Math.floor(seg / 3600)} h ${Math.floor(seg % 3600 / 60)} min` : `${Math.floor(seg / 60)} min`;
+  const chips = [];
+  chips.push(s.noCentro ? '<span class="chip"><b>No Centro Pokemon</b></span>' : s.hunt ? `<span class="chip">Hunt <b>${esc(s.hunt.nome)} Nv. ${n(s.hunt.nivel)}</b></span><span class="chip">Nesta hunt <b>${durHunt} · ${n(hs.abates ?? 0)} abates</b></span>` : '<span class="chip">Sem hunt</span>');
+  if (s.bonus?.vip) chips.push(`<span class="chip on">VIP <b>${s.bonus.vipPermanente ? 'permanente' : dur(s.bonus.vipMin)}</b></span>`);
+  $('k-chips').innerHTML = chips.join('');
+
+  const ac = s.acumulado ?? {};
+  $('m-xph').textContent = cedo ? 'medindo…' : sinal(s.xph); $('m-xph-s').textContent = cedo ? `${Math.max(1, 5 - s.minutos)} min` : 'XP/h';
+  $('m-ouroh').textContent = cedo ? 'medindo…' : sinal(s.ouroh); $('m-ouroh-s').textContent = cedo ? '' : 'líquido, já com as compras';
+  $('m-abh').textContent = cedo ? 'medindo…' : n(s.abatesh); $('m-abh-s').textContent = s.hunt ? `${n(hs.abates ?? 0)} nesta hunt` : '';
+  $('m-des').textContent = n(s.stats.desmaios); $('m-des-s').textContent = s.stats.desmaios ? 'nesta sessão' : 'nenhum nesta sessão';
+  $('m-des-s').style.color = s.stats.desmaios ? cor('bad') : cor('ok');
+  $('m-cap').textContent = n(s.stats.capturas); $('m-cap-s').textContent = `${n(s.stats.bolasServidor ?? 0)} bolas confirmadas`;
+  $('m-sh').textContent = n(ac.shinyCapturados ?? 0); $('m-sh-s').textContent = `${n(ac.shinyNoCampo ?? 0)} vistos no campo`;
 
   lista($('equipe'), s.equipe.map((p) => linhaHp({
     nome: `${p.shiny ? '✨ ' : ''}${esc(p.nome)} Nv${n(p.nv)}`, extra: `P${p.p} · Q${p.q} · N${p.nota ?? '—'}`,
     hp: p.hp, mhp: p.mhp, classes: `${p.ativo ? 'ativo' : ''} ${p.shiny ? 'shiny' : ''} ${p.hp <= 0 ? 'caido' : ''}`,
   })), 'vazia');
-
   const campo = [...s.campo].sort((a, b) => (a.morto - b.morto) || (b.shiny - a.shiny));
-  lista($('campo'), campo.map((m) => linhaHp({
+  const extraCampo = Math.max(0, campo.length - 6);
+  lista($('campo'), campo.slice(0, 6).map((m) => linhaHp({
     nome: `${m.shiny ? '✨ ' : ''}${esc(m.nome)} Nv${n(m.nv)}`, hp: m.hp, mhp: m.mhp,
     classes: `${m.morto ? 'caido' : ''} ${m.shiny ? 'shiny' : ''}`, direita: m.morto ? 'caído' : undefined,
-  })), 'nenhum selvagem');
+  })).concat(extraCampo ? [`<li class="vazio" style="display:block">+ ${extraCampo} no campo</li>`] : []), 'nenhum selvagem');
 
-  const ac = s.acumulado ?? {};
   $('shinyacum').innerHTML = [
-    `<span class="${ac.shinyCapturados ? 'shiny' : ''}">capturados <b class="num">${n(ac.shinyCapturados ?? 0)}</b></span>`,
-    `<span>vistos no campo <b class="num">${n(ac.shinyNoCampo ?? 0)}</b></span>`,
-    `<span>bolas confirmadas <b class="num">${n(ac.bolasConfirmadas ?? 0)}</b></span>`,
-    `<span>capturas <b class="num">${n(ac.capturas ?? 0)}</b></span>`,
+    `<span class="chip ${ac.shinyCapturados ? 'shiny' : ''}">capturados <b>${n(ac.shinyCapturados ?? 0)}</b></span>`,
+    `<span class="chip">vistos no campo <b>${n(ac.shinyNoCampo ?? 0)}</b></span>`,
+    `<span class="chip">bolas confirmadas <b>${n(ac.bolasConfirmadas ?? 0)}</b></span>`,
+    `<span class="chip">capturas <b>${n(ac.capturas ?? 0)}</b></span>`,
   ].join('');
   $('shinyacum').title = ac.desde ? `Somado desde ${new Date(ac.desde).toLocaleString('pt-BR')} (stats.json)` : '';
 
   const ativos = [], canais = [];
   for (const l of s.lives ?? []) {
     const nome = l.plataforma === 'twitch' ? 'Twitch' : 'Kick';
-    if (!l.vinculado) { ativos.push(`<span>${nome} <b>não vinculada</b></span>`); continue; }
+    if (!l.vinculado) { ativos.push(`<span class="chip">${nome} <b>não vinculada</b></span>`); continue; }
     const on = Object.entries(l.bonus).filter(([, m]) => m > 0);
-    ativos.push(on.length ? on.map(([tp, m]) => `<span class="ativo">${nome} ${TP[tp]} <b>${fmtMin(m)}</b></span>`).join('') : `<span>${nome} <b class="fraco">nenhum</b></span>`);
+    ativos.push(on.length ? on.map(([tp, m]) => `<span class="chip on">${nome} ${TP[tp]} <b>${fmtMin(m)}</b></span>`).join('') : `<span class="chip">${nome} <b>nenhum</b></span>`);
     if (l.noAr.length) canais.push(`${nome} no ar: ${esc(l.noAr.slice(0, 6).join(', '))}${l.noAr.length > 6 ? ` +${l.noAr.length - 6}` : ''}`);
   }
-  $('lives').innerHTML = ativos.join('');
-  $('canais').textContent = canais.join(' · ');
+  $('lives').innerHTML = ativos.join(''); $('canais').textContent = canais.join(' · ');
 
   const moch = [...Object.entries(s.bolas), ...Object.entries(s.itens)].filter(([, q]) => q > 0);
-  $('mochila').innerHTML = moch.length ? moch.map(([id, q]) => `<span>${esc(NOMES[id] ?? s.nomesItens?.[id] ?? `item ${id}`)} <b class="num">${n(q)}</b></span>`).join('') : '<span class="fraco">vazia</span>';
-
-  $('captsessao').innerHTML = `<span>capturas <b class="num">${n(s.stats.capturas)}</b></span><span>bolas confirmadas <b class="num">${n(s.stats.bolasServidor ?? 0)}</b></span>`;
+  $('mochila').innerHTML = moch.length ? moch.map(([id, q]) => `<span class="chip">${esc(NOMES[id] ?? s.nomesItens?.[id] ?? `item ${id}`)} <b class="num">${n(q)}</b></span>`).join('') : '<span class="fraco">vazia</span>';
 
   tabela($('drops'), s.drops.map(([nome, q]) => `<tr><td>${esc(nome)}</td><td class="num">${n(q)}</td></tr>`), 'nada ainda');
-  tabela($('capturados'), s.capturados.map((p) => `<tr><td class="${p.shiny ? 'shiny' : ''}">${p.shiny ? '✨ ' : ''}${esc(p.nome)} Nv${n(p.level)} <span class="fraco">Q${p.quality ?? '—'}</span></td><td class="num">${new Date(p.em).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</td></tr>`), 'nenhuma ainda');
+  tabela($('capturados'), s.capturados.map((p) => `<tr><td class="${p.shiny ? 'shiny' : ''}">${p.shiny ? '✨ ' : ''}${esc(p.nome)} Nv${n(p.level)} <span class="fraco">Q${p.quality ?? '—'}</span></td><td class="num">${hora(p.em)}</td></tr>`), 'nenhuma ainda');
 
   const dias = Object.entries(ac.dias ?? {}).sort(([a], [b]) => b.localeCompare(a)).slice(0, 7);
   const cel = (v, cls = '') => `<td class="num ${v ? cls : 'zero'}">${typeof v === 'string' ? v : c(v)}</td>`;
@@ -314,8 +383,7 @@ async function atualizar() {
       `${cel(`${d.nivelIni ?? '?'} → ${d.nivelFim ?? '?'}`)}${cel(farm)}${cel(d.abates)}${cel(d.desmaios, 'ruim')}${cel(d.bolas)}${cel(d.capturas)}${cel(d.shiny, 'shiny')}</tr>`;
   }).join('') : '<tr><td class="vazio" colspan="9">o primeiro dia aparece em até 1 min</td></tr>';
 
-  mostrarBonus(s);
-  mostrarAlertas(s.alertas);
+  mostrarBonus(s); mostrarAlertas(s.alertas); amostrar(s);
 }
 
 // ---- bônus ativos ----
@@ -323,16 +391,15 @@ const NOME_BOOST = { xp: 'XP', pokexp: 'XP de pokemon', loot: 'Loot', captura: '
 const dur = (m) => m >= 2880 ? `${Math.floor(m / 1440)} dias` : m >= 120 ? `${Math.floor(m / 60)} h` : `${m} min`;
 function mostrarBonus(s) {
   const b = s.bonus ?? {}, on = [];
-  if (b.vip) on.push(`<span class="ativo">VIP <b>${b.vipPermanente ? 'permanente' : dur(b.vipMin)}</b></span>`);
-  if (b.passeVipMin > 0) on.push(`<span class="ativo">VIP do passe <b>${dur(b.passeVipMin)}</b></span>`);
-  for (const [k, m] of Object.entries(b.boosts ?? {})) on.push(`<span class="ativo">Boost ${esc(NOME_BOOST[k] ?? k)} <b>${dur(m)}</b></span>`);
-  for (const [k, m] of Object.entries(b.pausados ?? {})) on.push(`<span>Boost ${esc(NOME_BOOST[k] ?? k)} <b class="fraco">pausado, ${dur(m)}</b></span>`);
-  for (const l of s.lives ?? []) for (const [tp, m] of Object.entries(l.bonus ?? {})) if (m > 0) on.push(`<span class="ativo">${l.plataforma === 'twitch' ? 'Twitch' : 'Kick'} ${TP[tp]} <b>${dur(m)}</b></span>`);
-  if (b.guildPct > 0) on.push(`<span class="ativo">Guild <b>+${b.guildPct}%</b></span>`);
+  if (b.vip) on.push(`<span class="chip on">VIP <b>${b.vipPermanente ? 'permanente' : dur(b.vipMin)}</b></span>`);
+  if (b.passeVipMin > 0) on.push(`<span class="chip on">VIP do passe <b>${dur(b.passeVipMin)}</b></span>`);
+  for (const [k, m] of Object.entries(b.boosts ?? {})) on.push(`<span class="chip on">Boost ${esc(NOME_BOOST[k] ?? k)} <b>${dur(m)}</b></span>`);
+  for (const [k, m] of Object.entries(b.pausados ?? {})) on.push(`<span class="chip">Boost ${esc(NOME_BOOST[k] ?? k)} <b>pausado, ${dur(m)}</b></span>`);
+  if (b.guildPct > 0) on.push(`<span class="chip on">Guild <b>+${b.guildPct}%</b></span>`);
   $('bonus').innerHTML = on.length ? on.join('') : '<span class="fraco">nenhum bônus ativo</span>';
 }
 
-// ---- cena: sprites do jogo (/sprite devolve os quadros; as imagens vêm de pokeidle.io) ----
+// ---- sprites do jogo (/sprite devolve os quadros; as imagens vêm de pokeidle.io) ----
 const SPR = new Map();
 function sprite(lt) {
   if (!lt) return null;
@@ -343,7 +410,7 @@ function sprite(lt) {
   }).catch(() => SPR.set(lt, null));
   return null;
 }
-const golpe = new Map(); // chave → { hp, em } para tremer quem levou dano
+const golpe = new Map();
 function levouDano(chave, hp) {
   const g = golpe.get(chave);
   if (g && hp < g.hp) g.em = performance.now();
@@ -359,45 +426,57 @@ function desenhar(ctx, alvo, dir, cx, chao, escala, t, opts = {}) {
   if (q?.length) {
     const f = q[opts.morto ? 0 : Math.floor(t / 170 + (opts.fase ?? 0)) % q.length];
     const img = sp.imgs[f.p];
-    const e = f.h > 32 ? escala * 0.7 : escala; // sprite de 2×2 quadros já é grande
+    const e = f.h > 32 ? escala * 0.7 : escala;
     const w = f.w * e, h = f.h * e;
     if (img?.complete && img.naturalWidth) ctx.drawImage(img, f.x, f.y, f.w, f.h, Math.round(cx - w / 2 + treme), Math.round(chao - h), w, h);
     topo = chao - (f.h > 32 ? h * 0.7 : h * 0.85) - 4;
   } else {
-    ctx.fillStyle = '#323741'; ctx.beginPath(); ctx.arc(cx + treme, chao - 16 * escala / 2, 12 * escala / 2, 0, 7); ctx.fill();
-    ctx.fillStyle = '#8b919b'; ctx.font = '600 13px system-ui'; ctx.textAlign = 'center'; ctx.fillText((alvo.nome ?? '?')[0], cx + treme, chao - 16 * escala / 2 + 5);
+    ctx.fillStyle = cor('line'); ctx.beginPath(); ctx.arc(cx + treme, chao - 16 * escala / 2, 12 * escala / 2, 0, 7); ctx.fill();
+    ctx.fillStyle = cor('sub'); ctx.font = '600 13px system-ui'; ctx.textAlign = 'center'; ctx.fillText((alvo.nome ?? '?')[0], cx + treme, chao - 16 * escala / 2 + 5);
     topo = chao - 16 * escala - 6;
   }
   ctx.globalAlpha = 1;
   if (opts.morto) return;
   const bw = Math.max(34, 12 * escala), pct = alvo.mhp ? Math.max(0, Math.min(1, alvo.hp / alvo.mhp)) : 0;
-  ctx.fillStyle = '#252930'; ctx.fillRect(Math.round(cx - bw / 2), Math.round(topo), bw, 4);
-  ctx.fillStyle = alvo.shiny ? '#e9c868' : pct < 0.3 ? '#e3684f' : '#6cc08a'; ctx.fillRect(Math.round(cx - bw / 2), Math.round(topo), Math.round(bw * pct), 4);
-  ctx.fillStyle = alvo.shiny ? '#e9c868' : '#8b919b'; ctx.font = '12px system-ui'; ctx.textAlign = 'center';
+  ctx.fillStyle = cor('tile'); ctx.fillRect(Math.round(cx - bw / 2), Math.round(topo), bw, 4);
+  ctx.fillStyle = alvo.shiny ? '#e9c868' : pct < 0.3 ? cor('bad') : cor('ok'); ctx.fillRect(Math.round(cx - bw / 2), Math.round(topo), Math.round(bw * pct), 4);
+  ctx.fillStyle = alvo.shiny ? '#e9c868' : cor('sub'); ctx.font = '12px system-ui'; ctx.textAlign = 'center';
   ctx.fillText(`${alvo.shiny ? '✨ ' : ''}${alvo.nome ?? '?'} ${alvo.nv ?? ''}`, cx, Math.round(topo - 5));
+}
+function avatar(t) {
+  const cv = $('av'), s = ultimoEstado; if (!cv || !s) return;
+  const ctx = cv.getContext('2d'); ctx.imageSmoothingEnabled = false; ctx.clearRect(0, 0, cv.width, cv.height);
+  const eu = s.equipe.find((p) => p.ativo), sp = eu && sprite(eu.lt);
+  const q = sp && (sp.s.dirs[2] ?? sp.s.dirs[3] ?? Object.values(sp.s.dirs)[0]);
+  if (!q?.length) return;
+  const f = q[Math.floor(t / 170) % q.length], img = sp.imgs[f.p];
+  if (!img?.complete || !img.naturalWidth) return;
+  const e = Math.min(cv.width / f.w, cv.height / f.h) * (f.h > 32 ? 1 : 0.9);
+  ctx.drawImage(img, f.x, f.y, f.w, f.h, Math.round((cv.width - f.w * e) / 2), Math.round((cv.height - f.h * e) / 2), f.w * e, f.h * e);
 }
 function quadro(t) {
   requestAnimationFrame(quadro);
+  avatar(t);
   const cv = $('cena'), s = ultimoEstado; if (!cv || !s) return;
   const dpr = window.devicePixelRatio || 1, W = cv.clientWidth, H = cv.clientHeight;
   if (cv.width !== Math.round(W * dpr) || cv.height !== Math.round(H * dpr)) { cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); }
   const ctx = cv.getContext('2d'); ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.imageSmoothingEnabled = false;
   ctx.clearRect(0, 0, W, H);
-  // chão: linhas de piso em perspectiva leve
-  ctx.strokeStyle = '#1d2126'; ctx.lineWidth = 1;
+  ctx.strokeStyle = cor('line'); ctx.globalAlpha = 0.55; ctx.lineWidth = 1;
   for (let y = H * 0.45; y < H; y += 22) { ctx.beginPath(); ctx.moveTo(0, Math.round(y) + 0.5); ctx.lineTo(W, Math.round(y) + 0.5); ctx.stroke(); }
-  if (s.noCentro) { ctx.fillStyle = '#8b919b'; ctx.font = '14px system-ui'; ctx.textAlign = 'center'; ctx.fillText('No Centro Pokemon, curando', W / 2, H / 2); return; }
+  ctx.globalAlpha = 1;
+  if (s.noCentro) { ctx.fillStyle = cor('sub'); ctx.font = '14px system-ui'; ctx.textAlign = 'center'; ctx.fillText('No Centro Pokemon, curando', W / 2, H / 2); return; }
   const eu = s.equipe.find((p) => p.ativo);
   if (eu) desenhar(ctx, eu, 2, Math.max(70, W * 0.18), H * 0.78, 3, t, { treme: levouDano('eu', eu.hp) });
   const mobs = [...s.campo].sort((a, b) => (a.slot ?? 0) - (b.slot ?? 0)).slice(0, 12);
   const area = { x: W * 0.4, w: W * 0.56 }, cols = Math.min(4, Math.max(1, Math.ceil(mobs.length / 2))), linhas = Math.ceil(mobs.length / cols) || 1;
   mobs.forEach((m, i) => {
-    const c = i % cols, l = Math.floor(i / cols);
-    const cx = area.x + (c + 0.5) * area.w / cols + (l % 2 ? area.w / cols / 4 : 0);
+    const col = i % cols, l = Math.floor(i / cols);
+    const cx = area.x + (col + 0.5) * area.w / cols + (l % 2 ? area.w / cols / 4 : 0);
     const chao = H * 0.3 + (l + 1) * (H * 0.66 / linhas) - 6;
     desenhar(ctx, m, 4, cx, chao, linhas > 2 ? 2 : 2.5, t, { morto: m.morto, treme: !m.morto && levouDano('m' + m.slot, m.hp), fase: i });
   });
-  if (!mobs.length) { ctx.fillStyle = '#5d636d'; ctx.font = '13px system-ui'; ctx.textAlign = 'center'; ctx.fillText('esperando selvagens…', W * 0.68, H * 0.6); }
+  if (!mobs.length) { ctx.fillStyle = cor('fraco'); ctx.font = '13px system-ui'; ctx.textAlign = 'center'; ctx.fillText('esperando selvagens…', W * 0.68, H * 0.6); }
 }
 requestAnimationFrame(quadro);
 
@@ -413,7 +492,7 @@ function bip() {
 function mostrarAlertas(alertas) {
   const reais = alertas ?? [];
   $('nshiny').textContent = reais.filter((a) => a.tipo === 'capturado').length;
-  tabela($('shinies'), reais.slice(0, 10).map((a) => `<tr><td class="shiny">${a.tipo === 'capturado' ? 'capturado' : a.tipo === 'campo' ? 'no campo' : 'teste'} · ${esc(a.nome ?? '')} Nv${n(a.level)}${a.deOutro ? ' <span class="fraco">(de outro jogador)</span>' : ''}</td><td class="num">${new Date(a.em).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</td></tr>`), 'nenhum nesta sessão');
+  tabela($('shinies'), reais.slice(0, 10).map((a) => `<tr><td class="shiny">${a.tipo === 'capturado' ? 'capturado' : a.tipo === 'campo' ? 'no campo' : 'teste'} · ${esc(a.nome ?? '')} Nv${n(a.level)}${a.deOutro ? ' <span class="fraco">(de outro jogador)</span>' : ''}</td><td class="num">${hora(a.em)}</td></tr>`), 'nenhum nesta sessão');
   const novo = reais.find((a) => a.em > vistoAte);
   const el = $('alerta');
   if (!novo) { el.hidden = true; document.title = 'PokeIdle bot'; clearInterval(piscador); piscador = null; return; }
@@ -426,6 +505,7 @@ function mostrarAlertas(alertas) {
 }
 $('alerta-ok').onclick = () => { vistoAte = Date.now(); try { localStorage.setItem('shinyVistoAte', String(vistoAte)); } catch {} $('alerta').hidden = true; clearInterval(piscador); piscador = null; document.title = 'PokeIdle bot'; };
 
+aplicarTema(temaAtual);
 setInterval(atualizar, 2000); atualizar();
 
 const pre = $('logtxt');
