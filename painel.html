@@ -44,13 +44,32 @@
   ::-webkit-scrollbar-thumb { background:var(--border); border-radius:999px; }
   ::-webkit-scrollbar-thumb:hover { background:var(--fraco); }
 
-  /* Shell principal (estilo "Arena em foco"): topo com navegação em pílulas, sem barra lateral */
-  .app { min-height:100vh; }
-  .main { display:flex; flex-direction:column; min-width:0; }
-  .marca {
-    display:flex; align-items:center; gap:10px;
-    font-size:17px; font-weight:700; letter-spacing:-.01em; white-space:nowrap;
+  /* Shell principal: sidebar retrátil à esquerda + área principal ampla */
+  .app {
+    --side-w:228px;
+    min-height:100vh;
+    display:grid; grid-template-columns:var(--side-w) minmax(0,1fr);
+    transition:grid-template-columns .22s ease;
   }
+  .app.recolhida { --side-w:72px; }
+  .side {
+    position:sticky; top:0; height:100vh; z-index:20;
+    display:flex; flex-direction:column; gap:6px;
+    padding:16px 12px;
+    background:var(--side);
+    border-right:1px solid var(--border);
+    overflow-y:auto; overflow-x:hidden;
+  }
+  .side-top {
+    display:flex; align-items:center; justify-content:space-between; gap:8px;
+    padding:2px 4px 12px;
+  }
+  .app.recolhida .side-top { flex-direction:column; gap:10px; padding:2px 0 10px; }
+  .marca {
+    display:flex; align-items:center; gap:10px; min-width:0;
+    font-size:16px; font-weight:700; letter-spacing:-.01em; white-space:nowrap;
+  }
+  .app.recolhida .marca span:last-child { display:none; }
   .bola {
     width:24px; height:24px; border-radius:50%; flex:none;
     border:2px solid rgba(0,0,0,.65);
@@ -63,40 +82,78 @@
     width:7px; height:7px; border-radius:50%;
     background:#f4f4f5; border:2px solid #18181b;
   }
+  .side-toggle {
+    width:32px; height:32px; padding:0; flex:none;
+    display:inline-flex; align-items:center; justify-content:center;
+    border-radius:9px; border:1px solid var(--border);
+    background:var(--tile); color:var(--sub); cursor:pointer;
+    transition:background .15s, color .15s, transform .22s ease;
+  }
+  .side-toggle:hover { background:var(--tile-hover); color:var(--txt); }
+  .app.recolhida .side-toggle svg { transform:rotate(180deg); }
+  .nav-grupo {
+    font-size:10.5px; font-weight:600; letter-spacing:.08em;
+    text-transform:uppercase; color:var(--fraco);
+    padding:12px 10px 4px; white-space:nowrap;
+  }
+  .nav-grupo:first-of-type { padding-top:4px; }
+  .app.recolhida .nav-grupo {
+    height:1px; padding:0; margin:8px 8px;
+    background:var(--div); overflow:hidden; color:transparent;
+  }
+  .app.recolhida .nav-grupo:first-of-type { display:none; }
+  #abas { display:flex; flex-direction:column; gap:3px; }
+  .tab {
+    display:flex; align-items:center; gap:10px;
+    min-height:40px; padding:0 12px;
+    border:0; border-radius:12px;
+    background:transparent; color:var(--sub);
+    font:500 13.5px 'Inter', system-ui, sans-serif;
+    cursor:pointer; text-align:left; white-space:nowrap;
+    transition:background .15s, color .15s;
+  }
+  .tab svg { opacity:.82; flex:none; }
+  .tab:hover { color:var(--txt); background:var(--tile-hover); }
+  .tab[aria-selected=true] { background:var(--a); color:var(--on-a); font-weight:600; }
+  .tab[aria-selected=true] svg { opacity:1; }
+  .app.recolhida .tab { justify-content:center; padding:0; width:44px; height:42px; margin:0 auto; }
+  .app.recolhida .tab span { display:none; }
+  .tab:focus-visible, .btn:focus-visible, .sw:focus-visible, .seg button:focus-visible, .side-toggle:focus-visible {
+    outline:2px solid var(--a2); outline-offset:2px;
+  }
+  .side-foot {
+    margin-top:auto; padding-top:12px;
+    border-top:1px solid var(--div);
+    display:flex; flex-direction:column; gap:6px;
+  }
+  .side-mini {
+    display:flex; align-items:center; justify-content:space-between; gap:8px;
+    padding:8px 10px; border-radius:10px;
+    background:var(--tile); font-size:12px; color:var(--sub); white-space:nowrap;
+  }
+  .side-mini b { color:var(--txt); }
+  .app.recolhida .side-mini { justify-content:center; padding:7px 4px; font-size:11px; }
+  .app.recolhida .side-mini span { display:none; }
+  .side-log { justify-content:flex-start; }
+  .app.recolhida .side-log { justify-content:center; padding:0; width:44px; height:36px; margin:0 auto; }
+  .app.recolhida .side-log span { display:none; }
+
+  .main { display:flex; flex-direction:column; min-width:0; }
   .top {
     position:sticky; top:0; z-index:15;
-    display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:10px 20px;
+    display:flex; flex-wrap:wrap; align-items:center; gap:10px 14px;
     max-width:1800px; width:100%; margin:0 auto;
-    padding:14px 24px;
+    padding:12px 24px;
+    border-bottom:1px solid var(--div);
     background:color-mix(in srgb, var(--bg) 86%, transparent);
     backdrop-filter:blur(14px);
     -webkit-backdrop-filter:blur(14px);
   }
-  .nav-pilulas { min-width:0; max-width:100%; overflow-x:auto; }
-  #abas {
-    display:flex; gap:2px; padding:4px;
-    background:var(--card); border:1px solid var(--border); border-radius:999px;
-    width:max-content;
-  }
-  .tab {
-    display:flex; align-items:center;
-    min-height:36px; padding:0 16px;
-    border:0; border-radius:999px;
-    background:transparent; color:var(--sub);
-    font:500 13px 'Inter', system-ui, sans-serif;
-    cursor:pointer; white-space:nowrap;
-    transition:background .15s, color .15s;
-  }
-  .tab:hover { color:var(--txt); background:var(--tile-hover); }
-  .tab[aria-selected=true] { background:var(--a); color:var(--on-a); font-weight:600; }
-  .tab:focus-visible, .btn:focus-visible, .sw:focus-visible, .seg button:focus-visible {
-    outline:2px solid var(--a2); outline-offset:2px;
-  }
-  .top-dir { display:flex; flex-wrap:wrap; align-items:center; gap:10px; }
+  .top-sep { width:1px; height:16px; background:var(--border); }
   .esp { flex:1 1 0; min-width:0; }
   .top-nick { font-size:14px; font-weight:700; letter-spacing:-.01em; }
 
-  .views { width:100%; max-width:1800px; margin:0 auto; padding:8px 24px 48px; }
+  .views { width:100%; max-width:1800px; margin:0 auto; padding:18px 24px 48px; }
   .aba { display:none; flex-direction:column; gap:24px; }
   .aba.on { display:flex; }
 
@@ -515,15 +572,26 @@
 
   /* Responsivo */
   @media (max-width:1120px) {
-    .top { position:static; padding:12px 16px; }
-    .views { padding:8px 16px 32px; }
+    .app, .app.recolhida { grid-template-columns:minmax(0,1fr); }
+    .side {
+      position:sticky; top:0; height:auto;
+      flex-direction:row; align-items:center; gap:8px;
+      border-right:0; border-bottom:1px solid var(--border);
+      padding:10px 14px; overflow-x:auto;
+    }
+    .side-top, .app.recolhida .side-top { flex-direction:row; padding:0 8px 0 0; }
+    .marca span:last-child, .side-toggle, .nav-grupo, .side-foot { display:none !important; }
+    #abas { flex-direction:row; gap:4px; }
+    .app.recolhida .tab { width:auto; height:auto; padding:0 12px; margin:0; }
+    .app.recolhida .tab span { display:inline; }
+    .top { position:static; padding:10px 16px; }
+    .views { padding:14px 16px 32px; }
     .vivo-layout, .g-vivo, .g-2, .g-2-asym, .g-3 { grid-template-columns:minmax(0,1fr); }
     .vivo-kpis, .g-kpis { grid-template-columns:repeat(2, minmax(0,1fr)); }
     .g-kpis-3 { grid-template-columns:minmax(0,1fr); }
   }
   @media (max-width:760px) {
     .palco { height:240px; }
-    .marca span:last-child { display:none; }
   }
   @media (max-width:560px) {
     .sn-form { grid-template-columns:minmax(0,1fr); }
@@ -532,18 +600,32 @@
 </style>
 </head>
 <body>
-<div class="app">
+<div class="app" id="app">
+  <aside class="side" aria-label="Navegação principal">
+    <div class="side-top">
+      <div class="marca disp"><span class="bola" aria-hidden="true"></span><span>PokeIdle</span></div>
+      <button type="button" class="side-toggle" id="btn-side" aria-expanded="true" aria-label="Recolher menu lateral" title="Recolher menu">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>
+      </button>
+    </div>
+    <nav aria-label="Seções"><div id="abas" role="tablist"></div></nav>
+    <div class="side-foot">
+      <div class="side-mini" title="Tempo online nesta sessão"><span>Sessão</span><b id="side-tempo">—</b></div>
+      <button type="button" class="btn ghost sm side-log" data-ir="ajustes" data-sub="log" title="Abrir log ao vivo">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 5h14M5 10h14M5 15h9M5 20h12"/></svg>
+        <span>Log ao vivo</span>
+      </button>
+    </div>
+  </aside>
+
   <div class="main">
     <header class="top">
-      <div class="marca disp"><span class="bola" aria-hidden="true"></span><span>PokeIdle</span></div>
-      <nav class="nav-pilulas" aria-label="Navegação principal"><div id="abas" role="tablist"></div></nav>
-      <div class="top-dir">
-        <span class="pill off" id="pilula"><i></i><span id="pilula-t">Conectando…</span></span>
-        <span class="disp top-nick" id="h-nick">—</span>
-        <span class="chip accent" id="h-vip" hidden></span>
-        <button type="button" class="btn sm" data-ir="ajustes" data-sub="config" id="h-avisos">Avisos</button>
-        <b id="side-tempo" hidden>—</b>
-      </div>
+      <span class="pill off" id="pilula"><i></i><span id="pilula-t">Conectando…</span></span>
+      <span class="top-sep" aria-hidden="true"></span>
+      <span class="disp top-nick" id="h-nick">—</span>
+      <span class="chip accent" id="h-vip" hidden></span>
+      <span class="esp"></span>
+      <button type="button" class="btn sm" data-ir="ajustes" data-sub="config" id="h-avisos">Avisos</button>
     </header>
 
     <main class="views">
@@ -1178,14 +1260,32 @@ function mostrarAba(k, sub) {
   if (!IDS_ABAS.includes(k)) k = 'vivo';
   abaAtual = k;
   try { localStorage.setItem('pk-aba', k); } catch {}
-  $('abas').innerHTML = GRUPOS.flatMap((g) => g.itens).map(([id, t]) =>
-    `<button class="tab" type="button" role="tab" data-a="${id}" aria-selected="${id === k}">${t}</button>`
+  $('abas').innerHTML = GRUPOS.map((g) =>
+    `<div class="nav-grupo">${g.titulo}</div>` +
+    g.itens.map(([id, t, d]) =>
+      `<button class="tab" type="button" role="tab" data-a="${id}" title="${t}" aria-selected="${id === k}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${d}"/></svg><span>${t}</span></button>`
+    ).join('')
   ).join('');
   document.querySelectorAll('.aba').forEach((el) => el.classList.toggle('on', el.dataset.aba === k));
   if (sub && subAtuais[k] !== undefined) mostrarSub(k, sub);
   else if (subAtuais[k] !== undefined) mostrarSub(k, subAtuais[k]);
   if (k === 'vivo') requestAnimationFrame(desenharGrafico);
 }
+// ---- recolher / expandir sidebar ----
+let sideRecolhida = false;
+try { sideRecolhida = localStorage.getItem('pk-side') === '1'; } catch {}
+function aplicarSidebar(rec) {
+  sideRecolhida = !!rec;
+  $('app').classList.toggle('recolhida', sideRecolhida);
+  const b = $('btn-side');
+  b.setAttribute('aria-expanded', String(!sideRecolhida));
+  b.setAttribute('aria-label', sideRecolhida ? 'Expandir menu lateral' : 'Recolher menu lateral');
+  b.title = sideRecolhida ? 'Expandir menu' : 'Recolher menu';
+  try { localStorage.setItem('pk-side', sideRecolhida ? '1' : '0'); } catch {}
+  setTimeout(desenharGrafico, 240);
+}
+$('btn-side').onclick = () => aplicarSidebar(!sideRecolhida);
+aplicarSidebar(sideRecolhida);
 $('abas').addEventListener('click', (e) => { const b = e.target.closest('button[data-a]'); if (b) mostrarAba(b.dataset.a); });
 document.addEventListener('click', (e) => {
   const sb = e.target.closest('[data-sub-tab]');
