@@ -952,7 +952,22 @@ function tique() {
 }
 
 // ---------- mensagens do servidor ----------
+// Só para o painel: o servidor não manda mais o campo (mensagem 'campo'); os selvagens em luta saem dos eventos de batalha.
+function vistaBatalha(ev) {
+  const v = (S.vista ??= new Map()), agora = Date.now();
+  for (const [k, x] of v) if (x.morto ? agora - x.fim > 900 : agora - x.visto > 20_000) v.delete(k);
+  if (ev.k === 'ataque' && ev.por === 'jogador' && ev.slot != null) {
+    const x = v.get(ev.slot) ?? { slot: ev.slot, mhp: Math.max(1, (ev.hpAlvo ?? 0) + (ev.dano ?? 0)) };
+    x.hp = ev.hpAlvo ?? x.hp; x.mhp = Math.max(x.mhp, x.hp); x.visto = agora; v.set(ev.slot, x);
+  } else if (ev.k === 'ataque' && ev.por === 'selvagem' && ev.slot != null && !v.has(ev.slot)) {
+    v.set(ev.slot, { slot: ev.slot, hp: 1, mhp: 1, visto: agora });
+  } else if (ev.k === 'morte' && ev.quem === 'selvagem' && ev.slot != null) {
+    const x = v.get(ev.slot) ?? { slot: ev.slot, mhp: 1 };
+    Object.assign(x, { hp: 0, morto: true, fim: agora, visto: agora, nome: ev.nome ?? x.nome }); v.set(ev.slot, x);
+  } else if (ev.k === 'fugiu') { for (const [k, x] of v) if (!x.morto) v.delete(k); }
+}
 function aoEvento(ev) {
+  vistaBatalha(ev);
   if (Date.now() < (S.depurarAte ?? 0) && !['dano','golpe','abate','bola','xp','spawn','cura','pocao','morteSelvagem','ataque'].includes(ev.k)) log('[depurar ev]', JSON.stringify(ev).slice(0, 300));
   if (ev.k === 'marketComprado') log(`Mercado: comprado ${ev.descricao ?? '?'} por ${ev.total ?? '?'} ${ev.moeda === 'orb' ? 'Gemas' : ev.moeda ?? ''}`);
   if (ev.k === 'preyRoletou' || ev.k === 'preyEscolheu') { S.preyCartela = { dia: diaDoPrey(), c: ev.c }; if (ev.k === 'preyEscolheu') log(`Prey: escolhido ${ESPECIES.get(Number(ev.c?.pk))?.nome ?? ev.c?.pk} · bônus ${ev.c?.bonus} ${ev.c?.est}★`); }
@@ -1726,7 +1741,7 @@ function instantaneo() {
     bolas: e.balls ?? {}, itens: e.items ?? {},
     nomesItens: Object.fromEntries([...ITEM_POR_NOME].filter(([, id]) => (e.items ?? {})[id] > 0).map(([nome, id]) => [id, nome])),
     posicoes: [...S.mobs.values()].map((m) => ({ s: m.slot, c: m.c, r: m.r, tr: !!m.treinador, ns: !!m.naoSelvagem, x: !!m.morto, n: m.nome })),
-    campo: [...S.mobs.values()].filter((m) => !m.treinador).map((m) => ({ nome: m.nome, nv: m.nivel, hp: m.hp, mhp: m.mhp, morto: !!m.morto, shiny: !!m.shiny, lt: LOOK_POR_NOME.get(m.nome) ?? null, slot: m.slot })),
+    campo: (S.mobs.size ? [...S.mobs.values()].filter((m) => !m.treinador) : [...(S.vista ?? new Map()).values()].map((x) => ({ ...x, nome: x.nome ?? hunt?.nome, nivel: hunt?.nivel }))).map((m) => ({ nome: m.nome, nv: m.nivel, hp: m.hp, mhp: m.mhp, morto: !!m.morto, shiny: !!m.shiny, lt: LOOK_POR_NOME.get(m.nome) ?? null, slot: m.slot })),
     lives: ['twitch', 'kick'].map((k) => {
       const x = e[k] ?? {};
       return {
