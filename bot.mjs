@@ -122,6 +122,9 @@ const CFG = {
   sacNotaMax: num('SACRIFICIO_NOTA_MAX', 5),     // nota >= isso fica guardada (pode valer Gemas no Mercado)
   sacResgatarPts: num('SACRIFICIO_RESGATAR_PTS', 1000), // resgata só no nível 5 (14 dias, o que rende mais por ponto)
   equipeMax: num('EQUIPE_MAX', 1),               // só o ativo luta; reserva ocupa vaga e trava a captura no Depot
+  timeForte: bool('TIME_FORTE', '0'),            // 1 = equipe com o mais forte de cada espécie; o bot vende no Depot as capturas mais fracas
+  vendaLote: Math.max(1, num('VENDA_LOTE', 20)),  // com TIME_FORTE, só se o servidor não vender na hora: vai ao Centro ao juntar tantas
+  vendaMaxMin: Math.max(1, num('VENDA_MAX_MIN', 60)), // ...ou depois de tantos minutos, se houver pelo menos uma
   manterAcordado: bool('MANTER_ACORDADO', '1'),
   gerirEquipe: bool('GERIR_EQUIPE', '1'),
   evoluir: bool('EVOLUIR', '1'),
@@ -635,6 +638,7 @@ const PONTOS_SAC = [10, 12, 14, 17, 20, 25, 30, 35, 42, 50, 60, 70, 80, 90, 100,
 const pontosDaNota = (n) => { const d = Math.floor(Math.round(Number(n) * 1000) / 100) - 35; return d < 0 || !Number.isFinite(d) ? 0 : PONTOS_SAC[Math.min(d, PONTOS_SAC.length - 1)]; };
 function cuidarDoSacrificio() {
   if (!CFG.sacrificio || !S.eu || CFG.somenteLer) return;
+  if (CFG.timeForte && (Number(S.eu.automation?.sacrificio?.pts) || 0) < CFG.sacResgatarPts) return; // com o time forte as capturas são vendidas, não sacrificadas
   const agora = Date.now();
   if (agora - (S.ultimoSac ?? 0) < 120_000) return;
   S.ultimoSac = agora;
@@ -1102,7 +1106,11 @@ function garantirAutomacoes() {
   if (!a) return;
   // Auto Venda do Depot: vende ao NPC o capturado comum; o jogo nunca vende
   // shiny, lendário, mega, P5, inicial nem equipe (coleção padrão guarda P4+).
-  if (CFG.autoVenda && a.autoVendaDepot !== true && Date.now() - (S.ultimoAutoVenda ?? 0) > 120_000) {
+  if (CFG.timeForte && a.autoVendaDepot === true && Date.now() - (S.ultimoAutoVenda ?? 0) > 60_000) {
+    S.ultimoAutoVenda = Date.now(); log('time forte: desligando a Auto Venda; as capturas vão para o Depot e o bot escolhe o que fica');
+    return enviar({ t: 'shop.autoVendaDepot', ativo: false });
+  }
+  if (CFG.autoVenda && !CFG.timeForte && a.autoVendaDepot !== true && Date.now() - (S.ultimoAutoVenda ?? 0) > 120_000) {
     S.ultimoAutoVenda = Date.now();
     log('ligando Auto Venda do Depot (shiny, lendário e P4+ ficam guardados)');
     enviar({ t: 'shop.autoVendaDepot', ativo: true });
@@ -1206,6 +1214,7 @@ function tique() {
   rodar('estoque', cuidarDoEstoque);
   rodar('passe', cuidarDoPasse);
   rodar('sacrifício', cuidarDoSacrificio);
+  rodar('venda dos fracos', cuidarDaVenda);
   rodar('prey', cuidarDoPrey);
   rodar('mercado ao vivo', cuidarDoMercadoVivo);
   rodar('sniper de pokemon', cuidarDoSniperPk);
@@ -1541,41 +1550,89 @@ function notaDaHunt(h, pk) {
 function venderReservas() {
   const alvo = equipe().filter((p) => p.id !== S.eu?.activeId && !p.starter && !p.shiny && !p.legendary && !p.mega);
   if (!alvo.length) { log('vender reservas: nenhuma reserva vendável'); return []; }
+  return venderNoDepot(alvo, 'vender reservas');
+}
+function venderNoDepot(alvo, motivo) {
   S.vendendo = new Set(alvo.map((p) => p.id)); S.depurarAte = Date.now() + 120000;
   // o Depot só abre no Centro Pokemon (Cerulean), e só se entra lá ~2,3 s sem combate (entre as ondas): tenta a cada 1 s
   S.noDepotAte = Date.now() + 120000;
-  const inicio = Date.now(); let fase = 'ir';
+  const inicio = Date.now(); S.noDepotAte = inicio + 120000 + alvo.length * 400; let fase = 'ir';
   const passo = () => {
-    if (Date.now() - inicio > 110000) { log('vender reservas: desisti (não consegui entrar no Centro em 110 s)'); S.vendendo = null; S.noDepotAte = 0; return; }
+    if (Date.now() - inicio > 110000) { log(`${motivo}: desisti (não consegui entrar no Centro em 110 s)`); S.vendendo = null; S.noDepotAte = 0; return; }
     if (fase === 'ir') {
       if (!S.eu?.noCentro) { enviar({ t: 'centro.ir' }); return setTimeout(passo, 1000); }
-      log('vender reservas: no Centro; tirando da equipe'); fase = 'tirar';
-      for (const p of alvo) enviar({ t: 'team.move', pokemonId: p.id, slot: null });
-      return setTimeout(passo, 4000);
+      log(`${motivo}: no Centro, ${alvo.length} para vender`); fase = 'tirar';
+      const daEquipe = alvo.filter((p) => S.pokemons.get(p.id)?.slot != null);
+      for (const p of daEquipe) enviar({ t: 'team.move', pokemonId: p.id, slot: null });
+      return setTimeout(passo, daEquipe.length ? 4000 : 500);
     }
     if (fase === 'tirar') {
-      log('vender reservas: vendendo ao NPC'); fase = 'vender';
+      log(`${motivo}: vendendo ao NPC`); fase = 'vender';
       for (const p of alvo) enviar({ t: 'shop.sellPokemon', pokemonId: p.id });
-      return setTimeout(passo, 5000);
+      return setTimeout(passo, 5000 + alvo.length * 400);
     }
     const ficaram = alvo.filter((p) => S.pokemons.has(p.id));
-    log(ficaram.length ? `vender reservas: não vendidos: ${ficaram.map((p) => p.nome).join(', ')}` : `vender reservas: vendidos ${alvo.map((p) => p.nome).join(', ')}`);
+    log(ficaram.length ? `${motivo}: não vendidos: ${ficaram.map((p) => p.nome).join(', ')}` : `${motivo}: vendidos ${alvo.map((p) => p.nome).join(', ')}`);
     S.vendendo = null; S.noDepotAte = 0;
-    if (S.eu?.huntSlug) { log('vender reservas: voltando para a hunt'); enviar({ t: 'hunt.select', slug: S.eu.huntSlug }); }
+    if (S.eu?.huntSlug) { log(`${motivo}: voltando para a hunt`); enviar({ t: 'hunt.select', slug: S.eu.huntSlug }); }
   };
-  log('vender reservas: indo ao Centro (Depot)'); passo();
+  log(`${motivo}: indo ao Centro (Depot)`); passo();
   return alvo.map((p) => `${p.nome} Nv${p.level}`);
 }
 function podeUsar(p) { const lv = S.eu?.level ?? 0; return p.starter || (p.level ?? 0) <= lv + 5; }
+// TIME_FORTE: o ativo e, nas outras vagas, o pokemon de maior poder de cada espécie (nunca duas da mesma)
+function timeDesejado() {
+  const max = S.maxEquipe ?? 5;
+  const ordenados = [...S.pokemons.values()].filter((p) => !S.vendendo?.has(p.id) && podeUsar(p) && !p.shiny).sort((a, b) => (b.poder ?? 0) - (a.poder ?? 0) || (a.slot == null) - (b.slot == null));
+  const ativo = S.pokemons.get(S.eu?.activeId), time = ativo ? [ativo] : [], especies = new Set(time.map((p) => p.speciesId));
+  for (const p of ordenados) { if (time.length >= max) break; if (!especies.has(p.speciesId)) { time.push(p); especies.add(p.speciesId); } }
+  return time.sort((a, b) => (b.poder ?? 0) - (a.poder ?? 0));
+}
+// o que pode ir ao NPC: só o que está parado no Depot, fora do time desejado, e que a própria Auto Venda do jogo venderia
+function vendaveisTimeForte() {
+  if (!S.eu || !ESPECIES.size) return []; // sem catálogo não dá para saber a raridade: não vende nada
+  const fica = new Set(timeDesejado().map((p) => p.id)), colecao = new Set(S.eu.automation?.pokemonTravado ?? []);
+  return [...S.pokemons.values()].filter((p) => p.slot == null && p.id !== S.eu.activeId && !fica.has(p.id) && !colecao.has(p.id)
+    && !p.starter && !p.shiny && !p.legendary && !p.mega && !p.heldItemId && !p.skin && !p.casa
+    && !(p.potencia >= 4) && !((p.level ?? 0) > 100) && !(Number(p.refinoTotal) > 0) && !p.tmElemental && !p.tmAoe
+    && !(CFG.colecaoNota && Number(p.nota) >= CFG.colecaoNotaMin)
+    && !RARIDADE_PROTEGIDA.has(ESPECIES.get(p.speciesId)?.rarity ?? 'SEM_CATALOGO'));
+}
+// vende na hora, sem sair da hunt (a mesma mensagem do botão "Vender" do Market). Se o servidor não aceitar fora do
+// Centro, passa a vender em lotes no Depot.
+function cuidarDaVenda() {
+  if (!CFG.timeForte || !S.eu || CFG.somenteLer || S.vendendo || Date.now() - (S.conectadoEm ?? 0) < 15_000) return;
+  if (S.eu.automation?.autoVendaDepot === true || S.eu.boss?.arena || S.eu.boss?.auto) return;
+  const v = S.vendaDireta;
+  if (v) {
+    const ficaram = v.alvo.filter((p) => S.pokemons.has(p.id));
+    if (ficaram.length && Date.now() - v.em < 15_000) return; // esperando o servidor
+    const vendidos = v.alvo.filter((p) => !S.pokemons.has(p.id));
+    if (vendidos.length) log(`venda dos fracos: vendidos sem sair da hunt: ${vendidos.map((p) => `${p.nome} Nv${p.level}`).join(', ')}`);
+    if (!vendidos.length) { S.vendaSoNoCentro = true; log('venda dos fracos: o servidor não vendeu fora do Centro; passo a vender em lotes no Depot'); }
+    S.vendaDireta = null; return;
+  }
+  const alvo = vendaveisTimeForte().slice(0, 20);
+  if (!alvo.length) return;
+  if (!S.vendaSoNoCentro) {
+    S.vendaDireta = { alvo, em: Date.now() }; S.depurarAte = Date.now() + 15_000;
+    for (const p of alvo) enviar({ t: 'shop.sellPokemon', pokemonId: p.id });
+    return;
+  }
+  const desde = Date.now() - (S.ultimaVendaForte ?? S.stats.inicio);
+  if (alvo.length < CFG.vendaLote && desde < CFG.vendaMaxMin * 60_000) return;
+  S.ultimaVendaForte = Date.now();
+  venderNoDepot(vendaveisTimeForte().slice(0, 60), 'venda dos fracos');
+}
 function cuidarDaEquipe() {
   if (!CFG.gerirEquipe || !S.eu || S.equipePendente || Date.now() - (S.ultimaEquipe ?? 0) < 12_000) return;
-  const max = Math.min(S.maxEquipe ?? 5, Math.max(1, CFG.equipeMax));
+  const max = CFG.timeForte ? S.maxEquipe ?? 5 : Math.min(S.maxEquipe ?? 5, Math.max(1, CFG.equipeMax));
   const todos = [...S.pokemons.values()].filter((p) => !S.vendendo?.has(p.id));
   const ordenados = todos.filter((p) => podeUsar(p) && !p.shiny).sort((a, b) => (b.poder ?? 0) - (a.poder ?? 0));
   const poderTopo = ordenados[0]?.poder ?? 0;
   // reserva fraca só entra para morrer (e cada desmaio custa XP): fica de fora
   const candidatos = ordenados.filter((p, i) => i === 0 || (p.poder ?? 0) >= poderTopo * CFG.reservaPoderMin);
-  const desejados = candidatos.slice(0, max);
+  const desejados = CFG.timeForte ? timeDesejado() : candidatos.slice(0, max);
   const idsDesejados = new Set(desejados.map((p) => p.id));
   const naEquipe = todos.filter((p) => p.slot != null);
   const ativo = S.pokemons.get(S.eu.activeId);
@@ -1625,7 +1682,7 @@ let cotacaoPedra = null; // { seq, itemId, nome }
 function cuidarDaEvolucao() {
   if (!CFG.evoluir || !S.eu || !ESPECIES.size || Date.now() - (S.ultimaEvo ?? 0) < 30_000) return;
   if (cotacaoPedra && Date.now() - cotacaoPedra.em > 30_000) cotacaoPedra = null; // cotação sem resposta
-  const equipeAtual = [...S.pokemons.values()].filter((p) => p.slot != null && !p.shiny).sort((a, b) => (b.poder ?? 0) - (a.poder ?? 0));
+  const equipeAtual = [...S.pokemons.values()].filter((p) => p.slot != null && !p.shiny && (!CFG.timeForte || p.id === S.eu.activeId)).sort((a, b) => (b.poder ?? 0) - (a.poder ?? 0));
   for (const p of equipeAtual) {
     const esp = ESPECIES.get(p.speciesId);
     // nível do catálogo (o cliente só rebaixa esse nível para espécies 252+, então para Kanto vale o do catálogo)
