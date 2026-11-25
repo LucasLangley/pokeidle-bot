@@ -110,7 +110,7 @@ const CFG = {
   sniperPkDia: num('SNIPER_PK_DIA', 2000),                // no máximo tantas Gemas por dia
   sniperPkQtdDia: num('SNIPER_PK_QTD_DIA', 3),            // no máximo tantas compras por dia
   sniperPkReserva: num('SNIPER_PK_RESERVA', 500),         // nunca deixa o saldo de Gemas abaixo disso
-  sniperPkLucro: num('SNIPER_PK_LUCRO', 30),              // só compra se a revenda, já sem a taxa, render pelo menos X% sobre o preço
+  sniperPkLucro: num('SNIPER_PK_LUCRO', 45),              // só compra se a revenda, já sem a taxa, render pelo menos X% sobre o preço (régua v2: 45% deu mais lucro por Gema)
   sniperPkVendas: num('SNIPER_PK_VENDAS', 5),             // vendas parecidas mínimas para confiar no preço de referência
   sniperPkSoShiny: bool('SNIPER_PK_SO_SHINY', '1'),       // pokemon sem shiny quase não vende (25/11: Charizard P5 Nv80 saiu por 55 Gemas)
   // Revenda do que o sniper comprou: ANUNCIA SOZINHO no Mercado. Desligada por padrão
@@ -954,9 +954,15 @@ function snVendasShiny() {
   }
   return SN.cacheShiny.v;
 }
+// versão da régua: ao trocar regua-sniper.mjs, a calibração salva recomeça do desconto da versão nova
+const REGUA_VERSAO = 'v2';
+function snCal() {
+  if (ACUM.reguaCal && ACUM.reguaCal.versao !== REGUA_VERSAO) { log(`régua: versão ${REGUA_VERSAO}; desconto recomeça em ${REGUA.CFG_PADRAO.desconto} (era ${ACUM.reguaCal.desconto})`); ACUM.reguaCal = { versao: REGUA_VERSAO, desconto: REGUA.CFG_PADRAO.desconto, historico: ACUM.reguaCal.historico ?? [] }; }
+  return (ACUM.reguaCal ??= { versao: REGUA_VERSAO, desconto: REGUA.CFG_PADRAO.desconto, historico: [] });
+}
 function snCfgRegua() {
   snVendasShiny();
-  const cal = ACUM.reguaCal;
+  const cal = snCal();
   // precoMax da régua fica alto: o teto SNIPER_PK_MAX é conferido na compra, e assim o modo sombra registra a referência de todo anúncio
   return { margemMin: CFG.sniperPkLucro / 100, minVizinhos: Math.max(3, CFG.sniperPkVendas), precoMax: 1e9, ...(SN.cacheShiny.beta ? { beta: SN.cacheShiny.beta } : {}), ...(cal?.desconto ? { desconto: cal.desconto } : {}) };
 }
@@ -965,9 +971,9 @@ function snCfgRegua() {
 // desconto de segurança para o lucro previsto bater com o realizado. Gabarito do relatório de pesquisa: média líquida
 // das vendas posteriores de mesma espécie, potência e AoE, nível ±max(10, 15%) e nota ±0,2. Só entram decisões com
 // preço até a referência (onde o sniper compra) e de mais de 6 h atrás. Muda no máximo metade do caminho por dia,
-// entre 0,70 e 1,10, e só com 30+ decisões medidas.
+// entre 0,70 e 1,30, e só com 30+ decisões medidas.
 function calibrarRegua(forcar = false) {
-  const agora = Date.now(); const cal = (ACUM.reguaCal ??= { desconto: REGUA.CFG_PADRAO.desconto, historico: [] });
+  const agora = Date.now(); const cal = snCal();
   if (!forcar && agora - (cal.em ?? 0) < 24 * 3600_000) return null;
   cal.em = agora;
   snCarregarVendas(); const vendas = snVendasShiny();
@@ -990,7 +996,7 @@ function calibrarRegua(forcar = false) {
     r.erro = realC ? Math.round(Math.abs(prev - realC) / Math.abs(realC) * 100) : null;
     const estimado = med.reduce((t, m) => t + m.real, 0) / med.reduce((t, m) => t + m.cru, 0);
     r.estimado = +estimado.toFixed(3);
-    if (med.length >= 30) cal.desconto = +Math.min(1.10, Math.max(0.70, cal.desconto + (estimado - cal.desconto) / 2)).toFixed(3);
+    if (med.length >= 30) cal.desconto = +Math.min(1.30, Math.max(0.70, cal.desconto + (estimado - cal.desconto) / 2)).toFixed(3);
   }
   r.descontoNovo = cal.desconto; cal.ultimo = r; cal.historico = [...(cal.historico ?? []), r].slice(-30);
   log(`régua: calibração diária — ${r.decisoes} decisões registradas, ${r.medidas} com venda posterior para conferir; desconto ${r.desconto} → ${r.descontoNovo}${r.estimado ? ` (os dados pedem ${r.estimado})` : ''}${r.compras ? `; nas ${r.compras} compras previstas: lucro previsto ${r.lucroPrevisto}, realizado ${r.lucroReal}, erro ${r.erro}%` : ''}${med.length < 30 ? ' — ainda poucas medidas, desconto mantido' : ''}`);
@@ -1163,7 +1169,14 @@ function aoRevendaVitrine(m) {
   const degrau = r.anuncioEm ? Math.min(3, Math.floor((Date.now() - r.anuncioEm) / (12 * 3600_000))) : 0;
   const fator = [1, 0.9, 0.8, 0][degrau];
   // sem média nem concorrente: anuncia no piso (melhor girar o pokemon do que deixar parado)
-  const preco = Number.isFinite(base) ? Math.max(piso, Math.round(base * fator - CFG.sniperPkAbaixo)) : piso;
+  let preco = Number.isFinite(base) ? Math.max(piso, Math.round(base * fator - CFG.sniperPkAbaixo)) : piso;
+  // venda rápida (marcada à mão em snCompras: rapido = fração do valor): aceita perda para liberar as Gemas.
+  // Pesquisa da revenda: abaixo de 0,6× a referência ~22% vende em 1 h e ~61% em 24 h. Sem piso.
+  if (r.rapido) {
+    const ref = REGUA.referencia(fichaR, snVendasShiny(), Date.now(), snCfgRegua()).ref;
+    const alvo = ref ? Math.round(ref * r.rapido) : Math.round(r.custo * r.rapido);
+    preco = Math.max(1, Math.min(alvo, menor != null ? menor - 1 : Infinity));
+  }
   if (reavaliar) {
     SNR.pedido = null;
     const atual = r.preco ?? 0;
