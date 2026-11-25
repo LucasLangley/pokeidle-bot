@@ -973,6 +973,16 @@ function snCal() {
   if (ACUM.reguaCal && ACUM.reguaCal.versao !== REGUA_VERSAO) { log(`régua: versão ${REGUA_VERSAO}; desconto recomeça em ${REGUA.CFG_PADRAO.desconto} (era ${ACUM.reguaCal.desconto})`); ACUM.reguaCal = { versao: REGUA_VERSAO, desconto: REGUA.CFG_PADRAO.desconto, historico: ACUM.reguaCal.historico ?? [] }; }
   return (ACUM.reguaCal ??= { versao: REGUA_VERSAO, desconto: REGUA.CFG_PADRAO.desconto, historico: [] });
 }
+// teto recente: o maior preço pago por um parecido (mesma espécie, potência e AoE, nível próximo, nota ±0,2) nos
+// últimos SN_TETO_HORAS. A régua usa 14 dias e, num mercado em queda, fica acima do que se paga hoje (25/11: Larvitar
+// nota 5,08 — régua ~1.700, vendas de 23–25/11 entre 800 e 1.500). Com menos de 3 vendas recentes não há teto.
+const SN_TETO_HORAS = 72;
+function snTetoRecente(f) {
+  const lim = Date.now() - SN_TETO_HORAS * 3600_000; const nv = f.level ?? 0; const folga = Math.max(20, nv * 0.25);
+  const p = snVendasShiny().filter((l) => l.em >= lim && l.ficha.nome === f.nome && (l.ficha.potencia ?? 1) === (f.potencia ?? 1) && !!l.ficha.tmAoe === !!f.tmAoe
+    && Math.abs((l.ficha.level ?? 0) - nv) <= folga && Math.abs((l.ficha.nota ?? 0) - (f.nota ?? 0)) <= 0.2).map((l) => l.bruto);
+  return p.length >= 3 ? { teto: Math.max(...p), n: p.length } : null;
+}
 function snCfgRegua() {
   snVendasShiny();
   const cal = snCal();
@@ -1064,6 +1074,13 @@ function aoSniperPk(m) {
     // do anúncio, revenda esperada com desconto e correção da "maldição do vencedor"
     const d = REGUA.deveComprar({ preco: a.preco, ficha: f, em: Date.now() }, snVendasShiny(), snCfgRegua());
     snSombra(a, f, d);
+    // mercado em queda: a revenda esperada não passa do maior preço pago por um parecido nos últimos 3 dias
+    const trc = d.comprar ? snTetoRecente(f) : null;
+    if (trc && d.revenda > trc.teto) {
+      const lucro = snLiquido(trc.teto) - a.preco; const exige = Math.max(30, CFG.sniperPkLucro / 100 * a.preco);
+      if (lucro < exige) { log(`sniper de pokemon: não compro shiny ${f.nome} Nv${f.level} nota ${f.nota} por ${a.preco} — nos últimos 3 dias um parecido não passou de ${trc.teto} (${trc.n} vendas); ganho ${lucro} < exigido ${Math.ceil(exige)}`); continue; }
+      d.revenda = trc.teto; d.lucroPrevisto = lucro;
+    }
     const ref = d.ref; const liquido = d.revenda ? snLiquido(d.revenda) : 0; const ganho = d.lucroPrevisto;
     if (!ref || !d.comprar || a.preco > CFG.sniperPkMax) continue;
     if (a.preco < ref * 0.1) continue; // isca: preço de fachada, costuma ser cancelado na retenção
@@ -1288,6 +1305,9 @@ function aoRevendaVitrine(m) {
   const fator = [1, 0.9, 0.8, 0][degrau];
   // sem média nem concorrente: anuncia no piso (melhor girar o pokemon do que deixar parado)
   let preco = Number.isFinite(base) ? Math.max(piso, Math.round(base * fator - CFG.sniperPkAbaixo)) : piso;
+  // não anuncia acima do maior preço que um parecido alcançou nos últimos 3 dias (o piso continua valendo)
+  const tr = snTetoRecente(fichaR);
+  if (tr && preco > tr.teto - CFG.sniperPkAbaixo) { preco = Math.max(piso, tr.teto - CFG.sniperPkAbaixo); r.tetoRecente = tr.teto; }
   // venda rápida (marcada à mão em snCompras: rapido = fração do valor): aceita perda para liberar as Gemas.
   // Pesquisa da revenda: abaixo de 0,6× a referência ~22% vende em 1 h e ~61% em 24 h. Sem piso.
   if (r.rapido) {
