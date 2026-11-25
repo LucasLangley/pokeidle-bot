@@ -49,6 +49,9 @@
 .sn-form .sn-check { flex-direction:row; align-items:center; grid-column:1 / -1; }
 .sn-acoes { grid-column:1 / -1; display:flex; align-items:center; gap:10px; }
 .lt td.sn-acao { white-space:nowrap; font-weight:600; }
+.sn-modos + .mini { margin-bottom:2px; }
+.sn-sub { grid-column:1 / -1; margin-top:6px; font-size:12px; font-weight:600; letter-spacing:.05em; text-transform:uppercase; color:var(--a2); }
+.sn-modos .btn[data-sn-rev="1"][aria-pressed=true] { background:var(--bad); border-color:var(--bad); }
   .g-conta.on { grid-template-columns:repeat(3, minmax(0,1fr)); grid-template-rows:minmax(0,1fr) minmax(0,1fr); }
   .g-bosses.on { grid-template-columns:repeat(3, minmax(0,1fr)); grid-template-rows:minmax(0,1fr) auto; }
   .g-1 { grid-template-columns:minmax(0,1fr); }
@@ -312,6 +315,11 @@
               <button type="button" class="btn" data-sn-modo="1">Comprar</button>
             </div>
             <div class="mini" id="sn-modo-t"></div>
+            <div class="sn-modos" role="group" aria-label="Revenda automática">
+              <button type="button" class="btn" data-sn-rev="0">Revenda desligada</button>
+              <button type="button" class="btn" data-sn-rev="1">Revender sozinho</button>
+            </div>
+            <div class="mini" id="sn-rev-t"></div>
             <div id="sn-hoje"></div>
           </section>
           <section class="card">
@@ -325,11 +333,19 @@
               <label>Vendas parecidas mínimas<input type="number" name="vendas" min="3" max="100" step="1"></label>
               <label>Olhar a cada <span class="mini">segundos</span><input type="number" name="seg" min="3" max="600" step="1"></label>
               <label class="sn-check"><input type="checkbox" name="soShiny"> Só shiny <span class="mini">(sem shiny quase não vende)</span></label>
+              <div class="sn-sub">Revenda</div>
+              <label>Anunciar abaixo do mercado <span class="mini">Gemas</span><input type="number" name="abaixo" min="0" max="10000" step="1"></label>
+              <label>Ganho mínimo sobre o que pagou <span class="mini">% já sem a taxa</span><input type="number" name="margem" min="0" max="500" step="1"></label>
+              <label>Dias na vitrine <span class="mini">100 mil de ouro por dia</span><input type="number" name="revDias" min="1" max="30" step="1"></label>
               <div class="sn-acoes"><button type="submit" class="btn pri">Salvar limites</button><span class="mini" id="sn-form-r"></span></div>
             </form>
           </section>
         </div>
         <div class="col">
+          <section class="card">
+            <h2>Compras e revendas <span class="mini" id="sn-lucro"></span></h2>
+            <div class="scroll" style="max-height:260px"><table class="lt" id="sn-compras"></table></div>
+          </section>
           <section class="card grow">
             <h2>O que ele viu <span class="mini" id="sn-visto"></span></h2>
             <div class="grow scroll"><table class="lt" id="sn-eventos"></table></div>
@@ -538,7 +554,8 @@ async function atualizar() {
 }
 
 // ---- sniper de pokemon ----
-const SN_ACAO = { compraria: ['compraria', 'var(--a2)'], pedindo: ['pedindo', 'var(--shiny)'], comprou: ['comprou', 'var(--ok)'], perdeu: ['não levou', 'var(--sub)'], barrado: ['barrado', 'var(--sub)'], modo: ['modo', 'var(--sub)'] };
+const SN_ACAO = { compraria: ['compraria', 'var(--a2)'], pedindo: ['pedindo', 'var(--shiny)'], comprou: ['comprou', 'var(--ok)'], perdeu: ['não levou', 'var(--sub)'], barrado: ['barrado', 'var(--sub)'], modo: ['modo', 'var(--sub)'], anunciando: ['anunciou', 'var(--a2)'], vendeu: ['vendeu', 'var(--ok)'] };
+const SN_ESTADO = { comprado: ['na conta', 'var(--sub)'], consultando: ['vendo preço', 'var(--a2)'], anunciando: ['anunciando', 'var(--a2)'], anunciado: ['à venda', 'var(--shiny)'], vendido: ['vendido', 'var(--ok)'], parado: ['parado', 'var(--bad)'] };
 let snEditando = false;
 function mostrarSniper(sp, saldo) {
   if (!sp) return;
@@ -554,9 +571,19 @@ function mostrarSniper(sp, saldo) {
     const det = e.preco != null ? `${n(e.preco)} Gemas · referência ${n(e.ref)} · ganho ~${n(e.ganho)} (${e.pct}%)${e.barra ? ' · ' + esc(e.barra) : ''}` : '';
     return `<tr><td class="sn-acao" style="color:${corA}">${rot}</td><td>${esc(e.desc)}<div class="fraco" title="${esc(e.motivo ?? '')}">${det}</div></td><td class="num">${hora(e.em)}</td></tr>`;
   }), sp.modo === '0' ? 'desligado' : 'nada que valha a pena ainda');
+  document.querySelectorAll('[data-sn-rev]').forEach((b) => b.setAttribute('aria-pressed', String((b.dataset.snRev === '1') === !!sp.revender)));
+  $('sn-rev-t').textContent = sp.revender ? `Anuncia sozinho o que o sniper comprou, ${n(sp.abaixo)} Gemas abaixo do mercado, sem passar do piso.` : 'O que ele compra fica na sua conta; anunciar é com você.';
+  const cps = sp.compras ?? [];
+  const lucro = cps.filter((x) => x.estado === 'vendido').reduce((t, x) => t + (x.lucro ?? 0), 0);
+  $('sn-lucro').textContent = cps.some((x) => x.estado === 'vendido') ? `lucro ${lucro >= 0 ? '+' : ''}${n(lucro)} Gemas` : '';
+  tabela($('sn-compras'), cps.map((x) => {
+    const [rot, corE] = SN_ESTADO[x.estado] ?? [x.estado, 'var(--sub)'];
+    const det = `pagou ${n(x.custo)}${x.preco ? ' · anunciado ' + n(x.preco) : ''}${x.estado === 'vendido' ? ' · recebeu ' + n(x.recebido) + ' (' + (x.lucro >= 0 ? '+' : '') + n(x.lucro) + ')' : ''}${x.obs ? ' · ' + esc(x.obs) : ''}`;
+    return `<tr><td class="sn-acao" style="color:${corE}">${rot}</td><td>${x.shiny ? '✨ ' : ''}${esc(x.nome)} Nv${n(x.nivel)}<div class="fraco">${det}</div></td><td class="num">${hora(x.em)}</td></tr>`;
+  }), 'nenhuma compra ainda');
   if (!snEditando) {
     const f = $('sn-form');
-    for (const k of ['max', 'dia', 'qtdDia', 'reserva', 'lucro', 'vendas', 'seg']) if (document.activeElement !== f.elements[k]) f.elements[k].value = sp[k];
+    for (const k of ['max', 'dia', 'qtdDia', 'reserva', 'lucro', 'vendas', 'seg', 'abaixo', 'margem', 'revDias']) if (document.activeElement !== f.elements[k]) f.elements[k].value = sp[k];
     if (document.activeElement !== f.elements.soShiny) f.elements.soShiny.checked = !!sp.soShiny;
   }
 }
@@ -567,6 +594,12 @@ async function mandarSniper(corpo) {
   if (ultimoEstado) mostrarSniper(j.sniperPk, ultimoEstado.orbs);
   return j;
 }
+document.addEventListener('click', async (e) => {
+  const b = e.target.closest('[data-sn-rev]'); if (!b) return;
+  const liga = b.dataset.snRev === '1';
+  if (liga && !confirm('Ligar a revenda automática?\n\nO bot vai anunciar sozinho no Mercado os pokemon que o sniper comprou, pagando a pensão da vitrine em ouro (100 mil por dia).')) return;
+  try { await mandarSniper({ revender: liga }); } catch (err) { $('sn-form-r').textContent = err.message; }
+});
 document.addEventListener('click', async (e) => {
   const b = e.target.closest('[data-sn-modo]'); if (!b) return;
   const modo = b.dataset.snModo;
@@ -580,7 +613,7 @@ $('sn-form').addEventListener('input', () => { snEditando = true; $('sn-form-r')
 $('sn-form').addEventListener('submit', async (e) => {
   e.preventDefault();
   const f = e.target; const corpo = { soShiny: f.elements.soShiny.checked };
-  for (const k of ['max', 'dia', 'qtdDia', 'reserva', 'lucro', 'vendas', 'seg']) corpo[k] = Number(f.elements[k].value);
+  for (const k of ['max', 'dia', 'qtdDia', 'reserva', 'lucro', 'vendas', 'seg', 'abaixo', 'margem', 'revDias']) corpo[k] = Number(f.elements[k].value);
   try { const j = await mandarSniper(corpo); snEditando = false; $('sn-form-r').textContent = j.mudou?.length ? 'salvo' : 'nada mudou'; }
   catch (err) { $('sn-form-r').textContent = err.message; }
 });

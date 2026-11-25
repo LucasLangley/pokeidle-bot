@@ -111,6 +111,11 @@ const CFG = {
   sniperPkLucro: num('SNIPER_PK_LUCRO', 30),              // só compra se a revenda, já sem a taxa, render pelo menos X% sobre o preço
   sniperPkVendas: num('SNIPER_PK_VENDAS', 5),             // vendas parecidas mínimas para confiar no preço de referência
   sniperPkSoShiny: bool('SNIPER_PK_SO_SHINY', '1'),       // pokemon sem shiny quase não vende (25/11: Charizard P5 Nv80 saiu por 55 Gemas)
+  // Revenda do que o sniper comprou: ANUNCIA SOZINHO no Mercado. Desligada por padrão
+  sniperPkRevender: bool('SNIPER_PK_REVENDER', '0'),
+  sniperPkAbaixo: num('SNIPER_PK_ABAIXO', 10),            // anuncia tantas Gemas abaixo do menor entre a média e o anúncio mais barato
+  sniperPkMargem: num('SNIPER_PK_MARGEM', 10),            // piso: ganho mínimo em % sobre o que pagou, já sem a taxa do Mercado
+  sniperPkRevDias: num('SNIPER_PK_REV_DIAS', 3),          // dias na vitrine (o jogo cobra a pensão em ouro por dia)
   prey: bool('PREY', '1'),                       // cartela grátis do Prey todo dia (18h), escolhendo espécie da hunt atual
   pvp: bool('PVP', '1'),                         // fila automática do PvP Ranqueado (VIP; luta sem parar a hunt)
   sacrificio: bool('SACRIFICIO', '1'),           // nota 3,5 até SACRIFICIO_NOTA_MAX vira pontos de +20% XP
@@ -824,6 +829,10 @@ const SN_CAMPOS = {
   lucro: ['sniperPkLucro', 'SNIPER_PK_LUCRO', (v) => (Number(v) >= 5 && Number(v) <= 500 ? Number(v) : null)],
   vendas: ['sniperPkVendas', 'SNIPER_PK_VENDAS', (v) => (Number.isInteger(Number(v)) && Number(v) >= 3 && Number(v) <= 100 ? Number(v) : null)],
   soShiny: ['sniperPkSoShiny', 'SNIPER_PK_SO_SHINY', (v) => (typeof v === 'boolean' ? v : null)],
+  revender: ['sniperPkRevender', 'SNIPER_PK_REVENDER', (v) => (typeof v === 'boolean' ? v : null)],
+  abaixo: ['sniperPkAbaixo', 'SNIPER_PK_ABAIXO', (v) => (Number.isInteger(Number(v)) && Number(v) >= 0 && Number(v) <= 10000 ? Number(v) : null)],
+  margem: ['sniperPkMargem', 'SNIPER_PK_MARGEM', (v) => (Number(v) >= 0 && Number(v) <= 500 ? Number(v) : null)],
+  revDias: ['sniperPkRevDias', 'SNIPER_PK_REV_DIAS', (v) => (Number.isInteger(Number(v)) && Number(v) >= 1 && Number(v) <= 30 ? Number(v) : null)],
 };
 function snMudar(pedido) {
   const mudou = [], erros = [];
@@ -847,6 +856,7 @@ function snMudar(pedido) {
 function snPainel() {
   const g = snDia();
   return { modo: CFG.sniperPk, seg: CFG.sniperPkSeg, max: CFG.sniperPkMax, dia: CFG.sniperPkDia, qtdDia: CFG.sniperPkQtdDia, reserva: CFG.sniperPkReserva, lucro: CFG.sniperPkLucro, vendas: CFG.sniperPkVendas, soShiny: CFG.sniperPkSoShiny,
+    revender: CFG.sniperPkRevender, abaixo: CFG.sniperPkAbaixo, margem: CFG.sniperPkMargem, revDias: CFG.sniperPkRevDias, compras: (ACUM.snCompras ?? []).slice(-20).reverse(),
     hoje: { gasto: g.gasto, compras: g.compras, pendente: g.pendente }, comparaveis: SN.vendas.size, olhadas: SN.olhadas, vistos: SN.vistos, ultimaResposta: SN.ultimaResposta || null, eventos: SN.eventos };
 }
 const SEQ_SNIPER = 900_000;
@@ -922,11 +932,93 @@ function aoSniperPk(m) {
       setTimeout(() => {
         const g = snDia(); g.pendente = Math.max(0, g.pendente - a.preco);
         const pagou = saldoAntes - (Number(S.eu?.orbs) || 0) >= a.preco * 0.99;
-        if (pagou) { g.gasto += a.preco; g.compras += 1; snEvento('comprou', desc, info); avisarShiny('mercado', `🛒 Sniper comprou ${desc}`, `${motivo}. Anunciar para revender é com você.`); }
+        if (pagou) { g.gasto += a.preco; g.compras += 1; snEvento('comprou', desc, info);
+          (ACUM.snCompras ??= []).push({ pokemonId: a.pokemonId ?? f.id ?? null, nome: f.nome, nivel: f.level, potencia: f.potencia ?? 1, shiny: !!f.shiny, aoe: !!f.tmAoe, nota: f.nota, custo: a.preco, ref, em: Date.now(), estado: 'comprado', tentativas: 0 }); avisarShiny('mercado', `🛒 Sniper comprou ${desc}`, `${motivo}. Anunciar para revender é com você.`); }
         else { log(`sniper de pokemon: não levei ${desc} (sorteio perdido, cancelado ou preço mudou)`); snEvento('perdeu', desc, info); }
       }, 20_000);
     }, espera);
   }
+}
+
+// ---------- Revenda do que o sniper comprou (SNIPER_PK_REVENDER=1) ----------
+// Preço: SNIPER_PK_ABAIXO Gemas abaixo do menor entre a média das vendas parecidas e o anúncio parecido mais barato,
+// sem descer do piso (o que pagou + SNIPER_PK_MARGEM%, já descontada a taxa do Mercado: 13% até 500, 10% até 5.000).
+// Só mexe em pokemon que o próprio sniper comprou (ACUM.snCompras).
+const SN_FAIXAS = [[1, 500, 0.13], [501, 5000, 0.10], [5001, Infinity, 0.075]];
+function snPiso(custo) {
+  const alvo = Math.ceil(custo * (1 + CFG.sniperPkMargem / 100));
+  for (const [lo, hi, t] of SN_FAIXAS) { const p = Math.max(lo, Math.ceil(alvo / (1 - t))); if (p <= hi) return p; }
+  return Math.ceil(alvo / 0.925);
+}
+const snLiquido = (p) => Math.floor(p * (1 - (SN_FAIXAS.find(([lo, hi]) => p >= lo && p <= hi)?.[2] ?? 0.075)));
+function snAcharPk(r) {
+  if (r.pokemonId && S.pokemons.has(r.pokemonId)) return S.pokemons.get(r.pokemonId);
+  const p = [...S.pokemons.values()].find((x) => x.nome === r.nome && !!x.shiny === r.shiny && x.level === r.nivel && (r.nota == null || Math.abs((x.nota ?? 0) - r.nota) < 0.002));
+  if (p) r.pokemonId = p.id;
+  return p ?? null;
+}
+const SNR = { pedido: null };
+function cuidarDaRevenda() {
+  if (!CFG.sniperPkRevender || !S.eu || CFG.somenteLer || COLETA) return;
+  const agora = Date.now(); const lista = ACUM.snCompras ?? [];
+  if (SNR.pedido) { // sem resposta em 60 s: tenta de novo depois
+    if (agora - SNR.pedido.em < 60_000) return;
+    const r = lista[SNR.pedido.idx]; if (r && ['consultando', 'anunciando'].includes(r.estado)) { r.estado = 'comprado'; r.obs = 'sem resposta do Mercado'; }
+    SNR.pedido = null;
+  }
+  if (agora - (SNR.ultimo ?? 0) < 60_000) return;
+  const idx = lista.findIndex((r) => r.estado === 'comprado' && (r.tentativas ?? 0) < 3);
+  if (idx < 0) return;
+  const r = lista[idx]; const pk = snAcharPk(r);
+  if (!pk) { r.obs = 'não achei o pokemon na conta'; return; }
+  if (pk.id === S.eu.activeId) { r.obs = 'é o pokemon ativo; não anuncio'; return; }
+  SNR.ultimo = agora; SNR.pedido = { idx, em: agora }; r.estado = 'consultando';
+  enviar({ t: 'market.listar', ...PEDIDO_POKEMON, moeda: 'orb', ordem: 'baratos', busca: r.nome, soShiny: r.shiny });
+}
+function aoRevendaVitrine(m) {
+  if (!SNR.pedido || m.ordem !== 'baratos') return false;
+  const r = (ACUM.snCompras ?? [])[SNR.pedido.idx]; if (!r || r.estado !== 'consultando') return false;
+  const fmt = (n) => Math.round(n).toLocaleString('pt-BR');
+  const folga = Math.max(20, r.nivel * 0.25);
+  const conc = (m.linhas ?? []).filter((a) => a.tipo === 'pokemon' && a.moeda === 'orb' && a.estado === 'aberto' && a.ficha && a.vendedorId !== S.eu.id && a.ficha.nome === r.nome
+    && !!a.ficha.shiny === r.shiny && (a.ficha.potencia ?? 1) === r.potencia && !!a.ficha.tmAoe === r.aoe && Math.abs((a.ficha.level ?? 0) - r.nivel) <= folga).map((a) => a.preco);
+  const menor = conc.length ? Math.min(...conc) : null;
+  const media = snReferencia({ nome: r.nome, shiny: r.shiny, potencia: r.potencia, tmAoe: r.aoe, level: r.nivel }).ref ?? r.ref;
+  const base = Math.min(media ?? Infinity, menor ?? Infinity);
+  const piso = snPiso(r.custo);
+  if (!Number.isFinite(base)) { r.estado = 'comprado'; r.tentativas = (r.tentativas ?? 0) + 1; r.obs = 'sem média nem anúncio para comparar'; SNR.pedido = null; return true; }
+  const preco = Math.max(piso, Math.round(base - CFG.sniperPkAbaixo));
+  const pensao = 100_000 * CFG.sniperPkRevDias;
+  if ((S.eu.gold ?? 0) < pensao * 2) { r.estado = 'comprado'; r.obs = `ouro curto para a pensão (${fmt(pensao)})`; SNR.pedido = null; return true; }
+  r.estado = 'anunciando'; r.preco = preco; r.media = media; r.menor = menor; r.piso = piso; r.obs = null; SNR.pedido.em = Date.now();
+  const txt = `${r.nome} Nv${r.nivel}${r.shiny ? ' shiny' : ''} por ${fmt(preco)} Gemas (pagou ${fmt(r.custo)}; média ${media ? fmt(media) : '?'}, mais barato ${menor ? fmt(menor) : 'nenhum'}, piso ${fmt(piso)}; recebe ~${fmt(snLiquido(preco))}) por ${CFG.sniperPkRevDias} dia(s)`;
+  log(`revenda: anunciando ${txt}${preco > base ? ' — acima do mercado, o piso manda' : ''}`);
+  snEvento('anunciando', `${r.nome} Nv${r.nivel}`, { preco, ref: media, ganho: snLiquido(preco) - r.custo, pct: Math.round((snLiquido(preco) - r.custo) / r.custo * 100), motivo: txt });
+  S.depurarAte = Date.now() + 20_000;
+  enviar({ t: 'market.criar', tipo: 'pokemon', itemId: null, pokemonId: r.pokemonId, casaId: null, bicicletaId: null, qtd: 1, preco, moeda: 'orb', dias: CFG.sniperPkRevDias });
+  return true;
+}
+function aoRevendaEvento(ev) {
+  const lista = ACUM.snCompras ?? []; if (!lista.length) return;
+  const casa = (r) => typeof ev.descricao === 'string' && ev.descricao.startsWith(`${r.nome} Nv ${r.nivel}`);
+  if (ev.k === 'marketCriado' && SNR.pedido) {
+    const r = lista[SNR.pedido.idx]; if (r && r.estado === 'anunciando' && (casa(r) || !ev.descricao)) { r.estado = 'anunciado'; r.anuncioEm = Date.now(); SNR.pedido = null; log(`revenda: anúncio criado — ${ev.descricao ?? r.nome}`); }
+  } else if (ev.k === 'marketVendido' && ev.moeda === 'orb') {
+    const r = lista.find((x) => x.estado === 'anunciado' && casa(x)); if (!r) return;
+    r.estado = 'vendido'; r.recebido = ev.valor ?? snLiquido(r.preco); r.lucro = r.recebido - r.custo; r.vendidoEm = Date.now();
+    snEvento('vendeu', `${r.nome} Nv${r.nivel}`, { preco: r.preco, ref: r.media, ganho: r.lucro, pct: Math.round(r.lucro / r.custo * 100), motivo: `pagou ${r.custo}, recebeu ${r.recebido}` });
+    avisarShiny('mercado', `💸 Revenda: vendeu ${r.nome} Nv${r.nivel}`, `Pagou ${r.custo} Gemas, recebeu ${r.recebido}. Lucro ${r.lucro} Gemas.`);
+  } else if (/^marketExpirou|^marketDevolvido/.test(ev.k ?? '')) {
+    const r = lista.find((x) => x.estado === 'anunciado' && casa(x)); if (!r) return;
+    r.tentativas = (r.tentativas ?? 0) + 1; r.estado = r.tentativas >= 3 ? 'parado' : 'comprado'; r.obs = `${ev.k}: voltou sem vender`;
+    log(`revenda: ${r.nome} Nv${r.nivel} voltou sem vender (${r.tentativas}ª vez)${r.estado === 'parado' ? '; paro de anunciar este' : ''}`);
+  }
+}
+function aoRevendaErro(m) {
+  if (!SNR.pedido) return;
+  const r = (ACUM.snCompras ?? [])[SNR.pedido.idx]; if (!r || r.estado !== 'anunciando') return;
+  r.estado = 'comprado'; r.tentativas = (r.tentativas ?? 0) + 1; r.obs = 'o Mercado recusou: ' + JSON.stringify(m).slice(0, 160); SNR.pedido = null;
+  log(`revenda: o Mercado recusou o anúncio de ${r.nome} Nv${r.nivel} — ${JSON.stringify(m).slice(0, 200)}`);
 }
 
 // ---------- Prey: a cartela 1 é grátis uma vez por dia (vira às 18h de Brasília) ----------
@@ -1091,6 +1183,7 @@ function tique() {
   rodar('prey', cuidarDoPrey);
   rodar('mercado ao vivo', cuidarDoMercadoVivo);
   rodar('sniper de pokemon', cuidarDoSniperPk);
+  rodar('revenda', cuidarDaRevenda);
   rodar('preços do patrimônio', cuidarDosPrecos);
   rodar('top catch', cuidarDoTopCatch);
   rodar('pvp', cuidarDoPvp);
@@ -1114,6 +1207,7 @@ function vistaBatalha(ev) {
 function aoEvento(ev) {
   vistaBatalha(ev);
   if (Date.now() < (S.depurarAte ?? 0) && !['dano','golpe','abate','bola','xp','spawn','cura','pocao','morteSelvagem','ataque'].includes(ev.k)) log('[depurar ev]', JSON.stringify(ev).slice(0, 300));
+  if (/^market/.test(ev.k ?? '')) { try { aoRevendaEvento(ev); } catch (e) { logErro('revenda', e); } }
   if (ev.k === 'marketComprado') log(`Mercado: comprado ${ev.descricao ?? '?'} por ${ev.total ?? '?'} ${ev.moeda === 'orb' ? 'Gemas' : ev.moeda ?? ''}`);
   if (ev.k === 'preyRoletou' || ev.k === 'preyEscolheu') { S.preyCartela = { dia: diaDoPrey(), c: ev.c }; if (ev.k === 'preyEscolheu') log(`Prey: escolhido ${ESPECIES.get(Number(ev.c?.pk))?.nome ?? ev.c?.pk} · bônus ${ev.c?.bonus} ${ev.c?.est}★`); }
   switch (ev.k) {
@@ -1203,7 +1297,9 @@ function aoMensagem(m) {
   if (m.t === 'market' && m.aba === 'cotacaoLote') aoCotacao(m);
   if (m.t === 'market' && m.aba === 'medias' && m.medias) S.precos = { em: Date.now(), medias: m.medias, dias: m.dias ?? null };
   if (m.t === 'market' && (m.aba === 'medias' || m.aba === 'itens')) aoMercadoVivo(m);
+  if (m.t === 'market' && m.aba === 'vitrine') { try { aoRevendaVitrine(m); } catch (e) { logErro('revenda', e); } }
   if (m.t === 'market' && (m.aba === 'vitrine' || m.aba === 'historicoGlobal')) { try { aoSniperPk(m); } catch (e) { logErro('sniper de pokemon', e); } }
+  if (m.t === 'erro' && /market|mercado|anunci|pokemon/i.test(JSON.stringify(m))) { try { aoRevendaErro(m); } catch (e) { logErro('revenda', e); } }
   if (COLETA && (m.t === 'market' || m.t === 'economia' || m.t === 'orbs' || (m.t === 'erro' && /market|mercado/i.test(JSON.stringify(m))))) COLETA.respostas.push(m);
   if (Date.now() < (S.depurarAte ?? 0) && !['campo','campo.init','batalha','delta','pong','market','chat','campeonato','showdown'].includes(m.t)) log('[depurar]', JSON.stringify(m).slice(0, 400));
   switch (m.t) {
