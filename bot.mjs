@@ -836,7 +836,8 @@ const SN_CAMPOS = {
   soShiny: ['sniperPkSoShiny', 'SNIPER_PK_SO_SHINY', (v) => (typeof v === 'boolean' ? v : null)],
   revender: ['sniperPkRevender', 'SNIPER_PK_REVENDER', (v) => (typeof v === 'boolean' ? v : null)],
   abaixo: ['sniperPkAbaixo', 'SNIPER_PK_ABAIXO', (v) => (Number.isInteger(Number(v)) && Number(v) >= 0 && Number(v) <= 10000 ? Number(v) : null)],
-  margem: ['sniperPkMargem', 'SNIPER_PK_MARGEM', (v) => (Number(v) >= 0 && Number(v) <= 500 ? Number(v) : null)],
+  // negativa = aceita vender abaixo do que pagou (para liberar as Gemas de uma compra ruim)
+  margem: ['sniperPkMargem', 'SNIPER_PK_MARGEM', (v) => (Number(v) >= -50 && Number(v) <= 500 ? Number(v) : null)],
   revDias: ['sniperPkRevDias', 'SNIPER_PK_REV_DIAS', (v) => (Number.isInteger(Number(v)) && Number(v) >= 1 && Number(v) <= 30 ? Number(v) : null)],
 };
 function snMudar(pedido) {
@@ -1141,6 +1142,9 @@ function aoRevendaEvento(ev) {
     r.estado = 'vendido'; r.recebido = ev.valor ?? snLiquido(r.preco); r.lucro = r.recebido - r.custo; r.vendidoEm = Date.now();
     snEvento('vendeu', `${r.nome} Nv${r.nivel}`, { preco: r.preco, ref: r.media, ganho: r.lucro, pct: Math.round(r.lucro / r.custo * 100), motivo: `pagou ${r.custo}, recebeu ${r.recebido}` });
     avisarShiny('mercado', `💸 Revenda: vendeu ${r.nome} Nv${r.nivel}`, `Pagou ${r.custo} Gemas, recebeu ${r.recebido}. Lucro ${r.lucro} Gemas.`);
+    // margem temporária: volta ao valor combinado quando as compras marcadas (pelo horário da compra) forem vendidas
+    const md = ACUM.snMargemDepois;
+    if (md && lista.filter((x) => md.compras.includes(x.em)).every((x) => x.estado === 'vendido')) { log(`revenda: as compras marcadas venderam; ganho mínimo volta para ${md.margem}%`); delete ACUM.snMargemDepois; snMudar({ margem: md.margem }); }
   } else if (/^marketExpirou|^marketDevolvido/.test(ev.k ?? '')) {
     const r = lista.find((x) => x.estado === 'anunciado' && casa(x)); if (!r) return;
     r.tentativas = (r.tentativas ?? 0) + 1; r.estado = r.tentativas >= 3 ? 'parado' : 'comprado'; r.obs = `${ev.k}: voltou sem vender`;

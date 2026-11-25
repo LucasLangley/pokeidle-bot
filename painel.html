@@ -335,7 +335,7 @@
               <label class="sn-check"><input type="checkbox" name="soShiny"> Só shiny <span class="mini">(sem shiny quase não vende)</span></label>
               <div class="sn-sub">Revenda</div>
               <label>Anunciar abaixo do mercado <span class="mini">Gemas</span><input type="number" name="abaixo" min="0" max="10000" step="1"></label>
-              <label>Ganho mínimo sobre o que pagou <span class="mini">% já sem a taxa</span><input type="number" name="margem" min="0" max="500" step="1"></label>
+              <label>Ganho mínimo sobre o que pagou <span class="mini">% já sem a taxa; negativo aceita perda</span><input type="number" name="margem" min="-50" max="500" step="1"></label>
               <label>Dias na vitrine <span class="mini">100 mil de ouro por dia</span><input type="number" name="revDias" min="1" max="30" step="1"></label>
               <div class="sn-acoes"><button type="submit" class="btn pri">Salvar limites</button><span class="mini" id="sn-form-r"></span></div>
             </form>
