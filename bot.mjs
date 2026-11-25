@@ -19,6 +19,8 @@ import { randomUUID } from 'node:crypto';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import { timingSafeEqual } from 'node:crypto';
+import { networkInterfaces } from 'node:os';
 
 const AQUI = dirname(fileURLToPath(import.meta.url));
 
@@ -65,6 +67,8 @@ const CFG = {
   outlandDe: num('OUTLAND_DE', 150),
   outlandAte: num('OUTLAND_ATE', 199),
   painelPorta: num('PAINEL_PORTA', 8787),
+  painelRede: bool('PAINEL_REDE', '0'),       // 1 = o painel também abre no celular pela rede de casa (só leitura, com senha)
+  painelSenha: env('PAINEL_SENHA', ''),       // obrigatória com PAINEL_REDE=1 (8 caracteres ou mais)
   autoVenda: bool('AUTO_VENDA', '1'),
   ouroSaltoMin: num('OURO_SALTO_MIN', 100000), // ganho de uma vez acima disso não entra no ouro/h
   avisoWindows: bool('AVISO_WINDOWS', '1'),
@@ -527,6 +531,7 @@ function comprar(kind, id, qty, preco) {
   const q = Math.min(qty, max);
   if (q <= 0) return false;
   log(`comprar ${q}× ${kind}:${id} (${q * preco} de ouro de ${ouro})`);
+  const cd = contaDoDia(); if (cd) cd[kind === 'ball' ? 'bolasOuro' : id >= 200 && id <= 206 ? 'pocoesOuro' : 'outrosOuro'] += q * preco;
   enviar({ t: 'shop.buy', kind, id, qty: q });
   return true;
 }
@@ -998,7 +1003,12 @@ function aoEvento(ev) {
         avisarShiny('capturado', `✨ SHINY CAPTURADO: ${ev.pokemon.nome} Nv${ev.pokemon.level}`, `Qualidade ${ev.pokemon.quality ?? '?'} · guardado na coleção. ${txtPreco}`, { ...ev.pokemon, preco: p });
       }
       break;
+    case 'fugiu':
+      if (ev.shiny) { ACUM.shinyEscapou = (ACUM.shinyEscapou ?? 0) + 1; hoje().shinyEscapou = (hoje().shinyEscapou ?? 0) + 1;
+        avisarShiny('escapou', `✨ Shiny escapou: ${ev.nome ?? '?'} Nv${ev.level ?? '?'}`, `A bola${S.ultimaBola ? ' ' + ({ 1: 'Poke', 2: 'Great', 3: 'Super', 4: 'Ultra', 5: 'Beast' }[S.ultimaBola] ?? S.ultimaBola) : ''} não segurou.`, { nome: ev.nome, level: ev.level }); }
+      break;
     case 'bola': {
+      S.ultimaBola = ev.ballId;
       S.stats.bolasServidor = (S.stats.bolasServidor ?? 0) + 1; if (ev.sucesso) S.stats.bolasSucesso = (S.stats.bolasSucesso ?? 0) + 1;
       ACUM.bolasConfirmadas++; hoje().bolas++; if (ev.sucesso) ACUM.bolasSucesso++;
       const pb = (ACUM.porBola[ev.ballId ?? '?'] ??= { lancadas: 0, sucesso: 0 }); pb.lancadas++; if (ev.sucesso) pb.sucesso++;
@@ -1007,7 +1017,7 @@ function aoEvento(ev) {
     case 'bossEntrou': log(`boss: entrou em ${ev.nome} Nv${ev.nivel ?? '?'}${ev.auto ? ' (auto)' : ''}`); break;
     case 'bossMorto': { const d = (ev.drops ?? []).map((x) => `${x.qtd ?? 1}× ${x.nome ?? x.itemId}`).join(', '); log(`boss: venceu ${ev.nome}${d ? ` — drops: ${d}` : ''}`); for (const x of ev.drops ?? []) { const n = x.nome ?? `item ${x.itemId}`; ACUM.drops[n] = (ACUM.drops[n] ?? 0) + (Number(x.qtd) || 1); } break; }
     case 'bossPerdeu': log(`boss: perdeu para ${ev.nome}`); break;
-    case 'levelup': log('level up:', ev.quem ?? ''); break;
+    case 'levelup': log('level up:', ev.quem ?? ''); if (ev.quem === 'treinador' && ev.level % 50 === 0) aviso('nivel', `Treinador chegou ao Nv ${ev.level}`, '', true); break;
     case 'evolucao': log('evolução!', JSON.stringify(ev).slice(0, 160)); break;
     case 'hunt': if (ev.trocaLivreEm) S.eu.trocaLivreEm = ev.trocaLivreEm; break;
     case 'autoHuntSemItens': log('sem itens para a automação — vai comprar'); S.ultimaCompra = 0; break;
@@ -1061,6 +1071,10 @@ function aoMensagem(m) {
   switch (m.t) {
     case 'welcome':
       S.welcome = true;
+      clearTimeout(S.alarmeQueda); S.alarmeQueda = null;
+      if (!S.jaConectou) { S.jaConectou = true; aviso('voltou', 'Bot ligado e caçando'); }
+      else if (S.avisouQueda) { aviso('voltou', 'Bot reconectado', '', true); }
+      S.avisouQueda = false;
       S.stats.offMs = (S.stats.offMs ?? 0) + (Date.now() - (S.offDesde ?? S.stats.inicio)); S.offDesde = null;
       S.conectadoEm = Date.now();
       if (!S.restaurado) { S.restaurado = true; S.mortes = (ACUM.mortesRecentes ?? []).filter((t) => Date.now() - t < 10 * 60_000); S.desistiDegrau = { ...(ACUM.desistiDegrau ?? {}) }; S.mataPk = { ...(ACUM.mataPk ?? {}) }; }
@@ -1138,16 +1152,20 @@ function conectar() {
     try { aoMensagem(m); } catch (e) { logErro(`mensagem ${m?.t ?? '?'}`, e); }
   };
   ws.onerror = (e) => log('erro de socket:', e?.message ?? '');
-  ws.onclose = (ev) => {
+  ws.onclose = async (ev) => {
     clearInterval(ping); clearInterval(watchdog); clearInterval(loop); clearInterval(rel); clearInterval(capt);
     S.offDesde ??= Date.now();
     log(`desconectado (código ${ev.code}${ev.reason ? `, ${ev.reason}` : ''})`);
     if (ev.code === 4001) {
       log(`sessão tomada por outra conexão (o jogo foi aberto em outro lugar). Pausando por ${CFG.pausaHoras} h — apague o arquivo PAUSADO para voltar antes.`);
       try { writeFileSync(ARQ_PAUSA, new Date().toISOString()); } catch {}
-      S.parar = true; process.exit(0);
+      S.parar = true;
+      await Promise.race([aviso('caiu', 'Bot pausado: o jogo foi aberto em outro lugar', `Volta sozinho em ${CFG.pausaHoras} h, ou apague o arquivo PAUSADO.`, true), new Promise((r) => setTimeout(r, 5000))]);
+      process.exit(0);
     }
-    if (ev.code === 4003) { log('servidor recusou a conexão (bloqueio). Parando.'); S.parar = true; process.exit(1); }
+    if (ev.code === 4003) { log('servidor recusou a conexão (bloqueio). Parando.'); S.parar = true;
+      await Promise.race([aviso('caiu', 'Bot parado: o servidor recusou a conexão', '', true), new Promise((r) => setTimeout(r, 5000))]); process.exit(1); }
+    S.alarmeQueda ??= setTimeout(() => { S.avisouQueda = true; aviso('caiu', 'Bot desconectado há 5 minutos', 'Continua tentando reconectar.', true); }, 5 * 60_000);
     S.tentativas++;
     const espera = Math.min(30_000, 1000 * 2 ** Math.min(S.tentativas, 5)) + Math.random() * 1000;
     log(`reconectando em ${Math.round(espera / 1000)} s`);
@@ -1606,6 +1624,25 @@ function hoje() {
   ACUM.dias ??= {};
   return (ACUM.dias[chaveDia()] ??= { segundosOnline: 0, abates: 0, desmaios: 0, capturas: 0, shiny: 0, shinyCampo: 0, bolas: 0, ouroExtra: 0, drops: {} });
 }
+// conta do dia a partir de quando o bot começou a somar as compras (o painel mostra "desde HH:MM")
+function contaDoDia() {
+  if (S.eu?.level == null) return null;
+  const d = hoje();
+  return (d.comp ??= { em: Date.now(), seg0: d.segundosOnline, ouro0: S.eu.gold ?? 0, extra0: d.ouroExtra ?? 0, vendas0: d.vendas ?? 0, cap0: d.capturas, abates0: d.abates, bolas0: d.bolas, bolasOuro: 0, pocoesOuro: 0, outrosOuro: 0 });
+}
+// avisos: lista do painel (sobrevive a reinícios) e, quando pedido, o celular
+function aviso(tipo, titulo, detalhe = '', celular = false) {
+  (ACUM.avisos ??= []).unshift({ em: Date.now(), tipo, titulo, detalhe });
+  ACUM.avisos.length = Math.min(ACUM.avisos.length, 40);
+  return celular ? avisarCelular(tipo, titulo, detalhe || titulo) : Promise.resolve();
+}
+function resumoDeOntem() {
+  const o = new Date(Date.now() - 86_400_000), k = chaveDia(o), d = ACUM.dias?.[k];
+  if (!CFG.ntfyTopico || !d || ACUM.resumoEnviado === k) return;
+  ACUM.resumoEnviado = k;
+  const farm = (d.ouroFim ?? 0) - (d.ouroIni ?? 0) - (d.ouroExtra ?? 0);
+  aviso('resumo', 'Resumo de ontem', `Nv ${d.nivelIni ?? '?'} → ${d.nivelFim ?? '?'} · ouro ${farm.toLocaleString('pt-BR')} · ${d.capturas} capturas · ${d.shiny} shiny`, true);
+}
 function escreverHistorico() {
   const fmt = (v) => Number(v ?? 0).toLocaleString('pt-BR');
   const linhas = Object.entries(ACUM.dias ?? {}).sort(([a], [b]) => b.localeCompare(a)).map(([dia, d]) => {
@@ -1623,6 +1660,7 @@ function salvarAcum() {
   if (S.ws?.readyState === 1) { ACUM.segundosOnline += seg; hoje().segundosOnline += seg; }
   acumTick = agora;
   if (S.eu?.level != null) { const d = hoje(); d.nivelIni ??= S.eu.level; d.nivelFim = S.eu.level; d.ouroIni ??= S.eu.gold ?? 0; d.ouroFim = S.eu.gold ?? 0; }
+  contaDoDia(); resumoDeOntem();
   escreverHistorico();
   try { writeFileSync(ARQ_STATS, JSON.stringify(ACUM, null, 1)); } catch {}
 }
@@ -1634,6 +1672,7 @@ function avisarShiny(tipo, titulo, texto, dados = {}) {
   const a = { em: Date.now(), tipo, titulo, texto, ...dados };
   S.alertas.unshift(a); S.alertas.length = Math.min(S.alertas.length, 50);
   log(titulo + ' — ' + texto);
+  if (tipo !== 'teste') aviso(tipo, titulo, texto);
   try { appendFileSync(join(AQUI, 'shinies.log'), JSON.stringify({ ...a, quando: new Date(a.em).toLocaleString('pt-BR') }) + '\n'); } catch {}
   avisarCelular(tipo, titulo, texto);
   if (!CFG.avisoWindows) return;
@@ -1653,9 +1692,9 @@ function avisarShiny(tipo, titulo, texto, dados = {}) {
 }
 
 function avisarCelular(tipo, titulo, texto) {
-  if (!CFG.ntfyTopico) return;
-  const prioridade = tipo === 'capturado' ? 5 : tipo === 'campo' ? 4 : 3;
-  fetch('https://ntfy.sh/', {
+  if (!CFG.ntfyTopico) return Promise.resolve();
+  const prioridade = tipo === 'capturado' || tipo === 'caiu' ? 5 : tipo === 'campo' || tipo === 'escapou' ? 4 : 3;
+  return fetch('https://ntfy.sh/', {
     method: 'POST', headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ topic: CFG.ntfyTopico, title: titulo, message: texto, priority: prioridade, tags: ['sparkles'] }),
   }).then((r) => { if (!r.ok) log('aviso no celular falhou: HTTP', r.status); }).catch((e) => log('aviso no celular falhou:', e.message));
@@ -1768,6 +1807,44 @@ function instantaneo() {
 }
 
 // campos só de leitura que o painel mostra (evento, PvP, moedas, dia do tipo, Pokédex…)
+// gemas que os drops dos últimos 7 dias renderiam por mês, ao preço médio do Mercado e já sem a taxa (teto)
+function gemasPorMes() {
+  const P = S.precos; if (!P) return null;
+  const dias = Object.entries(ACUM.dias ?? {}).sort(([a], [b]) => b.localeCompare(a)).slice(0, 7);
+  let total = 0, seg = 0;
+  for (const [, d] of dias) {
+    seg += d.segundosOnline ?? 0;
+    for (const [nome, q] of Object.entries(d.drops ?? {})) { const o = P.medias[ITEM_POR_NOME.get(nome)]?.orb; if (o?.media > 0 && o.unidades >= 10) total += q * o.media; }
+  }
+  if (seg < 3600) return null;
+  const mes = total * 0.85 / seg * 30 * 86400;
+  return { mes: Math.round(mes), usd: +(mes * 0.009).toFixed(2), horas: Math.round(seg / 3600), dias: dias.length };
+}
+// bosses lendários (copiado de shared/bosses-lendarios.mjs do jogo): trio da maior região liberada
+const BOSS_REGIOES = [
+  { nome: 'Kanto', nivel: 300, ids: [144, 146, 145] }, { nome: 'Johto', nivel: 650, ids: [245, 244, 243] },
+];
+function bossesPainel(e) {
+  if (!ESPECIES.size) return null;
+  const nv = e.level ?? 0, par = nv >= 650 ? 1 : 0, reg = BOSS_REGIOES[par];
+  const chave = new Date(Date.now() + 3 * 3600_000).toISOString().slice(0, 10);
+  const dia = (((Math.round((Date.parse(chave) - Date.parse('2026-11-17')) / 86_400_000)) % 3) + 3) % 3;
+  const at = S.pokemons.get(e.activeId), meu = ESPECIES.get(at?.speciesId);
+  const lista = reg.ids.map((id, pos) => {
+    const b = ESPECIES.get(id); if (!b) return null;
+    const meus = meu ? [meu.type1, meu.type2].filter(Boolean) : [], dele = [b.type1, b.type2].filter(Boolean);
+    const dano = meu ? Math.max(...meus.map((t) => efetividade(t, b.type1, b.type2))) : null;
+    const leva = meu ? Math.max(...dele.map((t) => efetividade(t, meu.type1, meu.type2))) : null;
+    const premio = ['tm', 'mega', 'tickets'][(((pos - dia) % 3) + 3) % 3];
+    return { nome: b.nome, lt: b.looktype, tipos: dele, dano, leva, premio, chance: premio === 'tm' ? 0.5 * (par + 1) : premio === 'mega' ? 0.65 * (par + 1) : null };
+  }).filter(Boolean);
+  return { regiao: reg.nome, nivelMin: reg.nivel, liberado: nv >= reg.nivel, lista,
+    equipe: equipe().sort((a, b) => b.level - a.level).map((p) => ({ nome: p.nome, nv: p.level, pronto: p.level >= reg.nivel })) };
+}
+function configPainel() {
+  const ip = CFG.painelRede && S.painelNaRede ? Object.values(networkInterfaces()).flat().find((i) => i && i.family === 'IPv4' && !i.internal)?.address : null;
+  return { ntfy: !!CFG.ntfyTopico, rede: !!S.painelNaRede, url: ip ? `http://${ip}:${CFG.painelPorta}` : null };
+}
 function extrasPainel(e) {
   const dex = Object.values(e.pokedex ?? {});
   return {
@@ -1784,13 +1861,32 @@ function extrasPainel(e) {
     pokedex: { capturadas: dex.filter((d) => d.c > 0).length, vistas: dex.length, total: [...ESPECIES.keys()].filter((id) => id <= 1025).length || null, abates: dex.reduce((t, d) => t + (d.k ?? 0), 0) },
     tentativas: S.tentativas ?? 0,
     patrimonio: (() => { try { return patrimonio(e); } catch { return null; } })(),
+    gemasMes: (() => { try { return gemasPorMes(); } catch { return null; } })(),
+    bosses: (() => { try { return bossesPainel(e); } catch { return null; } })(),
+    avisos: (ACUM.avisos ?? []).slice(0, 20),
+    bolaPreco: Object.fromEntries((S.bolas ?? []).map((b) => [b.id, b.priceGold])),
+    config: configPainel(),
   };
 }
 
 async function iniciarPainel() {
   const { createServer } = await import('node:http');
   const html = () => { try { return readFileSync(join(AQUI, 'painel.html'), 'utf8'); } catch (e) { return 'painel.html ilegível: ' + e.message; } };
+  const falhas = new Map(); // ip → { n, ate }
+  const daqui = (ip) => ip === '127.0.0.1' || ip === '::1' || ip === '::ffff:127.0.0.1';
+  const confere = (cab) => { const m = /^Basic (.+)$/.exec(cab ?? ''); if (!m) return false; const dado = Buffer.from(Buffer.from(m[1], 'base64').toString().replace(/^[^:]*:/, '')), certo = Buffer.from(CFG.painelSenha); return dado.length === certo.length && timingSafeEqual(dado, certo); };
   const srv = createServer((req, res) => {
+    const ip = req.socket.remoteAddress ?? '';
+    if (!daqui(ip)) {
+      const f = falhas.get(ip);
+      if (f && f.n >= 10 && Date.now() < f.ate) { res.writeHead(429); return res.end('muitas tentativas; espere 10 minutos'); }
+      if (!confere(req.headers.authorization)) {
+        if (req.headers.authorization) falhas.set(ip, { n: (f && Date.now() < f.ate ? f.n : 0) + 1, ate: Date.now() + 600_000 });
+        res.writeHead(401, { 'www-authenticate': 'Basic realm="PokeIdle", charset="UTF-8"' }); return res.end('senha');
+      }
+      const rota = new URL(req.url, 'http://x').pathname;
+      if (req.method !== 'GET' || !['/', '/estado', '/eventos', '/sprite', '/icones'].includes(rota)) { res.writeHead(403); return res.end('pela rede o painel é só leitura'); }
+    }
     if (req.url === '/mercado/coletar') { const ok = coletarMercado('painel'); res.writeHead(ok ? 202 : 409, { 'content-type': 'text/plain; charset=utf-8' }); return res.end(ok ? 'coletando' : 'ocupado ou desconectado'); }
     if ((req.url ?? '').startsWith('/resgatar/') && req.method === 'POST') { const codigo = req.url.slice(10).toUpperCase(); if (!/^[A-Z0-9]{4,20}$/.test(codigo)) { res.writeHead(400); return res.end('codigo invalido'); } S.depurarAte = Date.now() + 20_000; log(`resgatar: enviando código de vínculo (${codigo.length} caracteres)`); enviar({ t: 'convite.resgatar', codigo }); res.writeHead(202, { 'content-type': 'text/plain; charset=utf-8' }); return res.end('enviado; veja o log'); }
     if (req.url === '/vender-reservas' && req.method === 'POST') { const r = venderReservas(); res.writeHead(200, { 'content-type': 'application/json' }); return res.end(JSON.stringify(r)); }
@@ -1816,7 +1912,9 @@ async function iniciarPainel() {
     res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }); res.end(html());
   });
   srv.on('error', (e) => log('painel indisponível:', e.message));
-  srv.listen(CFG.painelPorta, '127.0.0.1', () => log(`painel ao vivo: http://localhost:${CFG.painelPorta}`));
+  S.painelNaRede = CFG.painelRede && CFG.painelSenha.length >= 8;
+  if (CFG.painelRede && !S.painelNaRede) log('PAINEL_REDE=1 ignorado: defina PAINEL_SENHA com 8 caracteres ou mais no .env');
+  srv.listen(CFG.painelPorta, S.painelNaRede ? '0.0.0.0' : '127.0.0.1', () => log(`painel ao vivo: http://localhost:${CFG.painelPorta}${S.painelNaRede ? ' (e na rede de casa, só leitura com senha)' : ''}`));
 }
 iniciarPainel();
 if (CFG.manterAcordado && process.platform === 'win32') {

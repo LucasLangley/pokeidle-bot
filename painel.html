@@ -4,310 +4,303 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>PokeIdle bot</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
 <style>
-  /* Tema por variáveis CSS: a cor do painel é escolhida no cabeçalho e fica salva no navegador. */
+  /* Layout: menu lateral + uma tela por seção, sem rolar a página. Tema por variáveis CSS (Ajustes). */
   :root {
     --a:#8b5cf6; --a2:#c4a8ff; --a-soft:#8b5cf626; --bg:#0f0b1c; --card:#1a1430; --card-hi:#241a45; --tile:#221a3c; --line:#352a5a;
-    --txt:#efeaff; --sub:#a99fd0; --fraco:#7a6fa3; --glow:#8b5cf655; --glow2:#2a1b55; --scene1:#150f29; --scene2:#1f1640;
+    --txt:#efeaff; --sub:#a99fd0; --fraco:#8d82b8; --glow:#8b5cf655; --glow2:#2a1b55; --scene1:#150f29; --scene2:#1f1640;
     --ok:#4ade80; --ok-soft:#4ade8022; --bad:#f87171; --shiny:#e9c868; --shiny-fundo:#2c2614;
   }
   * { box-sizing:border-box; }
-  html { background:var(--bg); }
-  body { margin:0; min-height:100vh; color:var(--txt); font:14px/1.45 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif; font-variant-numeric:tabular-nums;
-    background:radial-gradient(1100px 520px at 15% -8%, var(--glow2), var(--bg) 62%), var(--bg); background-attachment:fixed; padding-bottom:48px; }
-  h1, h2, .disp { font-family:'Space Grotesk', 'Inter', system-ui, sans-serif; }
-  .num { font-variant-numeric:tabular-nums; }
-  .sub { color:var(--sub); } .fraco { color:var(--fraco); }
+  [hidden] { display:none !important; }
+  html, body { height:100%; }
+  body { margin:0; background:var(--bg); color:var(--txt); font:13px/1.45 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif; font-variant-numeric:tabular-nums; }
+  h2, .disp, .big, .mid { font-family:'Space Grotesk', 'Inter', system-ui, sans-serif; }
   b { font-weight:600; }
+  .sub { color:var(--sub); } .fraco { color:var(--fraco); }
+  .up { color:var(--ok) !important; } .down { color:var(--bad) !important; }
 
-  /* cabeçalho */
-  .topo { border-bottom:1px solid var(--line); background:var(--card); }
-  .topo > div { max-width:1320px; margin:0 auto; padding:14px 24px; display:flex; flex-wrap:wrap; align-items:center; gap:14px 22px; }
-  .marca { display:flex; align-items:center; gap:12px; }
-  .logo { width:38px; height:38px; border-radius:11px; background:linear-gradient(135deg, var(--a), var(--a2)); display:flex; align-items:center; justify-content:center; }
-  .marca .t { font-size:18px; font-weight:700; line-height:1.1; }
-  .marca .s { font-size:12px; color:var(--sub); }
-  .pill { display:inline-flex; align-items:center; gap:6px; font-size:12px; font-weight:600; padding:5px 11px; border-radius:999px; background:var(--ok-soft); color:var(--ok); border:1px solid var(--ok); white-space:nowrap; }
-  .pill i { width:7px; height:7px; border-radius:50%; background:var(--ok); display:block; }
-  .pill.off { background:#f8717122; color:var(--bad); border-color:var(--bad); } .pill.off i { background:var(--bad); }
+  .app { height:100%; display:grid; grid-template-columns:168px minmax(0,1fr); overflow:hidden; }
+  .side { display:flex; flex-direction:column; gap:4px; padding:12px 10px; background:var(--card); border-right:1px solid var(--line); min-height:0; overflow:auto; }
+  .marca { display:flex; align-items:center; gap:9px; padding:2px 6px 12px; font-size:15px; font-weight:700; white-space:nowrap; }
+  .bola { width:26px; height:26px; border-radius:50%; border:3px solid #0b0b12; background:linear-gradient(180deg,#e53935 0 45%,#0b0b12 45% 55%,#fafafa 55%); flex:none; }
+  #abas { display:flex; flex-direction:column; gap:4px; }
+  .tab { display:flex; align-items:center; gap:10px; min-height:42px; padding:0 12px; border:0; border-radius:10px; background:transparent; color:var(--sub); font:600 13px 'Inter', system-ui, sans-serif; cursor:pointer; text-align:left; white-space:nowrap; }
+  .tab[aria-selected=true] { background:linear-gradient(135deg, var(--a), var(--a2)); color:#fff; }
+  .tab:focus-visible, .btn:focus-visible, .sw:focus-visible { outline:2px solid var(--txt); outline-offset:2px; }
+  .main { display:grid; grid-template-rows:auto minmax(0,1fr); min-width:0; min-height:0; }
+  .top { display:flex; flex-wrap:wrap; align-items:center; gap:6px 10px; padding:9px 14px; border-bottom:1px solid var(--line); background:var(--card); }
   .esp { flex:1 1 0; min-width:0; }
-  .cores { display:flex; align-items:center; gap:12px; font-size:12px; color:var(--sub); }
-  .cores div { display:flex; gap:8px; }
-  .sw { width:30px; height:30px; border-radius:50%; border:2px solid var(--card); cursor:pointer; padding:0; }
-  .sw:focus-visible { outline:2px solid var(--txt); outline-offset:2px; }
-
-  main { max-width:1320px; margin:0 auto; padding:24px 24px 0; display:flex; flex-direction:column; gap:16px; }
-  .row { display:flex; flex-wrap:wrap; gap:16px; }
-  .card { background:var(--card); border:1px solid var(--line); border-radius:18px; padding:20px; min-width:0; }
-  .card h2 { margin:0 0 14px; font-size:14px; font-weight:600; letter-spacing:.04em; text-transform:uppercase; color:var(--a2); }
-  .card h2 .num { color:var(--txt); }
-  .colesq { flex:1 1 400px; display:flex; flex-direction:column; gap:16px; min-width:0; }
-  .heroi { background:linear-gradient(160deg, var(--card-hi), var(--card) 60%); border-color:var(--a); }
-  .cena { flex:1.7 1 520px; }
-
-  .tile { display:flex; align-items:center; gap:12px; background:var(--tile); border:1px solid var(--line); border-radius:14px; padding:12px 14px; min-width:0; }
-  .tile small { display:block; font-size:12px; color:var(--sub); }
-  .tile strong { display:block; font-size:18px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-  .tile .sb { font-size:12px; color:var(--sub); }
-  .ico { width:36px; height:36px; border-radius:10px; background:var(--a-soft); color:var(--a2); display:flex; align-items:center; justify-content:center; flex:none; }
-  .bar { height:8px; border-radius:5px; background:var(--tile); overflow:hidden; }
-  .bar i { display:block; height:100%; border-radius:5px; background:linear-gradient(90deg, var(--a), var(--a2)); transition:width .6s; }
-  .bar i.ok { background:var(--ok); } .bar i.low { background:var(--bad); }
-  .chip { display:inline-block; font-size:12px; font-weight:500; padding:4px 10px; border-radius:8px; background:var(--tile); border:1px solid var(--line); color:var(--sub); }
+  .views { min-height:0; overflow:auto; }
+  .aba { display:none; height:100%; min-height:520px; padding:12px; gap:12px; grid-template-rows:minmax(0,1fr); }
+  .aba.on { display:grid; }
+  .g-vivo { grid-template-columns:270px minmax(0,1fr) 288px; }
+  .g-ganhos { grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(0,1.3fr); }
+  .g-3 { grid-template-columns:repeat(3, minmax(0,1fr)); }
+  .g-conta.on { grid-template-columns:repeat(3, minmax(0,1fr)); grid-template-rows:minmax(0,1fr) minmax(0,1fr); }
+  .g-bosses.on { grid-template-columns:repeat(3, minmax(0,1fr)); grid-template-rows:minmax(0,1fr) auto; }
+  .g-1 { grid-template-columns:minmax(0,1fr); }
+  .col { display:flex; flex-direction:column; gap:12px; min-width:0; min-height:0; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:12px 14px; min-width:0; min-height:0; display:flex; flex-direction:column; gap:8px; overflow:auto; }
+  .card > * { flex:none; }
+  .card > .grow, .grow { flex:1 1 0; min-height:0; }
+  .card h2 { margin:0; font-size:12px; font-weight:600; letter-spacing:.05em; text-transform:uppercase; color:var(--a2); display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:8px; }
+  .card h2 > span { text-transform:none; letter-spacing:0; font-family:'Inter', system-ui, sans-serif; font-weight:500; }
+  .scroll { overflow:auto; min-height:0; }
+  .tile { background:var(--tile); border:1px solid var(--line); border-radius:10px; padding:8px 10px; min-width:0; }
+  .tile small { display:block; font-size:11px; color:var(--sub); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .tile strong { display:block; font-size:15px; font-weight:600; overflow-wrap:break-word; }
+  .tile .sb { display:block; font-size:11px; color:var(--sub); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .item { display:flex; align-items:center; gap:8px; } .item > div { min-width:0; }
+  .tile.item small { white-space:normal; line-height:1.25; font-size:10.5px; }
+  .tiles2 { display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:6px; }
+  .tiles3 { display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:6px; }
+  .kpis { display:grid; grid-template-columns:repeat(5, minmax(0,1fr)); gap:8px; }
+  .kpis strong { font:700 19px 'Space Grotesk', sans-serif; white-space:nowrap; }
+  .big { font-size:30px; font-weight:700; line-height:1.1; }
+  .mid { font-size:20px; font-weight:700; line-height:1.2; }
+  .mini { font-size:11.5px; color:var(--sub); line-height:1.45; }
+  .chip { display:inline-block; font-size:11.5px; font-weight:500; padding:3px 9px; border-radius:7px; background:var(--tile); border:1px solid var(--line); color:var(--sub); white-space:nowrap; }
   .chip b { color:var(--txt); }
   .chip.on { border-color:var(--ok); } .chip.on b { color:var(--ok); }
   .chip.shiny b { color:var(--shiny); }
-  .chips { display:flex; flex-wrap:wrap; gap:8px; }
+  button.chip { font-family:inherit; cursor:pointer; }
+  .chips { display:flex; flex-wrap:wrap; gap:6px; }
+  .pill { display:inline-flex; align-items:center; gap:6px; font-size:11px; font-weight:600; padding:4px 10px; border-radius:999px; background:var(--ok-soft); color:var(--ok); border:1px solid var(--ok); white-space:nowrap; }
+  .pill i { width:7px; height:7px; border-radius:50%; background:var(--ok); display:block; }
+  .pill.off { background:#f8717122; color:var(--bad); border-color:var(--bad); } .pill.off i { background:var(--bad); }
+  .bar { height:7px; border-radius:5px; background:var(--tile); overflow:hidden; }
+  .bar i { display:block; height:100%; border-radius:5px; background:linear-gradient(90deg, var(--a), var(--a2)); transition:width .6s; }
+  .bar i.ok { background:var(--ok); } .bar i.low { background:var(--bad); } .bar i.mid { background:#f8c83c; }
+  .kv { display:flex; justify-content:space-between; align-items:baseline; gap:10px; color:var(--sub); padding:5px 0; border-bottom:1px solid var(--line); font-size:12.5px; }
+  .kv:last-child { border-bottom:0; } .kv b { color:var(--txt); text-align:right; }
+  .hb { display:flex; align-items:center; gap:8px; font-size:12px; margin:4px 0; }
+  .hb .t { width:96px; flex:none; color:var(--sub); } .hb .bar { flex:1; } .hb .v { flex:none; width:68px; text-align:right; font-weight:600; }
+  .linha { display:flex; justify-content:space-between; gap:8px; }
+  .btn { font:600 12.5px 'Inter', system-ui, sans-serif; min-height:34px; padding:0 12px; border-radius:9px; border:1px solid var(--line); background:var(--tile); color:var(--txt); cursor:pointer; white-space:nowrap; }
+  .btn.pri { background:linear-gradient(135deg, var(--a), var(--a2)); border:0; color:#fff; }
+  .btn[aria-pressed=true] { background:var(--a); border-color:var(--a); color:#fff; }
+  .sw { width:30px; height:30px; border-radius:50%; border:2px solid var(--card); cursor:pointer; padding:0; }
+  #temas { display:flex; flex-wrap:wrap; gap:8px; }
+  .vazio { color:var(--fraco); padding:6px 0; }
+  .oi { image-rendering:pixelated; object-fit:contain; width:22px; height:22px; flex:none; }
+  .chip .ci, .ci { width:16px; height:16px; vertical-align:-3px; margin-right:5px; image-rendering:pixelated; object-fit:contain; }
 
-  .heroi .topo2 { display:flex; align-items:center; gap:14px; }
-  .heroi canvas { width:96px; height:96px; border-radius:26px; background:radial-gradient(circle at 50% 35%, var(--a2), var(--a) 70%); box-shadow:0 0 34px var(--glow); flex:none; image-rendering:pixelated; }
-  .heroi .nome { font-size:24px; font-weight:700; margin-right:8px; }
-  .heroi .niv { font-size:13px; color:var(--sub); margin-top:2px; } .heroi .niv b { color:var(--txt); }
-  .xplinha { display:flex; justify-content:space-between; font-size:12px; color:var(--sub); margin:18px 0 6px; }
-  .tiles { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:10px; margin-top:18px; }
-
-  .oi { image-rendering:pixelated; object-fit:contain; width:26px; height:26px; }
-  .chip .ci { width:16px; height:16px; vertical-align:-3px; margin-right:5px; image-rendering:pixelated; object-fit:contain; }
-  .kpis { display:grid; grid-template-columns:repeat(auto-fit, minmax(190px, 1fr)); gap:16px; }
-  .kpis .tile { padding:16px; } .kpis .ico { width:42px; height:42px; } .kpis strong { font-size:24px; font-family:'Space Grotesk', sans-serif; }
-
-  #cena { display:block; width:100%; height:290px; border-radius:14px; background:linear-gradient(180deg, var(--scene1), var(--scene2)); border:1px solid var(--line); image-rendering:pixelated; margin-bottom:12px; }
-  .cabeca { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:8px; margin-bottom:14px; } .cabeca h2 { margin:0; }
-
+  .heroi { background:linear-gradient(160deg, var(--card-hi), var(--card) 60%); border-color:var(--a); }
+  .heroi canvas { width:56px; height:56px; border-radius:16px; background:radial-gradient(circle at 50% 35%, var(--a2), var(--a) 70%); flex:none; image-rendering:pixelated; }
   .lista { list-style:none; margin:0; padding:0; }
-  .lista li { display:grid; grid-template-columns:minmax(0, 1fr) 110px 120px; gap:12px; align-items:center; padding:9px 0; border-bottom:1px solid var(--line); }
+  .lista li { display:grid; grid-template-columns:minmax(0,1fr) 24px auto; gap:6px; align-items:center; padding:5px 0; border-bottom:1px solid var(--line); }
   .lista li:last-child { border-bottom:0; }
   .lista .nome { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-  .lista .nome small { color:var(--sub); margin-left:6px; font-size:12px; }
-  .lista .v { white-space:nowrap; text-align:right; color:var(--sub); font-size:13px; }
+  .lista .nome small { display:block; color:var(--sub); font-size:10.5px; }
+  .lista .v { white-space:nowrap; text-align:right; color:var(--sub); font-size:11px; }
   .lista li.ativo .nome::before { content:"▸ "; color:var(--a2); }
   .lista li.caido .nome { color:var(--fraco); } .lista li.caido .bar { visibility:hidden; }
   .lista li.shiny .nome { color:var(--shiny); }
-  .vazio { color:var(--fraco); padding:6px 0; }
+  .card > .palco { flex:1 1 0; min-height:0; position:relative; }
+  .card.cena-card { flex:0 0 clamp(284px, 43vh, 390px); overflow:hidden; }
+  /* a cena "No jogo agora" tem o visual de jogo: céu, gramado e placas */
+  #cena { position:absolute; inset:0; width:100%; height:100%; border:3px solid #0b0b12; border-radius:12px; background:linear-gradient(180deg,#7ec8ff 0,#bfe6ff 52%,#4cb157 52%,#4cb157 100%); image-rendering:pixelated; }
+  .card.graf { flex:1 1 0; min-height:150px; overflow:hidden; }
+  .card > .gwrap { flex:1 1 0; min-height:0; }
+  .grafico { display:block; width:100%; height:100%; }
+  .grafico .g { stroke:var(--line); } .grafico .l { stroke:var(--a2); fill:none; } .grafico .ar { fill:var(--a-soft); }
 
-  table { width:100%; border-collapse:collapse; font-size:14px; }
-  th { text-align:right; font-size:12px; font-weight:600; color:var(--sub); padding:0 0 10px; border-bottom:1px solid var(--line); }
-  td { text-align:right; padding:10px 0; border-bottom:1px solid var(--line); }
+  .feed { display:flex; gap:10px; padding:6px 0; border-bottom:1px solid var(--line); align-items:flex-start; }
+  .feed:last-child { border-bottom:0; } .feed > div { min-width:0; overflow-wrap:break-word; }
+  .dot { width:8px; height:8px; border-radius:50%; background:var(--a2); flex:none; margin-top:5px; }
+  table { width:100%; border-collapse:collapse; font-size:12px; }
+  th { text-align:right; font-size:11px; font-weight:600; color:var(--sub); padding:0 0 6px; border-bottom:1px solid var(--line); white-space:nowrap; }
+  td { text-align:right; padding:6px 0; border-bottom:1px solid var(--line); }
+  th + th, td + td { padding-left:8px; }
   th:first-child, td:first-child { text-align:left; }
   tr:last-child td { border-bottom:0; }
-  td.zero { color:var(--fraco); } td.ruim { color:var(--bad); } td.shiny { color:var(--shiny); }
-  .lt td:last-child { color:var(--sub); } .lt td.vazio { text-align:left; }
-  .rolar { overflow-x:auto; } #dias { min-width:640px; }
+  td.zero { color:var(--fraco); } td.shiny { color:var(--shiny); }
+  .lt td:last-child { color:var(--sub); white-space:nowrap; } .lt td.vazio { text-align:left; }
+  .rolar { overflow:auto; }
+  #dias td { white-space:nowrap; }
+  .barras { display:flex; align-items:flex-end; justify-content:space-around; gap:10px; border-bottom:1px solid var(--line); min-height:110px; }
+  .barras > div { flex:1; max-width:84px; height:100%; display:flex; flex-direction:column; justify-content:flex-end; align-items:center; gap:3px; font-size:11.5px; }
+  .barras i { display:block; width:100%; border-radius:8px 8px 0 0; background:var(--a); } .barras > div:last-child i { background:var(--a2); }
+  .mochila { display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:6px; align-content:start; }
+  .card > .palco-boss { flex:1 1 0; min-height:96px; display:flex; align-items:center; justify-content:center; background:linear-gradient(180deg, var(--scene1), var(--scene2)); border-radius:10px; overflow:hidden; }
+  .palco-boss canvas { height:min(100%, 192px); aspect-ratio:1; max-width:100%; image-rendering:pixelated; }
+  .tp { font-size:10px; font-weight:700; padding:2px 7px; border-radius:5px; background:var(--a-soft); border:1px solid var(--line); text-transform:uppercase; }
+  ol { margin:0; padding-left:18px; color:var(--sub); font-size:12.5px; } ol li { margin:3px 0; }
+  code { font:12px ui-monospace, Consolas, monospace; color:var(--txt); background:var(--tile); border-radius:4px; padding:1px 5px; overflow-wrap:anywhere; }
+  .log { margin:0; font:12px/1.7 ui-monospace, Consolas, monospace; color:var(--sub); white-space:pre-wrap; word-break:break-word; overflow:auto; }
 
-  .grafico { display:block; width:100%; overflow:visible; }
-  .grafico .g { stroke:var(--line); } .grafico .l { stroke:var(--a2); fill:none; } .grafico .ar { fill:var(--a-soft); }
-  .grafico .pt { fill:var(--a2); stroke:var(--card); }
-  .eixo { display:flex; justify-content:space-between; font-size:12px; color:var(--sub); margin-top:6px; }
-  .log { margin:0; font:12.5px/1.7 ui-monospace, Consolas, monospace; color:var(--sub); white-space:pre-wrap; word-break:break-word; max-height:260px; overflow:auto; }
-  .canais { margin-top:10px; font-size:12px; color:var(--fraco); }
-
-  .shiny-faixa { display:flex; gap:16px; align-items:center; justify-content:space-between; flex-wrap:wrap; max-width:1272px; margin:16px auto 0; padding:12px 16px; border-radius:14px; background:var(--shiny-fundo); border:1px solid var(--shiny); }
-  .shiny-faixa[hidden] { display:none; }
-  .shiny-faixa b { color:var(--shiny); font-size:16px; margin-right:8px; } .shiny-faixa span { color:#e7dcb6; }
+  .shiny-faixa { position:fixed; z-index:20; top:58px; right:14px; max-width:min(460px, calc(100% - 28px)); display:flex; gap:14px; align-items:center; padding:12px 16px; border-radius:14px; background:var(--shiny-fundo); border:1px solid var(--shiny); box-shadow:0 10px 30px #0008; }
+  .shiny-faixa b { color:var(--shiny); font-size:15px; display:block; } .shiny-faixa span { color:#e7dcb6; }
   .shiny-faixa button { background:var(--shiny); color:#1a1710; border:0; border-radius:8px; padding:6px 14px; font:600 13px system-ui, sans-serif; cursor:pointer; }
   .shiny-faixa.novo { animation:pisca 1s ease-in-out 6; }
   @keyframes pisca { 50% { background:#4a3d14; } }
+  @media (prefers-reduced-motion:reduce) { .shiny-faixa.novo { animation:none; } .bar i { transition:none; } }
 
-  /* abas no cabeçalho, faixa de evento e cartões novos */
-  .tabs { display:flex; flex-wrap:wrap; gap:6px; padding:5px; background:var(--tile); border-radius:14px; }
-  .tab { font:600 14px 'Inter', system-ui, sans-serif; padding:8px 16px; border-radius:10px; border:0; background:transparent; color:var(--sub); cursor:pointer; }
-  .tab[aria-selected=true] { background:linear-gradient(135deg, var(--a), var(--a2)); color:#fff; }
-  .tab:focus-visible { outline:2px solid var(--txt); outline-offset:2px; }
-  .aba { display:none; flex-direction:column; gap:16px; } .aba.on { display:flex; }
-  .faixa-ev { border-bottom:1px solid var(--line); background:linear-gradient(90deg, var(--card-hi), var(--card)); }
-  .faixa-ev[hidden] { display:none; }
-  .faixa-ev > div { max-width:1320px; margin:0 auto; padding:10px 24px; display:flex; flex-wrap:wrap; align-items:center; gap:8px 18px; }
-  .big { font-family:'Space Grotesk', 'Inter', sans-serif; font-size:34px; font-weight:700; line-height:1.1; }
-  .mini { font-size:12px; color:var(--sub); }
-  .kv { display:flex; justify-content:space-between; align-items:baseline; gap:10px; font-size:13px; color:var(--sub); padding:7px 0; border-bottom:1px solid var(--line); }
-  .kv:last-child { border-bottom:0; } .kv b { color:var(--txt); text-align:right; }
-  .hb { display:flex; align-items:center; gap:10px; font-size:13px; margin:9px 0; }
-  .hb .t { width:130px; color:var(--sub); flex:none; } .hb .bar { flex:1; } .hb .v { width:70px; text-align:right; font-weight:600; }
-  .tiles2 { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:10px; }
-  button.chip { font-family:inherit; cursor:pointer; }
-
-
-  .bar i.mid { background:#f8c83c; }
-  .tile strong { white-space:normal; overflow-wrap:break-word; }
-  /* a cena "No jogo agora" tem o visual de jogo: céu, gramado e placas */
-  #cena { border:3px solid #0b0b12; border-radius:12px; background:linear-gradient(180deg,#7ec8ff 0,#bfe6ff 52%,#4cb157 52%,#4cb157 100%); }
-
-  .pt-grade { display:grid; grid-template-columns:minmax(240px, 1fr) minmax(0, 2fr); gap:24px; }
-  .pt-total { flex-direction:column; align-items:flex-start; gap:6px; padding:18px; }
-  .pt-total strong { font-size:28px; white-space:normal; }
-  .pt-usd { color:var(--ok); font-weight:700; font-size:15px; }
-  @media (max-width:900px) { .pt-grade { grid-template-columns:minmax(0, 1fr); } }
-  @media (max-width:700px) {
-    main { padding:16px 16px 0; } .topo > div { padding:12px 16px; }
-    .lista li { grid-template-columns:minmax(0, 1fr) 40px 100px; gap:8px; } .lista .v { font-size:12px; }
-    .cores span { display:none; }
+  /* telas estreitas: vira uma coluna e a página rola */
+  @media (max-width:1100px) {
+    html, body { height:auto; }
+    .app { height:auto; overflow:visible; grid-template-columns:minmax(0,1fr); }
+    .side { flex-direction:row; align-items:center; border-right:0; border-bottom:1px solid var(--line); padding:8px 12px; position:sticky; top:0; z-index:10; }
+    .marca { padding:0 8px 0 0; } .marca span:last-child { display:none; }
+    #abas { flex-direction:row; } .tab { min-height:40px; }
+    .views { overflow:visible; }
+    .aba, .g-conta.on, .g-bosses.on { height:auto; min-height:0; grid-template-columns:minmax(0,1fr); grid-template-rows:none; }
+    .g-bosses > section { grid-column:auto !important; }
+    .card { overflow:visible; }
+    .card > .grow, .grow { flex:0 0 auto; }
+    .card.cena-card { flex:none; }
+    .card > .palco { flex:none; height:240px; }
+    .card.graf { flex:none; height:180px; }
+    .card .scroll { max-height:320px; }
+    .barras { height:150px; }
+    .kpis { grid-template-columns:repeat(2, minmax(0,1fr)); }
   }
 </style>
 </head>
 <body>
-<header class="topo"><div>
-  <div class="marca">
-    <div class="logo" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h6M15 12h6"/><circle cx="12" cy="12" r="2.4"/></svg></div>
-    <div><div class="t disp">PokeIdle bot</div><div class="s" id="con">conectando…</div></div>
-  </div>
-  <span class="pill off" id="pilula"><i></i><span id="pilula-t">DESCONECTADO</span></span>
-  <div class="tabs" id="abas" role="tablist" aria-label="Seções do painel"></div>
-  <div class="esp"></div>
-  <div class="cores"><span>Cor do painel</span><div id="temas" role="group" aria-label="Escolher cor do painel"></div></div>
-</div></header>
+<div class="app">
+  <nav class="side" aria-label="Seções">
+    <div class="marca disp"><span class="bola" aria-hidden="true"></span><span>PokeIdle bot</span></div>
+    <div id="abas" role="tablist"></div>
+  </nav>
+  <div class="main">
+    <header class="top">
+      <span class="pill off" id="pilula"><i></i><span id="pilula-t">DESCONECTADO</span></span>
+      <span class="disp" style="font-size:15px;font-weight:700" id="h-nick">—</span>
+      <span class="chip" id="con">conectando…</span>
+      <span class="chip" id="h-vip" hidden></span>
+      <span class="esp"></span>
+      <span class="chip" id="evento" hidden><span id="ev-t"></span> <b id="ev-fim"></b></span>
+      <span class="chip" id="h-xp" hidden>XP total <b id="ev-x" style="color:var(--a2)"></b></span>
+      <button type="button" class="btn" data-ir="ajustes" id="h-avisos">Avisos</button>
+    </header>
 
-<div class="faixa-ev" id="evento" hidden><div>
-  <span class="ico" style="width:30px;height:30px;border-radius:9px;background:linear-gradient(135deg,var(--a),var(--a2));color:#fff"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 2L4 14h7l-1 8 9-12h-7z"/></svg></span>
-  <span class="disp" style="font-size:15px;font-weight:700" id="ev-t"></span><span class="sub" style="font-size:12px" id="ev-fim"></span>
-  <div class="esp"></div>
-  <span class="sub" style="font-size:12px">XP total</span><span class="disp" style="font-size:18px;font-weight:700;color:var(--a2)" id="ev-x"></span><span class="chips" id="ev-partes"></span>
-</div></div>
+    <div class="views">
+      <!-- AO VIVO -->
+      <div class="aba g-vivo" data-aba="vivo" role="tabpanel">
+        <div class="col">
+          <section class="card heroi">
+            <div style="display:flex;align-items:center;gap:12px">
+              <canvas id="av" width="96" height="96" aria-label="Seu treinador"></canvas>
+              <div style="min-width:0">
+                <div><span class="mid" id="k-nick">—</span></div>
+                <div class="mini"><span id="k-regiao">—</span> · Nv <b id="k-nivel" style="color:var(--txt)">—</b></div>
+                <div class="mini" id="k-poke">—</div>
+              </div>
+            </div>
+            <div class="linha mini"><span>Próximo nível em <b id="k-eta" style="color:var(--txt)">—</b></span><span id="k-xppct">—</span></div>
+            <div class="bar" title="XP até o próximo nível"><i id="k-xpbar" style="width:0"></i></div>
+            <div class="mini" id="k-falta"></div>
+            <div class="tiles2">
+              <div class="tile item"><img id="i-ouro" class="oi" alt=""><div><small>Ouro</small><strong id="k-ouro">—</strong></div></div>
+              <div class="tile item"><img id="i-gema" class="oi" alt=""><div><small>Gemas</small><strong id="k-gemas">—</strong></div></div>
+              <div class="tile item"><img id="i-pocao" class="oi" alt=""><div><small id="k-pocao-n">Poção</small><strong id="k-pocao">—</strong></div></div>
+              <div class="tile item"><img id="i-bola" class="oi" alt=""><div><small id="k-bola-n">Bola</small><strong id="k-bola">—</strong></div></div>
+            </div>
+          </section>
+          <section class="card grow"><h2>Equipe</h2><div class="grow scroll"><ul class="lista" id="equipe"></ul></div></section>
+        </div>
+        <div class="col">
+          <section class="card cena-card">
+            <h2>No jogo agora <span class="chips" id="k-chips"></span></h2>
+            <div class="palco"><canvas id="cena" aria-label="Seu pokemon ativo e os selvagens do campo"></canvas></div>
+          </section>
+          <div class="kpis">
+            <div class="tile"><small>XP por hora</small><strong id="m-xph">—</strong><span class="sb" id="m-xph-s"></span></div>
+            <div class="tile"><small>Ouro por hora</small><strong id="m-ouroh">—</strong><span class="sb" id="m-ouroh-s"></span></div>
+            <div class="tile"><small>Abates por hora</small><strong id="m-abh">—</strong><span class="sb" id="m-abh-s"></span></div>
+            <div class="tile"><small>Capturas hoje</small><strong id="m-cap">—</strong><span class="sb" id="m-cap-s"></span></div>
+            <div class="tile"><small>Desmaios hoje</small><strong id="m-des">—</strong><span class="sb" id="m-des-s"></span></div>
+          </div>
+          <section class="card graf">
+            <h2>XP por hora, última hora <span class="chip" id="g-chip">coletando…</span></h2>
+            <div class="gwrap"><svg class="grafico" id="grafico" viewBox="0 0 600 190" role="img" aria-label="Gráfico de XP por hora na última hora"></svg></div>
+          </section>
+        </div>
+        <div class="col">
+          <section class="card">
+            <h2>Compensa?</h2>
+            <div><div class="big" id="cp-net">—</div><div class="mini">ouro por hora hoje, já sem as compras e os prêmios</div></div>
+            <div>
+              <div class="kv"><span>Cada captura vende por</span><b id="cp-venda">—</b></div>
+              <div class="kv"><span>Bolas gastas por captura</span><b id="cp-custo">—</b></div>
+              <div class="kv"><span>Gemas/mês em drops (teto)</span><b id="cp-gemas">—</b></div>
+            </div>
+            <button type="button" class="btn" data-ir="ganhos">Ver a conta completa</button>
+          </section>
+          <section class="card grow"><h2>Avisos</h2><div class="grow scroll" id="avisos"></div></section>
+        </div>
+      </div>
+
+      <!-- GANHOS -->
+      <div class="aba g-ganhos" data-aba="ganhos" role="tabpanel">
+        <div class="col">
+          <section class="card"><h2>A conta de hoje <span class="mini" id="gc-desde"></span></h2><div id="gc"></div></section>
+          <section class="card grow"><h2>Por captura e por abate</h2><div id="gp"></div></section>
+        </div>
+        <div class="col">
+          <section class="card"><h2>Gemas pelos drops</h2><div id="gg"></div></section>
+          <section class="card grow"><h2>Patrimônio estimado <span class="mini" id="pt-fonte">calculando…</span></h2><div id="patri" class="grow scroll"><div class="vazio">Aguardando os preços do Mercado…</div></div></section>
+        </div>
+        <div class="col">
+          <section class="card grow">
+            <h2>Dia a dia</h2>
+            <div class="chips" id="metricas" role="group" aria-label="O que o gráfico mostra"></div>
+            <div class="barras grow" id="barras"></div>
+            <div class="rolar"><table id="dias"><thead><tr><th>Dia</th><th>Online</th><th>Nível</th><th>Ouro</th><th>Abates</th><th>Capturas</th></tr></thead><tbody></tbody></table></div>
+          </section>
+        </div>
+      </div>
+
+      <!-- FARM -->
+      <div class="aba g-3" data-aba="farm" role="tabpanel">
+        <div class="col">
+          <section class="card"><h2>XP/h por hunt medida</h2><div id="hunts"></div><div class="mini">Só medições dos últimos 20 níveis. A barra verde é a hunt atual.</div></section>
+          <section class="card grow"><h2>Shiny <span class="chip">capturados <b id="m-sh">0</b></span></h2><div class="chips" id="shinyacum"></div><div class="mini" id="m-sh-s"></div><div class="grow scroll"><table class="lt" id="shinies"></table></div></section>
+        </div>
+        <div class="col"><section class="card grow"><h2>Mochila</h2><div class="grow scroll mochila" id="mochila"></div></section></div>
+        <div class="col">
+          <section class="card grow"><h2>Drops desta sessão</h2><div class="grow scroll"><table class="lt" id="drops"></table></div></section>
+          <section class="card grow"><h2>Capturas recentes</h2><div class="grow scroll"><table class="lt" id="capturados"></table></div></section>
+        </div>
+      </div>
+
+      <!-- BOSSES -->
+      <div class="aba g-bosses" data-aba="bosses" role="tabpanel"><section class="card"><div class="vazio">Aguardando o catálogo do jogo…</div></section></div>
+
+      <!-- CONTA -->
+      <div class="aba g-conta" data-aba="conta" role="tabpanel">
+        <section class="card"><h2>PvP ranqueado</h2><div id="pvp"></div></section>
+        <section class="card"><h2>Pokédex</h2><div id="dex"></div></section>
+        <section class="card"><h2>Moedas e passe</h2><div id="moedas"></div></section>
+        <section class="card"><h2>Hoje no jogo</h2><div id="hoje"></div></section>
+        <section class="card"><h2>Bônus ativos</h2><div class="chips" id="bonus"></div><div class="chips" id="ev-partes"></div></section>
+        <section class="card"><h2>Lives</h2><div class="chips" id="lives"></div><div class="mini" id="canais"></div></section>
+      </div>
+
+      <!-- AJUSTES -->
+      <div class="aba g-3" data-aba="ajustes" role="tabpanel">
+        <section class="card"><h2>Avisos no celular <span class="chip" id="aj-ntfy">—</span></h2><div id="aj-avisos"></div><button type="button" class="btn pri" id="aj-teste">Mandar aviso de teste</button><div class="mini" id="aj-teste-r"></div></section>
+        <div class="col">
+          <section class="card"><h2>Painel no celular <span class="chip" id="aj-rede">—</span></h2><div id="aj-rede-t"></div></section>
+          <section class="card grow"><h2>XP Share nas reservas <span class="chip">não ligado</span></h2><div class="mini">É grátis no jogo, mas muda o que o bot faz. Combine com seu amigo antes. Sua conta também precisa de uma casa em uso, e esse caminho ainda não foi testado.</div></section>
+        </div>
+        <section class="card"><h2>Aparência</h2><div class="mini">Cor do painel</div><div id="temas" role="group" aria-label="Escolher cor do painel"></div><h2 style="margin-top:8px">Saúde do bot</h2><div id="saude"></div></section>
+      </div>
+
+      <!-- LOG -->
+      <div class="aba g-1" data-aba="log" role="tabpanel"><section class="card"><h2>Log ao vivo</h2><pre class="log grow" id="logtxt"></pre></section></div>
+    </div>
+  </div>
+</div>
 
 <div class="shiny-faixa" id="alerta" hidden>
   <div><b id="alerta-titulo"></b><span id="alerta-texto"></span></div>
   <button id="alerta-ok" type="button">Visto</button>
 </div>
-
-<main>
-  <div class="row">
-    <div class="colesq">
-    <section class="card heroi">
-      <div class="topo2">
-        <canvas id="av" width="96" height="96" aria-label="Seu treinador"></canvas>
-        <div style="flex:1;min-width:0">
-          <div><span class="nome disp" id="k-nick">—</span><span class="chip" id="k-regiao">—</span></div>
-          <div class="niv">Treinador Nv. <b id="k-nivel">—</b> · <span id="k-poke">—</span></div>
-        </div>
-      </div>
-      <div class="xplinha"><span id="k-xplabel">XP até o próximo nível</span><span id="k-xppct">—</span></div>
-      <div class="bar" title="XP até o próximo nível"><i id="k-xpbar" style="width:0"></i></div>
-      <div class="xplinha" style="margin:8px 0 0"><span>Próximo nível em <b id="k-eta" style="color:var(--txt)">—</b></span><span id="k-falta"></span></div>
-      <div class="tiles">
-        <div class="tile"><span class="ico"><img id="i-ouro" class="oi" alt="" width="26" height="26"></span><div><small>Ouro</small><strong class="num" id="k-ouro">—</strong></div></div>
-        <div class="tile"><span class="ico"><img id="i-gema" class="oi" alt="" width="26" height="26"></span><div><small>Gemas</small><strong class="num" id="k-gemas">—</strong></div></div>
-        <div class="tile"><span class="ico"><img id="i-pocao" class="oi" alt="" width="26" height="26"></span><div style="min-width:0"><small>Poção equipada</small><strong id="k-pocao">—</strong></div></div>
-        <div class="tile"><span class="ico"><img id="i-bola" class="oi" alt="" width="26" height="26"></span><div style="min-width:0"><small>Bola equipada</small><strong id="k-bola">—</strong></div></div>
-      </div>
-    </section>
-
-    <section class="card">
-      <h2>Equipe</h2>
-      <ul class="lista" id="equipe"></ul>
-    </section>
-    </div>
-
-    <section class="card cena">
-      <div class="cabeca"><h2>No jogo agora</h2><div class="chips" id="k-chips"></div></div>
-      <canvas id="cena" aria-label="Seu pokemon ativo e os selvagens do campo"></canvas>
-      <ul class="lista" id="campo"></ul>
-    </section>
-  </div>
-
-  <div class="kpis">
-    <div class="tile"><span class="ico"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z"/></svg></span><div><small>XP por hora</small><strong id="m-xph">—</strong><span class="sb" id="m-xph-s"></span></div></div>
-    <div class="tile"><span class="ico"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3a9 9 0 100 18 9 9 0 000-18zM12 7v10M9.5 9.5c0-1 1-1.7 2.5-1.7s2.5.7 2.5 1.7-1 1.5-2.5 1.8-2.5.8-2.5 1.8 1 1.7 2.5 1.7 2.5-.7 2.5-1.7"/></svg></span><div><small>Ouro por hora</small><strong id="m-ouroh">—</strong><span class="sb" id="m-ouroh-s"></span></div></div>
-    <div class="tile"><span class="ico"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 5l14 14M19 5L5 19M3 9l6-6M21 9l-6-6"/></svg></span><div><small>Abates por hora</small><strong id="m-abh">—</strong><span class="sb" id="m-abh-s"></span></div></div>
-    <div class="tile"><span class="ico"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s-7-4.5-9-9a5 5 0 019-3 5 5 0 019 3c-2 4.5-9 9-9 9z"/></svg></span><div><small>Desmaios</small><strong id="m-des">—</strong><span class="sb" id="m-des-s"></span></div></div>
-    <div class="tile"><span class="ico"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3a9 9 0 100 18 9 9 0 000-18zM3 12h6M15 12h6M12 10a2 2 0 100 4 2 2 0 000-4z"/></svg></span><div><small>Capturas</small><strong id="m-cap">—</strong><span class="sb" id="m-cap-s"></span></div></div>
-    <div class="tile"><span class="ico"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8zM19 16l.8 2.2L22 19l-2.2.8L19 22l-.8-2.2L16 19l2.2-.8z"/></svg></span><div><small>Shiny</small><strong id="m-sh">—</strong><span class="sb" id="m-sh-s"></span></div></div>
-  </div>
-
-  <div class="aba" data-aba="geral" role="tabpanel">
-  <div class="row">
-    <section class="card" style="flex:1 1 100%">
-      <div class="cabeca" style="margin-bottom:6px"><h2>XP por hora · última hora</h2><span class="chip" id="g-chip">coletando…</span></div>
-      <svg class="grafico" id="grafico" viewBox="0 0 600 190" role="img" aria-label="Gráfico de XP por hora na última hora"></svg>
-      <div class="eixo"><span>há 60 min</span><span>há 30 min</span><span>agora</span></div>
-    </section>
-  </div>
-  <div class="row">
-    <section class="card" style="flex:1 1 420px">
-      <h2>Shiny <span class="num" id="nshiny">0</span></h2>
-      <div class="chips" id="shinyacum" style="margin-bottom:12px"></div>
-      <table class="lt" id="shinies"></table>
-    </section>
-    <section class="card" style="flex:1 1 420px">
-      <h2>Capturados recentes</h2>
-      <table class="lt" id="capturados"></table>
-    </section>
-  </div>
-  </div>
-
-  <div class="aba" data-aba="farm" role="tabpanel">
-  <div class="row">
-    <section class="card" style="flex:1.7 1 520px">
-      <h2>Mochila</h2>
-      <div class="chips" id="mochila"></div>
-    </section>
-    <section class="card" style="flex:1 1 360px">
-      <h2>Drops desta sessão</h2>
-      <table class="lt" id="drops"></table>
-    </section>
-  </div>
-  <div class="row">
-    <section class="card" style="flex:1 1 100%">
-      <h2>XP/h por hunt medida</h2>
-      <div id="hunts"></div><div class="mini">O bot mede cada degrau de hunt; a barra cheia é o melhor XP/h medido e a verde é onde ele está agora.</div>
-    </section>
-  </div>
-  <section class="card">
-    <h2>Últimos dias</h2>
-    <div class="rolar">
-      <table id="dias">
-        <thead><tr><th>Dia</th><th>Online</th><th>Nível</th><th>Ouro do farm</th><th>Abates</th><th>Desmaios</th><th>Bolas</th><th>Capturas</th><th>Shiny</th></tr></thead>
-        <tbody></tbody>
-      </table>
-    </div>
-  </section>
-  </div>
-
-  <div class="aba" data-aba="conta" role="tabpanel">
-  <div class="row">
-    <section class="card" style="flex:1 1 100%">
-      <div class="cabeca"><h2>Patrimônio estimado</h2><span class="chip" id="pt-fonte">calculando…</span></div>
-      <div id="patri"><div class="vazio">Aguardando os preços do Mercado…</div></div>
-    </section>
-  </div>
-  <div class="row">
-    <section class="card" style="flex:1 1 300px">
-      <h2>PvP · Showdown</h2>
-      <div id="pvp"></div>
-    </section>
-    <section class="card" style="flex:1 1 300px">
-      <h2>Moedas e passe</h2>
-      <div id="moedas"></div>
-    </section>
-    <section class="card" style="flex:1 1 300px">
-      <h2>Hoje no jogo</h2>
-      <div id="hoje"></div>
-    </section>
-    <section class="card" style="flex:1 1 300px">
-      <h2>Pokédex</h2>
-      <div id="dex"></div>
-    </section>
-  </div>
-  </div>
-
-  <div class="aba" data-aba="bot" role="tabpanel">
-  <div class="row">
-    <section class="card" style="flex:1 1 300px">
-      <h2>Saúde do bot</h2>
-      <div id="saude"></div>
-    </section>
-    <section class="card" style="flex:1 1 360px">
-      <h2>Bônus ativos</h2>
-      <div class="chips" id="bonus"></div>
-      <h2 style="margin-top:18px">Bônus das lives</h2>
-      <div class="chips" id="lives"></div>
-      <div class="canais" id="canais"></div>
-    </section>
-  </div>
-  <section class="card">
-    <h2>Log ao vivo</h2>
-    <pre class="log" id="logtxt"></pre>
-  </section>
-  </div>
-</main>
 
 <script>
 const $ = (id) => document.getElementById(id);
@@ -396,8 +389,9 @@ function ritmos() {
 }
 function desenharGrafico() {
   const el = $('grafico'); if (!el) return;
-  const W = 600, H = 190, pad = 20, rs = ritmos();
-  let html = [20, 70, 120, 170].map((y) => `<line class="g" x1="0" y1="${y}" x2="${W}" y2="${y}" stroke-width="1"/>`).join('');
+  const W = el.clientWidth || 600, H = el.clientHeight || 120, pad = 9, rs = ritmos();
+  el.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
+  let html = [0.1, 0.37, 0.63, 0.9].map((f) => Math.round(f * H)).map((y) => `<line class="g" x1="0" y1="${y}" x2="${W}" y2="${y}" stroke-width="1"/>`).join('');
   if (rs.length < 2) { el.innerHTML = html + `<text x="${W / 2}" y="${H / 2}" text-anchor="middle" fill="${cor('sub')}" font-size="14">coletando os primeiros pontos…</text>`; $('g-chip').textContent = 'coletando…'; return; }
   const t1 = Date.now(), t0 = t1 - 3600_000, vs = rs.map((p) => p[1]);
   let lo = Math.min(...vs), hi = Math.max(...vs); const folga = Math.max((hi - lo) * 0.15, hi * 0.02, 1); lo -= folga; hi += folga;
@@ -415,10 +409,12 @@ let ultimoEstado = null;
 async function atualizar() {
   let s;
   try { s = await (await fetch('/estado')).json(); }
-  catch { $('pilula').className = 'pill off'; $('pilula-t').textContent = 'SEM RESPOSTA'; $('con').textContent = 'painel sem resposta (o bot está rodando?)'; return; }
+  catch { $('pilula').className = 'pill off'; $('pilula-t').textContent = 'SEM RESPOSTA'; $('con').textContent = 'o bot está rodando?'; return; }
   ultimoEstado = s;
   const tempo = s.minutos < 60 ? `${s.minutos} min` : `${(s.minutos / 60).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} h`;
-  $('con').textContent = `${s.nick}${s.somenteLer ? ' · só leitura' : ''} · ${s.conectado ? 'online' : 'reconectando'} há ${tempo}`;
+  $('con').textContent = `${s.somenteLer ? 'só leitura · ' : ''}${s.conectado ? 'online' : 'reconectando'} há ${tempo}`;
+  $('h-nick').textContent = s.nick ?? '—';
+  $('h-vip').hidden = !s.bonus?.vip; if (s.bonus?.vip) $('h-vip').innerHTML = `VIP <b>${s.bonus.vipPermanente ? 'permanente' : dur(s.bonus.vipMin)}</b>`;
   $('pilula').className = 'pill' + (s.conectado ? '' : ' off'); $('pilula-t').textContent = s.conectado ? 'CONECTADO' : 'DESCONECTADO';
 
   const eu = s.equipe.find((p) => p.ativo), hs = s.huntSessao ?? {}, cedo = s.minutos < 5;
@@ -426,10 +422,9 @@ async function atualizar() {
   $('k-nick').textContent = s.nick ?? '—';
   $('k-regiao').textContent = area.charAt(0).toUpperCase() + area.slice(1) + (area === 'outland' && s.outlandTier ? ` · tier ${s.outlandTier - 100}` : '');
   $('k-nivel').textContent = n(s.nivel);
-  $('k-poke').textContent = eu ? `${eu.nome} Nv. ${n(eu.nv)}` : 'sem ativo';
+  $('k-poke').textContent = eu ? `${eu.nome} Nv ${n(eu.nv)}` : 'sem ativo';
   const pct = 100 * (s.progresso ?? 0);
   $('k-xpbar').style.width = pct + '%'; $('k-xppct').textContent = s.xpProximo ? `${Math.floor(pct)}%` : '—';
-  $('k-xplabel').textContent = `XP até o Nv. ${n((s.nivel ?? 0) + 1)}`;
   const falta = s.xpProximo != null && s.xp != null ? Math.max(0, s.xpProximo - s.xp) : null, minEta = falta != null && s.xph > 0 && !cedo ? falta / s.xph * 60 : null;
   $('k-eta').textContent = minEta == null ? '—' : minEta < 1 ? 'menos de 1 min' : '≈ ' + (minEta < 60 ? `${Math.round(minEta)} min` : `${Math.floor(minEta / 60)} h ${Math.round(minEta % 60)} min`);
   $('k-falta').textContent = falta != null ? `faltam ${c(falta)} XP` : '';
@@ -437,38 +432,31 @@ async function atualizar() {
   const eq = s.equipado ?? {};
   if (eq.pocao) trocarIcone('i-pocao', ICON.itens[eq.pocao]);
   if (eq.bola) trocarIcone('i-bola', ICON.bolas[eq.bola]);
-  $('k-pocao').textContent = eq.pocao ? `${NOMES[eq.pocao] ?? s.nomesItens?.[eq.pocao] ?? 'item ' + eq.pocao} x${n(eq.pocaoQtd)}` : 'nenhuma';
-  $('k-bola').textContent = eq.bola ? `${NOMES[eq.bola] ?? 'bola ' + eq.bola} x${n(eq.bolaQtd)}` : 'nenhuma';
+  $('k-pocao-n').textContent = eq.pocao ? NOMES[eq.pocao] ?? s.nomesItens?.[eq.pocao] ?? 'item ' + eq.pocao : 'Poção'; $('k-pocao').textContent = eq.pocao ? n(eq.pocaoQtd) : 'nenhuma';
+  $('k-bola-n').textContent = eq.bola ? NOMES[eq.bola] ?? 'bola ' + eq.bola : 'Bola'; $('k-bola').textContent = eq.bola ? n(eq.bolaQtd) : 'nenhuma';
 
   const seg = Math.max(0, Math.floor((s.agora - (hs.desde ?? s.agora)) / 1000));
   const durHunt = seg >= 3600 ? `${Math.floor(seg / 3600)} h ${Math.floor(seg % 3600 / 60)} min` : `${Math.floor(seg / 60)} min`;
   const chips = [];
   chips.push(s.noCentro ? '<span class="chip"><b>No Centro Pokemon</b></span>' : s.hunt ? `<span class="chip">Hunt <b>${esc(s.hunt.nome)} Nv. ${n(s.hunt.nivel)}</b></span><span class="chip">Nesta hunt <b>${durHunt} · ${n(hs.abates ?? 0)} abates</b></span>` : '<span class="chip">Sem hunt</span>');
-  if (s.bonus?.vip) chips.push(`<span class="chip on">VIP <b>${s.bonus.vipPermanente ? 'permanente' : dur(s.bonus.vipMin)}</b></span>`);
   $('k-chips').innerHTML = chips.join('');
 
   const ac = s.acumulado ?? {};
   $('m-xph').textContent = cedo ? 'medindo…' : sinal(s.xph); $('m-xph-s').textContent = cedo ? `${Math.max(1, 5 - s.minutos)} min` : 'XP/h';
-  $('m-ouroh').textContent = cedo ? 'medindo…' : sinal(s.ouroh); $('m-ouroh-s').textContent = cedo ? '' : 'líquido, já com as compras';
+  $('m-ouroh').textContent = cedo ? 'medindo…' : sinal(s.ouroh); $('m-ouroh-s').textContent = cedo ? '' : 'líquido';
   $('m-abh').textContent = cedo ? 'medindo…' : n(s.abatesh); $('m-abh-s').textContent = s.hunt ? `${n(hs.abates ?? 0)} nesta hunt` : '';
-  $('m-des').textContent = n(s.stats.desmaios); $('m-des-s').textContent = s.stats.desmaios ? 'nesta sessão' : 'nenhum nesta sessão';
+  const hj = (ac.dias ?? {})[chaveDia(s.agora)] ?? {};
+  $('m-cap').textContent = n(hj.capturas ?? 0); $('m-cap-s').textContent = `${n(s.stats.capturas)} nesta sessão`;
+  $('m-des').textContent = n(hj.desmaios ?? 0); $('m-des-s').textContent = `${n(s.stats.desmaios)} nesta sessão`;
   $('m-des-s').style.color = s.stats.desmaios ? cor('bad') : cor('ok');
-  $('m-cap').textContent = n(s.stats.capturas); $('m-cap-s').textContent = `${n(s.stats.bolasServidor ?? 0)} bolas confirmadas`;
-  $('m-sh').textContent = n(ac.shinyCapturados ?? 0); $('m-sh-s').textContent = `em ${n(ac.capturas ?? 0)} capturas`;
+  $('m-sh').textContent = n(ac.shinyCapturados ?? 0); $('m-sh-s').textContent = 'Quando um shiny escapa, ele aparece aqui e vai para os avisos.';
 
   lista($('equipe'), s.equipe.map((p) => linhaHp({
     nome: `${p.shiny ? '✨ ' : ''}${esc(p.nome)} Nv${n(p.nv)}`, extra: `P${p.p} · Q${p.q} · N${p.nota ?? '—'}`,
     hp: p.hp, mhp: p.mhp, classes: `${p.ativo ? 'ativo' : ''} ${p.shiny ? 'shiny' : ''} ${p.hp <= 0 ? 'caido' : ''}`,
   })), 'vazia');
-  const campo = [...s.campo].sort((a, b) => (a.morto - b.morto) || (b.shiny - a.shiny));
-  const extraCampo = Math.max(0, campo.length - 6);
-  lista($('campo'), campo.slice(0, 6).map((m) => linhaHp({
-    nome: `${m.shiny ? '✨ ' : ''}${esc(m.nome)} Nv${n(m.nv)}`, hp: m.hp, mhp: m.mhp,
-    classes: `${m.morto ? 'caido' : ''} ${m.shiny ? 'shiny' : ''}`, direita: m.morto ? 'caído' : undefined,
-  })).concat(extraCampo ? [`<li class="vazio" style="display:block">+ ${extraCampo} no campo</li>`] : []), 'nenhum selvagem');
-
   $('shinyacum').innerHTML = [
-    `<span class="chip ${ac.shinyCapturados ? 'shiny' : ''}">capturados <b>${n(ac.shinyCapturados ?? 0)}</b></span>`,
+    `<span class="chip ${ac.shinyEscapou ? 'shiny' : ''}">escaparam <b>${n(ac.shinyEscapou ?? 0)}</b></span>`,
     `<span class="chip">bolas confirmadas <b>${n(ac.bolasConfirmadas ?? 0)}</b></span>`,
     `<span class="chip">capturas <b>${n(ac.capturas ?? 0)}</b></span>`,
   ].join('');
@@ -485,7 +473,8 @@ async function atualizar() {
   $('lives').innerHTML = ativos.join(''); $('canais').textContent = canais.join(' · ');
 
   const moch = [...Object.entries(s.bolas), ...Object.entries(s.itens)].filter(([, q]) => q > 0);
-  $('mochila').innerHTML = moch.length ? moch.map(([id, q]) => `<span class="chip">${imgIc(s.bolas[id] != null && s.itens[id] == null ? ICON.bolas[id] : ICON.itens[id])}${esc(NOMES[id] ?? s.nomesItens?.[id] ?? `item ${id}`)} <b class="num">${n(q)}</b></span>`).join('') : '<span class="fraco">vazia</span>';
+  const mochHtml = moch.length ? moch.map(([id, q]) => `<div class="tile"><small>${imgIc(s.bolas[id] != null && s.itens[id] == null ? ICON.bolas[id] : ICON.itens[id])}${esc(NOMES[id] ?? s.nomesItens?.[id] ?? `item ${id}`)}</small><strong>${n(q)}</strong></div>`).join('') : '<span class="fraco">vazia</span>';
+  trocarHtml($('mochila'), mochHtml);
 
   tabela($('drops'), s.drops.map(([nome, q]) => `<tr><td>${esc(nome)}</td><td class="num">${n(q)}</td></tr>`), 'nada ainda');
   tabela($('capturados'), s.capturados.map((p) => `<tr><td class="${p.shiny ? 'shiny' : ''}">${p.shiny ? '✨ ' : ''}${esc(p.nome)} Nv${n(p.level)} <span class="fraco">Q${p.quality ?? '—'}</span></td><td class="num">${hora(p.em)}</td></tr>`), 'nenhuma ainda');
@@ -493,25 +482,27 @@ async function atualizar() {
   const dias = Object.entries(ac.dias ?? {}).sort(([a], [b]) => b.localeCompare(a)).slice(0, 7);
   const cel = (v, cls = '') => `<td class="num ${v ? cls : 'zero'}">${typeof v === 'string' ? v : c(v)}</td>`;
   $('dias').querySelector('tbody').innerHTML = dias.length ? dias.map(([dia, d]) => {
-    const farm = (d.ouroFim ?? 0) - (d.ouroIni ?? 0) - (d.ouroExtra ?? 0);
     const [, m, dd] = dia.split('-');
     return `<tr><td>${dd}/${m}</td>${cel(`${((d.segundosOnline ?? 0) / 3600).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} h`)}` +
-      `${cel(`${d.nivelIni ?? '?'} → ${d.nivelFim ?? '?'}`)}${cel(farm)}${cel(d.abates)}${cel(d.desmaios, 'ruim')}${cel(d.bolas)}${cel(d.capturas)}${cel(d.shiny, 'shiny')}</tr>`;
-  }).join('') : '<tr><td class="vazio" colspan="9">o primeiro dia aparece em até 1 min</td></tr>';
+      `${cel(`${d.nivelIni ?? '?'} → ${d.nivelFim ?? '?'}`)}${cel(ouroDoDia(d))}${cel(d.abates)}${cel(d.capturas)}</tr>`;
+  }).join('') : '<tr><td class="vazio" colspan="6">o primeiro dia aparece em até 1 min</td></tr>';
 
-  mostrarBonus(s); mostrarExtras(s); mostrarAlertas(s.alertas); amostrar(s);
+  mostrarBonus(s); mostrarExtras(s); mostrarGanhos(s); mostrarBosses(s); mostrarAvisos(s); mostrarAjustes(s); mostrarAlertas(s.alertas); amostrar(s);
 }
 
-// ---- abas ----
-const ABAS = [['geral', 'Visão geral'], ['farm', 'Farm e estoque'], ['conta', 'Conta e competição'], ['bot', 'Bot e log']];
-let abaAtual = 'geral';
+// ---- menu ----
+const ABAS = [['vivo', 'Ao vivo', 'M3 12h4l3-8 4 16 3-8h4'], ['ganhos', 'Ganhos', 'M4 20V10M10 20V4M16 20v-7M22 20H2'], ['farm', 'Farm', 'M4 9h16l-1 11H5zM8 9V6a4 4 0 018 0v3'], ['bosses', 'Bosses', 'M3 8l4 4 5-7 5 7 4-4-2 11H5z'], ['conta', 'Conta', 'M12 12a4 4 0 100-8 4 4 0 000 8zM4 21a8 8 0 0116 0'], ['ajustes', 'Ajustes', 'M4 6h10M18 6h2M4 18h4M12 18h8M16 4v4M10 16v4'], ['log', 'Log', 'M5 5h14M5 10h14M5 15h9M5 20h12']];
+let abaAtual = 'vivo';
 try { const a = localStorage.getItem('pk-aba'); if (ABAS.some((x) => x[0] === a)) abaAtual = a; } catch {}
 function mostrarAba(k) {
   abaAtual = k; try { localStorage.setItem('pk-aba', k); } catch {}
-  $('abas').innerHTML = ABAS.map(([id, t]) => `<button class="tab" type="button" role="tab" data-a="${id}" aria-selected="${id === k}">${t}</button>`).join('');
+  $('abas').innerHTML = ABAS.map(([id, t, d]) => `<button class="tab" type="button" role="tab" data-a="${id}" aria-selected="${id === k}"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${d}"/></svg>${t}</button>`).join('');
   document.querySelectorAll('.aba').forEach((el) => el.classList.toggle('on', el.dataset.aba === k));
+  if (k === 'vivo') requestAnimationFrame(desenharGrafico);
+  if (k === 'log') { const p = $('logtxt'); p.scrollTop = p.scrollHeight; }
 }
 $('abas').addEventListener('click', (e) => { const b = e.target.closest('button[data-a]'); if (b) mostrarAba(b.dataset.a); });
+document.addEventListener('click', (e) => { const b = e.target.closest('[data-ir]'); if (b) mostrarAba(b.dataset.ir); });
 mostrarAba(abaAtual);
 
 // ---- evento, meta, PvP, moedas, Pokédex, saúde ----
@@ -527,33 +518,27 @@ function mostrarPatrimonio(p) {
   if (!p) { $('pt-fonte').textContent = 'sem preços ainda'; return; }
   const gm = (v) => n(Math.round(v)), usd = (v) => 'US$ ' + v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const idade = Math.max(0, Math.round((Date.now() - p.em) / 60000));
-  $('pt-fonte').innerHTML = `preços: média${p.dias ? ' de ' + p.dias + ' dias' : ''} do Mercado · atualizado há <b>${idade} min</b>`;
+  $('pt-fonte').textContent = `preços de há ${idade} min`;
   const linhas = [];
-  if (p.gemas > 0) linhas.push({ nome: 'Gemas', det: 'saldo da conta', v: p.gemas, ic: ICON.gema });
-  for (const i of p.itens) linhas.push({ nome: i.nome, det: `${n(i.qtd)} × ${gm(i.preco)} · ${n(i.vendas)} vendas`, v: i.total, taxa: true });
-  for (const s of p.shinies) linhas.push({ nome: '✨ ' + s.nome + (s.nv ? ' Nv' + s.nv : ''), det: 'preço da espécie (shiny)', v: s.bruto, shiny: true });
-  if (p.ouroOrb > 0) linhas.push({ nome: 'Ouro', det: `${c(p.ouro)} ÷ ${c(p.ouroPorOrb)} por gema`, v: p.ouroOrb, ic: ICON.ouroIc });
+  if (p.gemas > 0) linhas.push({ nome: 'Gemas', det: 'saldo da conta', v: p.gemas });
+  for (const i of p.itens) linhas.push({ nome: i.nome, det: `${n(i.qtd)} × ${gm(i.preco)} · ${n(i.vendas)} vendas`, v: i.total });
+  for (const s of p.shinies) linhas.push({ nome: '✨ ' + s.nome + (s.nv ? ' Nv' + s.nv : ''), det: 'preço da espécie (shiny)', v: s.bruto });
+  if (p.ouroOrb > 0) linhas.push({ nome: 'Ouro', det: `${c(p.ouro)} ÷ ${c(p.ouroPorOrb)} por gema`, v: p.ouroOrb });
   linhas.sort((a, b) => b.v - a.v);
-  const max = Math.max(1, ...linhas.map((l) => l.v)), tx = p.bruto - p.liquido;
-  el.innerHTML = `<div class="pt-grade">
-    <div><div class="tile pt-total"><small>Total estimado (já sem a taxa do Mercado)</small><strong class="disp">${gm(p.liquido)} gemas</strong><div class="pt-usd">≈ ${usd(p.usd)}</div>
-      <div class="mini">bruto ${gm(p.bruto)} gemas · ≈ ${usd(p.usdBruto)} · taxas: −${gm(tx)}</div></div>
-      <div class="mini" style="margin-top:10px">Câmbio do servidor: 1 gema = US$ 0,009 no saque. Taxa do Mercado: 15% nos itens e 7,5% a 13% nos Pokémon. Itens com menos de 10 vendas ficam fora da soma${p.semPreco.length ? ' (' + p.semPreco.slice(0, 4).map(esc).join(', ') + (p.semPreco.length > 4 ? '…' : '') + ')' : ''}.</div></div>
-    <div>${linhas.length ? linhas.slice(0, 10).map((l) => `<div class="hb" style="margin:10px 0"><span class="t" style="width:200px;flex:none"><span style="color:${l.shiny ? 'var(--shiny)' : 'var(--txt)'}">${esc(l.nome)}</span><br><span class="mini">${l.det}</span></span><div class="bar"><i style="width:${Math.max(2, Math.round(l.v / max * 100))}%"></i></div><span class="v" style="width:96px">${gm(l.v)}</span></div>`).join('') : '<div class="vazio">Nada com preço no momento.</div>'}
-      <div class="mini">A barra compara cada parte com a maior. Preço médio não é garantia de venda: muitas unidades de uma vez derrubam o preço${p.outrosItens ? ' · mais ' + p.outrosItens + ' itens menores não listados' : ''}.</div></div>
-  </div>`;
+  const max = Math.max(1, ...linhas.map((l) => l.v));
+  trocarHtml(el, `<div class="mid">${gm(p.liquido)} gemas</div><div class="mini up">≈ ${usd(p.usd)} já sem a taxa do Mercado</div>
+    <div class="mini">bruto ${gm(p.bruto)} gemas (≈ ${usd(p.usdBruto)})</div>
+    ${linhas.slice(0, 12).map((l) => `<div class="hb" title="${esc(l.det)}"><span class="t">${esc(l.nome)}</span><div class="bar"><i style="width:${Math.max(2, Math.round(l.v / max * 100))}%"></i></div><span class="v">${gm(l.v)}</span></div>`).join('') || '<div class="vazio">Nada com preço no momento.</div>'}
+    <div class="mini" style="margin-top:6px">Preço médio de ${p.dias ?? 7} dias, não é garantia de venda. Taxa: 15% nos itens, 7,5% a 13% nos Pokémon. Itens com menos de 10 vendas ficam fora${p.semPreco.length ? ' (' + p.semPreco.slice(0, 4).map(esc).join(', ') + ')' : ''}.</div>`);
 }
 function mostrarExtras(s) {
   const x = s.extras ?? {}, agora = s.agora ?? Date.now();
   // faixa de evento e multiplicador de XP
   const ev = x.evento && x.evento.terminaEm > agora ? x.evento : null, mult = x.bonusXp?.tr ?? 1;
-  $('evento').hidden = !ev && !(mult > 1);
-  if (!$('evento').hidden) {
-    $('ev-t').textContent = ev ? (ev.xpTr === ev.xpPk ? `Evento ativo: +${ev.xpTr}% de XP` : `Evento ativo: treinador +${ev.xpTr}% · pokémon +${ev.xpPk}%`) : 'Bônus de XP ativos';
-    $('ev-fim').textContent = ev ? 'termina em ' + dur(Math.max(1, Math.round((ev.terminaEm - agora) / 60000))) : '';
-    $('ev-x').textContent = fx(mult) + 'x';
-    $('ev-partes').innerHTML = (x.bonusXp?.partes ?? []).map((p) => `<span class="chip">${esc(PARTES[p.id] ?? cap(p.id))} <b>${fx(p.tr)}x</b></span>`).join('');
-  }
+  $('evento').hidden = !ev;
+  if (ev) { $('ev-t').textContent = `Evento +${ev.xpTr}% XP`; $('ev-fim').textContent = 'até ' + hora(ev.terminaEm); }
+  $('h-xp').hidden = !(mult > 1); $('ev-x').textContent = fx(mult) + 'x';
+  $('ev-partes').innerHTML = (x.bonusXp?.partes ?? []).map((p) => `<span class="chip">XP ${esc(PARTES[p.id] ?? cap(p.id))} <b>${fx(p.tr)}x</b></span>`).join('');
   // patrimônio estimado
   mostrarPatrimonio(x.patrimonio);
   // PvP
@@ -575,12 +560,92 @@ function mostrarExtras(s) {
     <div class="bar" style="margin:12px 0"><i style="width:${dx.total ? Math.min(100, 100 * dx.capturadas / dx.total) : 0}%"></i></div>${dx.total ? kv('Total de espécies', n(dx.total)) : ''}${kv('Espécies vistas', n(dx.vistas))}${kv('Pokémon derrotados (total)', n(dx.abates))}` : '<span class="fraco">sem dados</span>';
   // saúde do bot
   $('saude').innerHTML = kv('Conexão', s.conectado ? 'estável' : 'reconectando', `color:${s.conectado ? 'var(--ok)' : 'var(--bad)'}`) + kv('Sessão', fmtMin(s.minutos)) + kv('Tentativas de reconexão', n(x.tentativas ?? 0)) + kv('Modo', s.somenteLer ? 'só leitura' : 'farm automático') +
-    '<div class="mini" style="margin-top:10px">Abrir o jogo no navegador derruba o bot e ele fica pausado por 2 h.</div>';
+    '<div class="mini" style="margin-top:8px">Abrir o jogo no navegador derruba o bot e ele fica pausado por 2 h.</div>';
   // XP/h por hunt medida
   const med = Object.entries(s.acumulado?.medicoes ?? {}).filter(([, m]) => m.seg > 30 && m.xp > 0 && s.nivel - (m.lv ?? 0) <= 20).map(([k, m]) => { const [r, lv] = k.split(':'); return { r, lv: Number(lv), xph: m.xp / m.seg * 3600, em: m.lv }; }).sort((a, b) => b.xph - a.xph).slice(0, 6);
   const topo = med[0]?.xph || 1, area = s.hunt?.area;
   $('hunts').innerHTML = med.length ? med.map((m) => { const atual = m.lv === s.hunt?.nivel && (m.r === 'outland') === (area === 'outland');
     return `<div class="hb"><span class="t" title="medido quando você estava no Nv ${m.em}">${m.r === 'outland' ? 'Outland · nível ' : 'Nível '}${m.lv}<small class="fraco"> · Nv ${m.em}</small></span><div class="bar"><i class="${atual ? 'ok' : ''}" style="width:${100 * m.xph / topo}%"></i></div><span class="v" style="width:90px">${c(m.xph)}/h</span></div>`; }).join('') : '<span class="fraco">sem medições recentes (últimos 20 níveis)</span>';
+}
+
+// ---- ganhos, bosses, avisos, ajustes ----
+const htmlDe = new WeakMap();
+function trocarHtml(el, html) { if (htmlDe.get(el) !== html) { htmlDe.set(el, html); el.innerHTML = html; } } // só redesenha quando muda (não perde a rolagem)
+const chaveDia = (t) => { const d = new Date(t); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
+const ouroDoDia = (d) => (d.ouroFim ?? 0) - (d.ouroIni ?? 0) - (d.ouroExtra ?? 0);
+let metrica = 'niveis';
+const METRICAS = { niveis: ['Níveis', (d) => (d.nivelFim ?? 0) - (d.nivelIni ?? 0)], abates: ['Abates', (d) => d.abates ?? 0], capturas: ['Capturas', (d) => d.capturas ?? 0], ouro: ['Ouro', ouroDoDia] };
+$('metricas').addEventListener('click', (e) => { const b = e.target.closest('button[data-m]'); if (b) { metrica = b.dataset.m; if (ultimoEstado) mostrarGanhos(ultimoEstado); } });
+function mostrarGanhos(s) {
+  const ac = s.acumulado ?? {}, d = (ac.dias ?? {})[chaveDia(s.agora)] ?? {}, x = s.extras ?? {};
+  const seg = d.segundosOnline ?? 0, netH = seg > 600 && d.ouroIni != null ? ouroDoDia(d) / (seg / 3600) : null;
+  const venda = d.capturas ? (d.vendas ?? 0) / d.capturas : null;
+  const preco = x.bolaPreco?.[s.equipado?.bola], custo = d.capturas && preco ? d.bolas / d.capturas * preco : null;
+  $('cp-net').textContent = netH == null ? 'medindo…' : sinal(netH); $('cp-net').className = 'big' + (netH > 0 ? ' up' : netH < 0 ? ' down' : '');
+  $('cp-venda').textContent = venda == null ? '—' : '≈ ' + c(venda);
+  $('cp-custo').textContent = custo == null ? '—' : '≈ ' + c(custo);
+  $('cp-gemas').textContent = x.gemasMes ? '≈ ' + c(x.gemasMes.mes) : '—';
+  // conta do dia, desde que o bot passou a somar as compras
+  const k = d.comp;
+  if (!k) trocarHtml($('gc'), '<div class="vazio">A conta começa no próximo minuto.</div>');
+  else {
+    const liquido = (s.ouro ?? 0) - k.ouro0 - ((d.ouroExtra ?? 0) - k.extra0), vendas = (d.vendas ?? 0) - k.vendas0;
+    const gasto = k.bolasOuro + k.pocoesOuro + k.outrosOuro, loot = liquido + gasto - vendas;
+    $('gc-desde').textContent = 'desde ' + hora(k.em);
+    const l = (t, v, cls) => `<div class="kv"><span>${t}</span><b class="${cls}">${v > 0 && cls === 'up' ? '+' : cls === 'down' && v > 0 ? '−' : ''}${c(v)}</b></div>`;
+    trocarHtml($('gc'), l('Entrou: abates e loot (calculado)', loot, loot >= 0 ? 'up' : 'down') + l('Entrou: venda das capturas', vendas, 'up') + l('Saiu: bolas', k.bolasOuro, 'down') + l('Saiu: poções e revives', k.pocoesOuro, 'down') + (k.outrosOuro ? l('Saiu: outras compras', k.outrosOuro, 'down') : '') +
+      `<div class="kv" style="font-size:14px"><span style="color:var(--txt)">Sobrou</span><b class="${liquido >= 0 ? 'up' : 'down'}">${sinal(liquido)}</b></div><div class="mini">Compras feitas pelo bot. Compra no Mercado ou à mão aparece descontada dos abates.</div>`);
+  }
+  const pb = ac.porBola?.[s.equipado?.bola];
+  trocarHtml($('gp'), kv('Tempo por abate', d.abates ? fx(seg / d.abates, 1) + ' s' : '—') + kv('Bolas por captura', d.capturas ? n(Math.round(d.bolas / d.capturas)) : '—') +
+    kv('Custo em bolas por captura', custo == null ? '—' : '≈ ' + c(custo)) + kv('Venda média por captura', venda == null ? '—' : '≈ ' + c(venda)) +
+    kv('Retorno da bola', custo && venda != null ? fx(venda / custo, 1) + 'x' : '—', custo && venda >= custo ? 'color:var(--ok)' : '') +
+    kv(`Chance medida, ${esc(NOMES[s.equipado?.bola] ?? 'bola')}`, pb?.lancadas ? fx(100 * pb.sucesso / pb.lancadas, 1) + '%' : '—') + '<div class="mini" style="margin-top:6px">Tudo do dia de hoje. O custo usa o preço da bola equipada.</div>');
+  const g = x.gemasMes;
+  trocarHtml($('gg'), g ? `<div class="big">≈ ${c(g.mes)} <span style="font-size:15px">gemas/mês</span></div><div class="mini up" style="font-size:13px">≈ US$ ${g.usd.toLocaleString('pt-BR', { maximumFractionDigits: 0 })}/mês no teto</div><div class="mini">Base: drops de ${g.dias} dia(s), ${g.horas} h online, preço médio do Mercado já com a taxa de 15%. Só vale se vender tudo pela média; vender muito derruba o preço. Saque mínimo de 1.000 gemas.</div>` : '<div class="vazio">Aguardando preços e 1 h de farm.</div>');
+  // gráfico por dia
+  const dias = Object.entries(ac.dias ?? {}).sort(([a], [b]) => a.localeCompare(b)).slice(-7), val = METRICAS[metrica][1];
+  const vals = dias.map(([, v]) => val(v)), maior = Math.max(1, ...vals);
+  trocarHtml($('metricas'), Object.entries(METRICAS).map(([id, [t]]) => `<button type="button" class="btn" data-m="${id}" aria-pressed="${id === metrica}">${t}</button>`).join(''));
+  trocarHtml($('barras'), dias.map(([dia], i) => `<div><b>${c(vals[i])}</b><i style="height:${Math.max(2, Math.round(Math.max(0, vals[i]) / maior * 72))}%"></i><span class="mini">${dia.slice(8)}/${dia.slice(5, 7)}</span></div>`).join(''));
+}
+const PREMIO = { tm: 'TM', mega: 'Fragmento Mega', tickets: 'Tickets' };
+function mostrarBosses(s) {
+  const b = s.extras?.bosses, el = document.querySelector('.aba[data-aba=bosses]'); if (!b?.lista?.length) return;
+  const razao = b.lista.map((x) => x.dano == null ? 0 : x.dano / Math.max(x.leva, 0.25)), melhor = razao.indexOf(Math.max(...razao));
+  const vezes = (v) => v == null ? '—' : fx(v, 2) + 'x';
+  trocarHtml(el, b.lista.map((x, i) => {
+    const [txt, corv] = x.leva >= 2 ? ['Arriscado', 'var(--bad)'] : i === melhor && x.dano >= 1 ? ['Melhor', 'var(--ok)'] : x.dano < 1 ? ['Lento', 'var(--a2)'] : ['Ok', 'var(--a2)'];
+    return `<section class="card" style="border-color:${corv}"><h2>${esc(x.nome)} <span class="chip">Nv mínimo <b>${n(b.nivelMin)}</b></span></h2>
+      <div class="palco-boss"><canvas class="bsp" width="192" height="192" data-lt="${x.lt ?? ''}" aria-label="${esc(x.nome)}"></canvas></div>
+      <div style="display:flex;align-items:center;gap:6px">${x.tipos.map((t) => `<span class="tp">${esc(tipoPt(t))}</span>`).join('')}<span class="esp"></span><span class="mid" style="color:${corv}">${txt}</span></div>
+      <div>${kv('Seu melhor tipo causa', vezes(x.dano))}${kv('O tipo dele causa em você', vezes(x.leva))}${kv('Prêmio de hoje (até 18h)', PREMIO[x.premio])}${kv('Chance por vitória', x.chance == null ? 'não informada' : fx(x.chance, 2) + '%')}</div></section>`;
+  }).join('') + `<section class="card" style="grid-column:1 / -1"><h2>Sua equipe para ${esc(b.regiao)} ${b.liberado ? '' : '<span class="chip">liberado no Nv <b>' + n(b.nivelMin) + '</b></span>'}</h2><div class="chips">${b.equipe.map((p) => `<span class="chip ${p.pronto ? 'on' : ''}">${esc(p.nome)} Nv ${n(p.nv)} <b>${p.pronto ? 'pronto' : 'abaixo'}</b></span>`).join('')}</div><div class="mini">A comparação supõe que o boss ataca com os próprios tipos. O painel não entra na luta.</div></section>`);
+}
+const COR_AVISO = { caiu: 'var(--bad)', voltou: 'var(--ok)', capturado: 'var(--shiny)', campo: 'var(--shiny)', escapou: 'var(--shiny)' };
+function mostrarAvisos(s) {
+  const l = s.extras?.avisos ?? [];
+  const quando = (t) => chaveDia(t) === chaveDia(s.agora) ? hora(t) : new Date(t).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) + ' ' + hora(t);
+  trocarHtml($('avisos'), l.length ? l.map((a) => `<div class="feed"><span class="dot" style="background:${COR_AVISO[a.tipo] ?? 'var(--a2)'}"></span><div><div>${esc(a.titulo)}</div><div class="mini">${quando(a.em)}${a.detalhe ? ' · ' + esc(a.detalhe) : ''}</div></div></div>`).join('') : '<div class="vazio">Nenhum aviso ainda.</div>');
+}
+function mostrarAjustes(s) {
+  const cf = s.extras?.config ?? {};
+  $('h-avisos').textContent = cf.ntfy ? 'Avisos no celular: ligados' : 'Avisos no celular: desligados';
+  $('aj-ntfy').innerHTML = cf.ntfy ? '<b style="color:var(--ok)">ligado</b>' : '<b>desligado</b>';
+  trocarHtml($('aj-avisos'), `<ol><li>Instale o app <b>ntfy</b> no celular (grátis, sem conta).</li><li>No app, inscreva-se num nome difícil de adivinhar, ex.: <code>pkidle-</code> seguido de letras e números seus.</li><li>Coloque o mesmo nome em <code>NTFY_TOPICO=</code> no arquivo <code>.env</code> e reinicie o bot.</li></ol><div class="mini" style="margin-top:8px">Chegam no celular: shiny capturado, visto no campo ou que escapou; bot pausado, parado ou desconectado há 5 min; nível múltiplo de 50; resumo de ontem. Quem souber o nome do canal também recebe.</div>`);
+  $('aj-rede').innerHTML = cf.rede ? '<b style="color:var(--ok)">ligado</b>' : '<b>desligado</b>';
+  trocarHtml($('aj-rede-t'), cf.rede ? `<div class="mini">No celular, no mesmo Wi-Fi, abra <code>${esc(cf.url ?? 'http://IP-do-PC:8787')}</code>. Usuário qualquer, senha a do <code>.env</code>. Pela rede é só leitura.</div>` : '<ol><li>No <code>.env</code>, ponha <code>PAINEL_REDE=1</code> e <code>PAINEL_SENHA=</code> com 8 caracteres ou mais.</li><li>Reinicie o bot. O Windows pode pedir para liberar o Node na rede privada.</li></ol><div class="mini" style="margin-top:8px">Pela rede é só leitura. A conexão não é criptografada: use só no Wi-Fi de casa.</div>');
+}
+$('aj-teste').onclick = async () => { const r = $('aj-teste-r'); try { const x = await fetch('/teste-aviso', { method: 'POST' }); r.textContent = x.ok ? 'Enviado. Se o celular estiver configurado, o aviso chega em instantes.' : 'Só dá para testar neste computador.'; } catch { r.textContent = 'O bot não respondeu.'; } };
+// sprites dos bosses (de frente)
+function desenharBosses(t) {
+  for (const cv of document.querySelectorAll('.aba.on canvas.bsp')) {
+    const sp = sprite(Number(cv.dataset.lt)), q = sp && (sp.s.dirs[3] ?? Object.values(sp.s.dirs)[0]); if (!q?.length) continue;
+    const f = q[Math.floor(t / 200) % q.length], img = sp.imgs[f.p]; if (!img?.complete || !img.naturalWidth) continue;
+    const ctx = cv.getContext('2d'); ctx.imageSmoothingEnabled = false; ctx.clearRect(0, 0, cv.width, cv.height);
+    const e = Math.min(cv.width / f.w, cv.height / f.h, 3);
+    ctx.drawImage(img, f.x, f.y, f.w, f.h, (cv.width - f.w * e) / 2, (cv.height - f.h * e) / 2, f.w * e, f.h * e);
+  }
 }
 
 // ---- bônus ativos ----
@@ -657,9 +722,10 @@ function avatar(t) {
 }
 function quadro(t) {
   requestAnimationFrame(quadro);
-  avatar(t);
+  avatar(t); desenharBosses(t);
   const cv = $('cena'), s = ultimoEstado; if (!cv || !s) return;
   const dpr = window.devicePixelRatio || 1, W = cv.clientWidth, H = cv.clientHeight;
+  if (!W || !H) return; // seção escondida
   if (cv.width !== Math.round(W * dpr) || cv.height !== Math.round(H * dpr)) { cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); }
   const ctx = cv.getContext('2d'); ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.imageSmoothingEnabled = false;
   ctx.clearRect(0, 0, W, H);
@@ -668,15 +734,17 @@ function quadro(t) {
   ctx.globalAlpha = 1;
   if (s.noCentro) { ctx.fillStyle = cor('sub'); ctx.font = '14px system-ui'; ctx.textAlign = 'center'; ctx.fillText('No Centro Pokemon, curando', W / 2, H / 2); return; }
   const eu = s.equipe.find((p) => p.ativo);
-  if (eu) desenhar(ctx, eu, 2, Math.max(70, W * 0.18), H * (estilo === 'pkm' ? 0.66 : 0.78), 3, t, { treme: levouDano('eu', eu.hp) });
-  const mobs = [...s.campo].sort((a, b) => (a.slot ?? 0) - (b.slot ?? 0)).slice(0, 12);
-  const area = { x: W * 0.4, w: W * 0.56 }, cols = Math.min(4, Math.max(1, Math.ceil(mobs.length / 2))), linhas = Math.ceil(mobs.length / cols) || 1;
+  if (eu) desenhar(ctx, eu, 2, Math.max(70, W * 0.18), H * (estilo === 'pkm' ? 0.66 : 0.78), H < 250 ? 2.3 : 3, t, { treme: levouDano('eu', eu.hp) });
+  const todos = [...s.campo].sort((a, b) => (a.morto - b.morto) || (b.shiny - a.shiny) || (a.slot ?? 0) - (b.slot ?? 0));
+  const baixo = H < 200, mobs = todos.slice(0, baixo ? (W < 420 ? 2 : 3) : 6).sort((a, b) => (a.slot ?? 0) - (b.slot ?? 0));
+  const area = { x: W * 0.4, w: W * 0.56 }, cols = baixo ? Math.max(1, mobs.length) : Math.min(4, Math.max(1, Math.ceil(mobs.length / 2))), linhas = Math.ceil(mobs.length / cols) || 1;
   mobs.forEach((m, i) => {
     const col = i % cols, l = Math.floor(i / cols);
     const cx = area.x + (col + 0.5) * area.w / cols + (l % 2 ? area.w / cols / 4 : 0);
-    const chao = estilo === 'pkm' ? H * 0.2 + (l + 1) * (H * 0.64 / linhas) - 26 : H * 0.3 + (l + 1) * (H * 0.66 / linhas) - 6;
-    desenhar(ctx, m, 4, cx, chao, linhas > 2 ? 2 : 2.5, t, { compacto: linhas > 1, morto: m.morto, treme: !m.morto && levouDano('m' + m.slot, m.hp), fase: i });
+    const chao = estilo === 'pkm' ? (linhas > 1 ? H * 0.1 + (l + 1) * (H * 0.77 / linhas) - 24 : H * 0.66) : H * 0.3 + (l + 1) * (H * 0.66 / linhas) - 6;
+    desenhar(ctx, m, 4, cx, chao, H < 270 ? 1.8 : 2.4, t, { compacto: linhas > 1 || baixo, morto: m.morto, treme: !m.morto && levouDano('m' + m.slot, m.hp), fase: i });
   });
+  if (todos.length > mobs.length) { ctx.fillStyle = '#12361a'; ctx.font = '600 11px system-ui'; ctx.textAlign = 'right'; ctx.fillText(`+ ${todos.length - mobs.length} no campo`, W - 10, 16); }
   if (!mobs.length) { ctx.fillStyle = cor('fraco'); ctx.font = '13px system-ui'; ctx.textAlign = 'center'; ctx.fillText('esperando selvagens…', W * 0.68, H * 0.6); }
 }
 requestAnimationFrame(quadro);
@@ -692,8 +760,7 @@ function bip() {
 }
 function mostrarAlertas(alertas) {
   const reais = alertas ?? [];
-  $('nshiny').textContent = reais.filter((a) => a.tipo === 'capturado').length;
-  tabela($('shinies'), reais.slice(0, 10).map((a) => `<tr><td class="shiny">${a.tipo === 'capturado' ? 'capturado' : a.tipo === 'campo' ? 'no campo' : 'teste'} · ${esc(a.nome ?? '')} Nv${n(a.level)}${a.deOutro ? ' <span class="fraco">(de outro jogador)</span>' : ''}</td><td class="num">${hora(a.em)}</td></tr>`), 'nenhum nesta sessão');
+  tabela($('shinies'), reais.slice(0, 10).map((a) => `<tr><td class="shiny">${a.tipo === 'capturado' ? 'capturado' : a.tipo === 'campo' ? 'no campo' : a.tipo === 'escapou' ? 'escapou' : 'teste'} · ${esc(a.nome ?? '')} Nv${n(a.level)}${a.deOutro ? ' <span class="fraco">(de outro jogador)</span>' : ''}</td><td class="num">${hora(a.em)}</td></tr>`), 'nenhum nesta sessão');
   const novo = reais.find((a) => a.em > vistoAte);
   const el = $('alerta');
   if (!novo) { el.hidden = true; document.title = 'PokeIdle bot'; clearInterval(piscador); piscador = null; return; }
@@ -706,6 +773,7 @@ function mostrarAlertas(alertas) {
 }
 $('alerta-ok').onclick = () => { vistoAte = Date.now(); try { localStorage.setItem('shinyVistoAte', String(vistoAte)); } catch {} $('alerta').hidden = true; clearInterval(piscador); piscador = null; document.title = 'PokeIdle bot'; };
 
+addEventListener('resize', () => desenharGrafico());
 aplicarTema(temaAtual);
 setInterval(atualizar, 2000); atualizar();
 
