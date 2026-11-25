@@ -39,6 +39,16 @@
   .g-vivo { grid-template-columns:270px minmax(0,1fr) 288px; }
   .g-ganhos { grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(0,1.3fr); }
   .g-3 { grid-template-columns:repeat(3, minmax(0,1fr)); }
+.g-sniper { grid-template-columns:minmax(0,1fr) minmax(0,1.6fr); }
+.sn-modos { display:flex; gap:6px; flex-wrap:wrap; }
+.sn-modos .btn[data-sn-modo="1"][aria-pressed=true] { background:var(--bad); border-color:var(--bad); }
+.sn-form { display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:8px 12px; }
+.sn-form label { display:flex; flex-direction:column; gap:4px; font-size:12.5px; color:var(--sub); }
+.sn-form input[type=number] { font:500 13px 'Inter', system-ui, sans-serif; min-height:32px; padding:0 9px; border-radius:8px; border:1px solid var(--line); background:var(--tile); color:var(--txt); width:100%; }
+.sn-form input:focus-visible { outline:2px solid var(--txt); outline-offset:1px; }
+.sn-form .sn-check { flex-direction:row; align-items:center; grid-column:1 / -1; }
+.sn-acoes { grid-column:1 / -1; display:flex; align-items:center; gap:10px; }
+.lt td.sn-acao { white-space:nowrap; font-weight:600; }
   .g-conta.on { grid-template-columns:repeat(3, minmax(0,1fr)); grid-template-rows:minmax(0,1fr) minmax(0,1fr); }
   .g-bosses.on { grid-template-columns:repeat(3, minmax(0,1fr)); grid-template-rows:minmax(0,1fr) auto; }
   .g-1 { grid-template-columns:minmax(0,1fr); }
@@ -291,6 +301,43 @@
         <section class="card"><h2>Aparência</h2><div class="mini">Cor do painel</div><div id="temas" role="group" aria-label="Escolher cor do painel"></div><h2 style="margin-top:8px">Saúde do bot</h2><div id="saude"></div></section>
       </div>
 
+      <!-- SNIPER -->
+      <div class="aba g-sniper" data-aba="sniper" role="tabpanel">
+        <div class="col">
+          <section class="card">
+            <h2>Sniper de pokemon <span class="chip" id="sn-modo-chip">—</span></h2>
+            <div class="sn-modos" role="group" aria-label="Modo do sniper">
+              <button type="button" class="btn" data-sn-modo="0">Desligado</button>
+              <button type="button" class="btn" data-sn-modo="observar">Só observar</button>
+              <button type="button" class="btn" data-sn-modo="1">Comprar</button>
+            </div>
+            <div class="mini" id="sn-modo-t"></div>
+            <div id="sn-hoje"></div>
+          </section>
+          <section class="card">
+            <h2>Limites</h2>
+            <form id="sn-form" class="sn-form" autocomplete="off">
+              <label>Máximo por pokemon <span class="mini">Gemas</span><input type="number" name="max" min="0" step="1"></label>
+              <label>Máximo por dia <span class="mini">Gemas</span><input type="number" name="dia" min="0" step="1"></label>
+              <label>Compras por dia<input type="number" name="qtdDia" min="0" max="50" step="1"></label>
+              <label>Saldo que sempre fica <span class="mini">Gemas</span><input type="number" name="reserva" min="0" step="1"></label>
+              <label>Ganho mínimo na revenda <span class="mini">% já sem a taxa</span><input type="number" name="lucro" min="5" max="500" step="1"></label>
+              <label>Vendas parecidas mínimas<input type="number" name="vendas" min="3" max="100" step="1"></label>
+              <label>Olhar a cada <span class="mini">segundos</span><input type="number" name="seg" min="3" max="600" step="1"></label>
+              <label class="sn-check"><input type="checkbox" name="soShiny"> Só shiny <span class="mini">(sem shiny quase não vende)</span></label>
+              <div class="sn-acoes"><button type="submit" class="btn pri">Salvar limites</button><span class="mini" id="sn-form-r"></span></div>
+            </form>
+          </section>
+        </div>
+        <div class="col">
+          <section class="card grow">
+            <h2>O que ele viu <span class="mini" id="sn-visto"></span></h2>
+            <div class="grow scroll"><table class="lt" id="sn-eventos"></table></div>
+            <div class="mini">O Mercado segura todo anúncio novo por 2 min e, na liberação, sorteia quem pediu nos 3 primeiros segundos; quem perde não paga. O sniper nunca anuncia para revender.</div>
+          </section>
+        </div>
+      </div>
+
       <!-- LOG -->
       <div class="aba g-1" data-aba="log" role="tabpanel"><section class="card"><h2>Log ao vivo</h2><pre class="log grow" id="logtxt"></pre></section></div>
     </div>
@@ -487,11 +534,59 @@ async function atualizar() {
       `${cel(`${d.nivelIni ?? '?'} → ${d.nivelFim ?? '?'}`)}${cel(ouroDoDia(d))}${cel(d.abates)}${cel(d.capturas)}</tr>`;
   }).join('') : '<tr><td class="vazio" colspan="6">o primeiro dia aparece em até 1 min</td></tr>';
 
-  mostrarBonus(s); mostrarExtras(s); mostrarGanhos(s); mostrarBosses(s); mostrarAvisos(s); mostrarAjustes(s); mostrarAlertas(s.alertas); amostrar(s);
+  mostrarBonus(s); mostrarExtras(s); mostrarGanhos(s); mostrarBosses(s); mostrarAvisos(s); mostrarAjustes(s); mostrarAlertas(s.alertas); mostrarSniper(s.sniperPk, s.orbs); amostrar(s);
 }
 
+// ---- sniper de pokemon ----
+const SN_ACAO = { compraria: ['compraria', 'var(--a2)'], pedindo: ['pedindo', 'var(--shiny)'], comprou: ['comprou', 'var(--ok)'], perdeu: ['não levou', 'var(--sub)'], barrado: ['barrado', 'var(--sub)'], modo: ['modo', 'var(--sub)'] };
+let snEditando = false;
+function mostrarSniper(sp, saldo) {
+  if (!sp) return;
+  const nomeModo = sp.modo === '1' ? 'COMPRANDO' : sp.modo === 'observar' ? 'só observando' : 'desligado';
+  const chip = $('sn-modo-chip'); chip.innerHTML = `<b>${nomeModo}</b>`; chip.style.borderColor = sp.modo === '1' ? 'var(--bad)' : sp.modo === 'observar' ? 'var(--a2)' : '';
+  document.querySelectorAll('[data-sn-modo]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.snModo === sp.modo)));
+  $('sn-modo-t').textContent = sp.modo === '1' ? 'Compra sozinho com as suas Gemas, dentro dos limites abaixo.' : sp.modo === 'observar' ? 'Só registra o que compraria. Não gasta nada.' : 'Não olha o Mercado.';
+  const h = sp.hoje ?? {};
+  $('sn-hoje').innerHTML = kv('Gasto hoje', `${n(h.gasto ?? 0)} de ${n(sp.dia)} Gemas`) + kv('Compras hoje', `${n(h.compras ?? 0)} de ${n(sp.qtdDia)}`) + (h.pendente ? kv('Esperando o sorteio', `${n(h.pendente)} Gemas`) : '') + kv('Seu saldo', `${n(saldo ?? 0)} Gemas`) + kv('Vendas para comparar', n(sp.comparaveis ?? 0));
+  $('sn-visto').textContent = sp.modo === '0' ? '' : `${n(sp.vistos ?? 0)} anúncios avaliados${sp.ultimaResposta ? ' · última olhada ' + hora(sp.ultimaResposta) : ''}`;
+  tabela($('sn-eventos'), (sp.eventos ?? []).map((e) => {
+    const [rot, corA] = SN_ACAO[e.acao] ?? [e.acao, 'var(--sub)'];
+    const det = e.preco != null ? `${n(e.preco)} Gemas · referência ${n(e.ref)} · ganho ~${n(e.ganho)} (${e.pct}%)${e.barra ? ' · ' + esc(e.barra) : ''}` : '';
+    return `<tr><td class="sn-acao" style="color:${corA}">${rot}</td><td>${esc(e.desc)}<div class="fraco" title="${esc(e.motivo ?? '')}">${det}</div></td><td class="num">${hora(e.em)}</td></tr>`;
+  }), sp.modo === '0' ? 'desligado' : 'nada que valha a pena ainda');
+  if (!snEditando) {
+    const f = $('sn-form');
+    for (const k of ['max', 'dia', 'qtdDia', 'reserva', 'lucro', 'vendas', 'seg']) if (document.activeElement !== f.elements[k]) f.elements[k].value = sp[k];
+    if (document.activeElement !== f.elements.soShiny) f.elements.soShiny.checked = !!sp.soShiny;
+  }
+}
+async function mandarSniper(corpo) {
+  const r = await fetch('/sniper', { method: 'POST', headers: { 'content-type': 'application/json', 'x-painel': '1' }, body: JSON.stringify(corpo) });
+  const j = await r.json().catch(() => null);
+  if (!r.ok) throw new Error(j?.erros?.join(', ') || (r.status === 403 ? 'só dá para mudar no painel deste PC' : 'HTTP ' + r.status));
+  if (ultimoEstado) mostrarSniper(j.sniperPk, ultimoEstado.orbs);
+  return j;
+}
+document.addEventListener('click', async (e) => {
+  const b = e.target.closest('[data-sn-modo]'); if (!b) return;
+  const modo = b.dataset.snModo;
+  if (modo === '1') {
+    const sp = ultimoEstado?.sniperPk ?? {};
+    if (!confirm(`Ligar a compra automática?\n\nO bot vai gastar as suas Gemas sozinho: até ${n(sp.max)} por pokemon, ${n(sp.dia)} por dia e ${n(sp.qtdDia)} compras por dia, sempre deixando ${n(sp.reserva)} Gemas no saldo.`)) return;
+  }
+  try { await mandarSniper({ modo }); } catch (err) { $('sn-form-r').textContent = err.message; }
+});
+$('sn-form').addEventListener('input', () => { snEditando = true; $('sn-form-r').textContent = 'não salvo'; });
+$('sn-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const f = e.target; const corpo = { soShiny: f.elements.soShiny.checked };
+  for (const k of ['max', 'dia', 'qtdDia', 'reserva', 'lucro', 'vendas', 'seg']) corpo[k] = Number(f.elements[k].value);
+  try { const j = await mandarSniper(corpo); snEditando = false; $('sn-form-r').textContent = j.mudou?.length ? 'salvo' : 'nada mudou'; }
+  catch (err) { $('sn-form-r').textContent = err.message; }
+});
+
 // ---- menu ----
-const ABAS = [['vivo', 'Ao vivo', 'M3 12h4l3-8 4 16 3-8h4'], ['ganhos', 'Ganhos', 'M4 20V10M10 20V4M16 20v-7M22 20H2'], ['farm', 'Farm', 'M4 9h16l-1 11H5zM8 9V6a4 4 0 018 0v3'], ['bosses', 'Bosses', 'M3 8l4 4 5-7 5 7 4-4-2 11H5z'], ['conta', 'Conta', 'M12 12a4 4 0 100-8 4 4 0 000 8zM4 21a8 8 0 0116 0'], ['ajustes', 'Ajustes', 'M4 6h10M18 6h2M4 18h4M12 18h8M16 4v4M10 16v4'], ['log', 'Log', 'M5 5h14M5 10h14M5 15h9M5 20h12']];
+const ABAS = [['vivo', 'Ao vivo', 'M3 12h4l3-8 4 16 3-8h4'], ['ganhos', 'Ganhos', 'M4 20V10M10 20V4M16 20v-7M22 20H2'], ['farm', 'Farm', 'M4 9h16l-1 11H5zM8 9V6a4 4 0 018 0v3'], ['bosses', 'Bosses', 'M3 8l4 4 5-7 5 7 4-4-2 11H5z'], ['conta', 'Conta', 'M12 12a4 4 0 100-8 4 4 0 000 8zM4 21a8 8 0 0116 0'], ['sniper', 'Sniper', 'M12 2v4M12 18v4M2 12h4M18 12h4M12 8a4 4 0 100 8 4 4 0 000-8z'], ['ajustes', 'Ajustes', 'M4 6h10M18 6h2M4 18h4M12 18h8M16 4v4M10 16v4'], ['log', 'Log', 'M5 5h14M5 10h14M5 15h9M5 20h12']];
 let abaAtual = 'vivo';
 try { const a = localStorage.getItem('pk-aba'); if (ABAS.some((x) => x[0] === a)) abaAtual = a; } catch {}
 function mostrarAba(k) {
