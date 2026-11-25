@@ -123,6 +123,7 @@ const CFG = {
   sacResgatarPts: num('SACRIFICIO_RESGATAR_PTS', 1000), // resgata só no nível 5 (14 dias, o que rende mais por ponto)
   equipeMax: num('EQUIPE_MAX', 1),               // só o ativo luta; reserva ocupa vaga e trava a captura no Depot
   timeForte: bool('TIME_FORTE', '0'),            // 1 = equipe com o mais forte de cada espécie; o bot vende no Depot as capturas mais fracas
+  vendaNotaMax: Math.min(3.5, num('VENDA_NOTA_MAX', 3.5)), // com TIME_FORTE só vai ao NPC nota abaixo disto (o Mercado aceita 3,5+)
   vendaLote: Math.max(1, num('VENDA_LOTE', 20)),  // com TIME_FORTE, só se o servidor não vender na hora: vai ao Centro ao juntar tantas
   vendaMaxMin: Math.max(1, num('VENDA_MAX_MIN', 60)), // ...ou depois de tantos minutos, se houver pelo menos uma
   manterAcordado: bool('MANTER_ACORDADO', '1'),
@@ -638,7 +639,6 @@ const PONTOS_SAC = [10, 12, 14, 17, 20, 25, 30, 35, 42, 50, 60, 70, 80, 90, 100,
 const pontosDaNota = (n) => { const d = Math.floor(Math.round(Number(n) * 1000) / 100) - 35; return d < 0 || !Number.isFinite(d) ? 0 : PONTOS_SAC[Math.min(d, PONTOS_SAC.length - 1)]; };
 function cuidarDoSacrificio() {
   if (!CFG.sacrificio || !S.eu || CFG.somenteLer) return;
-  if (CFG.timeForte && (Number(S.eu.automation?.sacrificio?.pts) || 0) < CFG.sacResgatarPts) return; // com o time forte as capturas são vendidas, não sacrificadas
   const agora = Date.now();
   if (agora - (S.ultimoSac ?? 0) < 120_000) return;
   S.ultimoSac = agora;
@@ -648,7 +648,7 @@ function cuidarDoSacrificio() {
   if (pts >= CFG.sacResgatarPts && Math.max(ate, agora) + 336 * 3600_000 - agora <= 30 * 24 * 3600_000) {
     log(`Sacrifício: resgatando ${pts} pontos (+20% de XP)`); S.depurarAte = agora + 15_000; return enviar({ t: 'sacrificio.resgatar' });
   }
-  if (pts >= 1000) return; // barra cheia, esperando caber no teto
+  if (pts >= 1000 || CFG.timeForte) return; // barra cheia, esperando caber no teto; com o time forte nada vai ao altar
   const todos = [...S.pokemons.values()];
   // lendário, mítico e épico (rarity do catálogo; o pokemon não traz esse campo) podem valer Gemas: nunca vão para o altar
   const cands = todos.filter((p) => p.id !== S.eu.activeId && p.slot == null && !p.starter && !p.shiny && !(p.potencia >= 4) && !p.heldItemId
@@ -1116,12 +1116,13 @@ function garantirAutomacoes() {
     enviar({ t: 'shop.autoVendaDepot', ativo: true });
   }
   // Auto Coleção: além do padrão do jogo (lendário, shiny, P4+), guarda nota >= COLECAO_NOTA_MIN
-  if (CFG.colecaoNota && Date.now() - (S.ultimaColecao ?? 0) > 300_000) {
+  if ((CFG.colecaoNota || CFG.timeForte) && Date.now() - (S.ultimaColecao ?? 0) > (CFG.timeForte && !colecaoProtege() ? 30_000 : 300_000)) {
     const atual = a.autoColecao ?? {};
-    if (atual.nota?.on !== true || Number(atual.nota?.min) !== CFG.colecaoNotaMin) {
+    const min = notaDaColecao();
+    if (atual.nota?.on !== true || Number(atual.nota?.min) !== min || (CFG.timeForte && !colecaoProtege())) {
       S.ultimaColecao = Date.now();
-      const regra = { ...atual, nota: { on: true, min: CFG.colecaoNotaMin } };
-      log(`Auto Coleção: guardar capturas com nota >= ${CFG.colecaoNotaMin} (além de lendário, shiny e P4+)`);
+      const regra = { ...atual, nota: { on: true, min }, ...(CFG.timeForte ? { shiny: { on: true }, lendario: { on: true }, potencial: { on: true } } : {}) };
+      log(`Auto Coleção: guardar capturas com nota >= ${min}${CFG.timeForte ? ' (também quem alcança isso evoluindo)' : ''}, além de lendário, shiny e P4+`);
       enviar({ t: 'shop.autoColecao', regra });
       return;
     }
@@ -1580,6 +1581,9 @@ function venderNoDepot(alvo, motivo) {
   return alvo.map((p) => `${p.nome} Nv${p.level}`);
 }
 function podeUsar(p) { const lv = S.eu?.level ?? 0; return p.starter || (p.level ?? 0) <= lv + 5; }
+// com o time forte a nota da Coleção nunca passa do mínimo do Mercado (3,5), senão vendável a jogador iria ao NPC
+function notaDaColecao() { return CFG.timeForte ? Math.min(CFG.colecaoNota ? CFG.colecaoNotaMin : 3.5, 3.5) : CFG.colecaoNotaMin; }
+function colecaoProtege() { const c = S.eu?.automation?.autoColecao; return !!(c?.shiny?.on && c?.lendario?.on && c?.potencial?.on && c?.nota?.on && Number(c.nota.min) <= 3.5); }
 // comprado pelo sniper: nunca vai ao NPC (custou Gemas)
 function doSniper(p) { return (ACUM.snCompras ?? []).some((r) => r.pokemonId === p.id || (r.nome === p.nome && r.nivel === p.level && !!r.shiny === !!p.shiny)); }
 // capturado por esta conta: pokemon comprado ou recebido de outro jogador não é vendido
@@ -1600,7 +1604,7 @@ function vendaveisTimeForte() {
     && !p.starter && !p.shiny && !p.legendary && !p.mega && !p.heldItemId && !p.skin && !p.casa
     && capturadoPorMim(p) && !doSniper(p)
     && !(p.potencia >= 4) && !((p.level ?? 0) > 100) && !(Number(p.refinoTotal) > 0) && !p.tmElemental && !p.tmAoe
-    && !(CFG.colecaoNota && Number(p.nota) >= CFG.colecaoNotaMin)
+    && p.nota != null && Number(p.nota) < CFG.vendaNotaMax // sem nota conhecida, não vende
     && !RARIDADE_PROTEGIDA.has(ESPECIES.get(p.speciesId)?.rarity ?? 'SEM_CATALOGO'));
 }
 // vende na hora, sem sair da hunt (a mesma mensagem do botão "Vender" do Market). Se o servidor não aceitar fora do
@@ -1608,6 +1612,7 @@ function vendaveisTimeForte() {
 function cuidarDaVenda() {
   if (!CFG.timeForte || !S.eu || CFG.somenteLer || S.vendendo || Date.now() - (S.conectadoEm ?? 0) < 15_000) return;
   if (S.eu.automation?.autoVendaDepot === true || S.eu.boss?.arena || S.eu.boss?.auto) return;
+  if (!colecaoProtege()) { if (!S.avisouColecao && Date.now() - S.conectadoEm > 120_000) { S.avisouColecao = true; log('venda dos fracos: esperando a Auto Coleção confirmar a proteção; nada é vendido até lá'); } return; }
   const v = S.vendaDireta;
   if (v) {
     const ficaram = v.alvo.filter((p) => S.pokemons.has(p.id));
