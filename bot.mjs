@@ -696,6 +696,34 @@ function cuidarDoMercadoVivo() {
   S.ultimoMkVivo = agora; S.mkVivo = { em: agora };
   enviar({ t: 'market.medias' }); enviar({ t: 'market.itens', elementos: [], categoria: '' });
 }
+// Patrimônio estimado (painel): só leitura. Pede as médias de preço do Mercado a cada 30 min e valora gemas, itens da mochila,
+// shinies e ouro. Câmbio do servidor: 1 Orb ("Gema") = US$ 0,009 no saque; taxa do Mercado de itens 15%, de Pokémon 13/10/7,5%.
+function cuidarDosPrecos() {
+  if (!S.eu || COLETA || Date.now() - (S.ultimoPrecos ?? 0) < 30 * 60_000) return;
+  S.ultimoPrecos = Date.now(); enviar({ t: 'market.medias' });
+}
+function patrimonio(e) {
+  const P = S.precos; if (!P) return null;
+  const orbDe = (id) => { const o = P.medias[id]?.orb; return o?.media > 0 && o.unidades >= 10 ? o : null; };
+  // quantos de ouro valem 1 Orb: mediana dos itens vendidos nas duas moedas (com preço em Orbs alto o bastante para não ser arredondamento)
+  const razoes = Object.values(P.medias).filter((x) => x.orb?.media >= 50 && x.orb.unidades >= 50 && x.gold?.media > 0).map((x) => x.gold.media / x.orb.media);
+  const ouroPorOrb = mediana(razoes) ?? 4_800_000;
+  const nomes = Object.fromEntries([...ITEM_POR_NOME].map(([n, id]) => [id, n]));
+  const itens = [], semPreco = [];
+  for (const [id, q] of Object.entries(e.items ?? {})) {
+    if (!(q > 0)) continue;
+    const o = orbDe(id);
+    if (!o) { if (P.medias[id]) semPreco.push(nomes[id] ?? id); continue; }
+    itens.push({ id: Number(id), nome: nomes[id] ?? `item ${id}`, qtd: q, preco: o.media, vendas: o.unidades, total: q * o.media });
+  }
+  itens.sort((a, b) => b.total - a.total);
+  const shinies = [...S.pokemons.values()].filter((p) => p.shiny).map((p) => { const r = precoShiny(p.nome); return r.sugerido ? { nome: p.nome, nv: p.level, bruto: r.sugerido, liquido: r.liquido } : null; }).filter(Boolean).sort((a, b) => b.bruto - a.bruto);
+  const gemas = Number(e.orbs) || 0, ouro = e.gold ?? 0, ouroOrb = ouro / ouroPorOrb;
+  const itensBruto = itens.reduce((t, i) => t + i.total, 0), shBruto = shinies.reduce((t, s) => t + s.bruto, 0), shLiq = shinies.reduce((t, s) => t + s.liquido, 0);
+  const bruto = gemas + itensBruto + shBruto + ouroOrb, liquido = gemas + itensBruto * 0.85 + shLiq + ouroOrb;
+  return { em: P.em, dias: P.dias, ouroPorOrb: Math.round(ouroPorOrb), gemas, ouro, ouroOrb: Math.round(ouroOrb), itens: itens.slice(0, 12), outrosItens: Math.max(0, itens.length - 12), semPreco, shinies: shinies.slice(0, 8), nShinies: shinies.length,
+    bruto: Math.round(bruto), liquido: Math.round(liquido), usd: +(liquido * 0.009).toFixed(2), usdBruto: +(bruto * 0.009).toFixed(2) };
+}
 function aoMercadoVivo(m) {
   if (!S.mkVivo || Date.now() - S.mkVivo.em > 60_000) return;
   if (m.aba === 'medias') S.mkVivo.medias = m.medias ?? {};
@@ -907,6 +935,7 @@ function tique() {
   rodar('sacrifício', cuidarDoSacrificio);
   rodar('prey', cuidarDoPrey);
   rodar('mercado ao vivo', cuidarDoMercadoVivo);
+  rodar('preços do patrimônio', cuidarDosPrecos);
   rodar('top catch', cuidarDoTopCatch);
   rodar('pvp', cuidarDoPvp);
 }
@@ -996,6 +1025,7 @@ function aoMensagem(m) {
   if (!['campo', 'chat', 'pong', 'estado', 'vivo', 'campo.init'].includes(m.t)) depurar(m.t === 'batalha' ? { t: 'batalha', ev: (m.ev ?? []).filter((e) => !['ataque', 'spawn', 'bola'].includes(e.k) && !(e.k === 'morte' && e.quem === 'selvagem')) } : m);
   if (m.t === 'estado' && m.estado && ('pokemons' in m.estado || 'pkMud' in m.estado || 'activeId' in m.estado)) depurar({ t: 'estado(equipe)', activeId: m.estado.activeId, pkMud: (m.estado.pkMud ?? []).map((p) => [p.nome, p.slot, p.hp]), pkFora: m.estado.pkFora });
   if (m.t === 'market' && m.aba === 'cotacaoLote') aoCotacao(m);
+  if (m.t === 'market' && m.aba === 'medias' && m.medias) S.precos = { em: Date.now(), medias: m.medias, dias: m.dias ?? null };
   if (m.t === 'market' && (m.aba === 'medias' || m.aba === 'itens')) aoMercadoVivo(m);
   if (COLETA && (m.t === 'market' || m.t === 'economia' || m.t === 'orbs' || (m.t === 'erro' && /market|mercado/i.test(JSON.stringify(m))))) COLETA.respostas.push(m);
   if (Date.now() < (S.depurarAte ?? 0) && !['campo','campo.init','batalha','delta','pong','market','chat','campeonato','showdown'].includes(m.t)) log('[depurar]', JSON.stringify(m).slice(0, 400));
@@ -1719,6 +1749,7 @@ function extrasPainel(e) {
     bicicleta: !!e.bicicleta?.equipada,
     pokedex: { capturadas: dex.filter((d) => d.c > 0).length, vistas: dex.length, abates: dex.reduce((t, d) => t + (d.k ?? 0), 0) },
     tentativas: S.tentativas ?? 0,
+    patrimonio: (() => { try { return patrimonio(e); } catch { return null; } })(),
   };
 }
 
