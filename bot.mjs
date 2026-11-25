@@ -1054,15 +1054,38 @@ function aoSniperPk(m) {
     const ref = d.ref; const liquido = d.revenda ? snLiquido(d.revenda) : 0; const ganho = d.lucroPrevisto;
     if (!ref || !d.comprar || a.preco > CFG.sniperPkMax) continue;
     if (a.preco < ref * 0.1) continue; // isca: preço de fachada, costuma ser cancelado na retenção
+    // antes de pedir, confere os concorrentes abertos (há 2 min de retenção para isso): se um parecido está mais barato
+    // que a revenda esperada, a revenda não passa dele. 25/11: Larvitar comprado a 800 com um parecido a 900 anunciado.
+    pedirBaratos(f.nome, true, (linhas) => {
+      try {
+        const folga = Math.max(20, (f.level ?? 0) * 0.25);
+        const conc = (linhas ?? []).filter((c) => c.id !== a.id && c.tipo === 'pokemon' && c.moeda === 'orb' && c.estado === 'aberto' && c.ficha && c.vendedorId !== S.eu.id && c.ficha.nome === f.nome
+          && !!c.ficha.shiny === !!f.shiny && (c.ficha.potencia ?? 1) === (f.potencia ?? 1) && !!c.ficha.tmAoe === !!f.tmAoe && Math.abs((c.ficha.level ?? 0) - f.level) <= folga
+          && (c.ficha.nota ?? 0) >= (f.nota ?? 0) - 0.1).map((c) => c.preco);
+        const menor = conc.length ? Math.min(...conc) : null;
+        if (linhas == null) log(`sniper de pokemon: sem resposta dos concorrentes de ${f.nome}; sigo só com a régua`);
+        if (menor != null && menor - 1 < d.revenda) {
+          const rev = menor - 1; const lucro = snLiquido(rev) - a.preco; const exige = Math.max(30, CFG.sniperPkLucro / 100 * a.preco);
+          const desc0 = `shiny ${f.nome} Nv${f.level} nota ${f.nota}`;
+          if (lucro < exige) { log(`sniper de pokemon: não compro ${desc0} por ${a.preco} — concorrente parecido a ${menor}: revenda cai de ${d.revenda} para ${rev}, ganho ${lucro} < exigido ${Math.ceil(exige)}`); snEvento('barrado', desc0, { preco: a.preco, ref, ganho: lucro, pct: Math.round(lucro / a.preco * 100), barra: `concorrente parecido a ${menor}` }); return; }
+          snSeguir(a, f, { ...d, revenda: rev, lucroPrevisto: lucro, concorrente: menor });
+        } else snSeguir(a, f, { ...d, concorrente: menor });
+      } catch (e) { logErro('sniper de pokemon', e); }
+    });
+  }
+}
+function snSeguir(a, f, d) {
+    const fmt = (n) => Math.round(n).toLocaleString('pt-BR');
+    const ref = d.ref; const liquido = d.revenda ? snLiquido(d.revenda) : 0; const ganho = d.lucroPrevisto;
     const desc = `${f.shiny ? 'shiny ' : ''}${f.nome} Nv${f.level} P${f.potencia ?? 1}${f.tmAoe ? ' AoE' : ''} nota ${f.nota}`;
-    const motivo = `${fmt(a.preco)} Gemas; referência ${fmt(ref)}, revenda esperada ${fmt(d.revenda)} (já com desconto de segurança); recebe ~${fmt(liquido)}, ganho previsto ~${fmt(ganho)} (${Math.round(ganho / a.preco * 100)}%)`;
+    const motivo = `${fmt(a.preco)} Gemas; referência ${fmt(ref)}, revenda esperada ${fmt(d.revenda)} (já com desconto de segurança${d.concorrente != null ? `; parecido mais barato ${fmt(d.concorrente)}` : '; nenhum parecido mais barato'}); recebe ~${fmt(liquido)}, ganho previsto ~${fmt(ganho)} (${Math.round(ganho / a.preco * 100)}%)`;
     const G = snDia(); const saldo = Number(S.eu.orbs) || 0;
     // conta também as compras esperando o sorteio: dois anúncios liberando juntos furavam o limite (25/11: 4 compras com limite 3)
     const barra = G.compras + (G.pendQtd ?? 0) >= CFG.sniperPkQtdDia ? `já fez ${G.compras} compras hoje${G.pendQtd ? ` (+${G.pendQtd} no sorteio)` : ''}`
       : G.gasto + G.pendente + a.preco > CFG.sniperPkDia ? `passaria do orçamento do dia (${fmt(G.gasto + G.pendente)}/${fmt(CFG.sniperPkDia)})`
       : saldo - G.pendente - a.preco < CFG.sniperPkReserva ? `deixaria menos de ${fmt(CFG.sniperPkReserva)} Gemas (saldo ${fmt(saldo)})` : null;
     const info = { preco: a.preco, ref, ganho, pct: Math.round(ganho / a.preco * 100), motivo };
-    if (CFG.sniperPk === 'observar' || barra) { log(`sniper de pokemon: ${CFG.sniperPk === 'observar' ? 'compraria' : 'não compro (' + barra + ')'} ${desc} — ${motivo}`); snEvento(CFG.sniperPk === 'observar' ? 'compraria' : 'barrado', desc, { ...info, barra }); continue; }
+    if (CFG.sniperPk === 'observar' || barra) { log(`sniper de pokemon: ${CFG.sniperPk === 'observar' ? 'compraria' : 'não compro (' + barra + ')'} ${desc} — ${motivo}`); snEvento(CFG.sniperPk === 'observar' ? 'compraria' : 'barrado', desc, { ...info, barra }); return; }
     G.pendente += a.preco; G.pendQtd = (G.pendQtd ?? 0) + 1;
     const solta = () => { const g = snDia(); g.pendente = Math.max(0, g.pendente - a.preco); g.pendQtd = Math.max(0, (g.pendQtd ?? 0) - 1); };
     const espera = Math.max(0, (a.compravelEm ?? 0) - Date.now() + 300); // pede logo depois de liberar, dentro dos 3 s do sorteio
@@ -1092,7 +1115,25 @@ function aoSniperPk(m) {
         else { log(`sniper de pokemon: não levei ${desc} (sorteio perdido, cancelado ou preço mudou)`); snEvento('perdeu', desc, info); }
       }, 20_000);
     }, espera);
-  }
+}
+
+// ---------- consulta "anúncios mais baratos de uma espécie", uma de cada vez ----------
+// A resposta do jogo não diz de que busca veio, então sniper e revenda pedem por esta fila: uma consulta no ar por vez.
+const BAR = { fila: [], ativo: null };
+function pedirBaratos(nome, shiny, cb) { BAR.fila.push({ nome, shiny, cb }); bombearBaratos(); }
+function bombearBaratos() {
+  if (BAR.ativo && Date.now() - BAR.ativo.em < 20_000) return;
+  if (BAR.ativo) { const x = BAR.ativo; BAR.ativo = null; try { x.cb(null); } catch {} } // sem resposta em 20 s
+  const x = BAR.fila.shift(); if (!x) return;
+  BAR.ativo = { ...x, em: Date.now() };
+  enviar({ t: 'market.listar', ...PEDIDO_POKEMON, moeda: 'orb', ordem: 'baratos', busca: x.nome, soShiny: x.shiny });
+  setTimeout(bombearBaratos, 20_500);
+}
+function aoBaratos(m) {
+  if (!BAR.ativo || m.ordem !== 'baratos') return;
+  const x = BAR.ativo; BAR.ativo = null;
+  try { x.cb(m.linhas ?? []); } catch (e) { logErro('consulta de baratos', e); }
+  bombearBaratos();
 }
 
 // ---------- Revenda do que o sniper comprou (SNIPER_PK_REVENDER=1) ----------
@@ -1135,7 +1176,10 @@ function cuidarDaRevenda() {
     if (pk.id === S.eu.activeId) { r.obs = 'é o pokemon ativo; não anuncio'; return; }
   }
   SNR.ultimo = agora; SNR.pedido = { idx, em: agora, modo }; if (modo === 'anunciar') r.estado = 'consultando'; else r.reavaliadoEm = agora;
-  enviar({ t: 'market.listar', ...PEDIDO_POKEMON, moeda: 'orb', ordem: 'baratos', busca: r.nome, soShiny: r.shiny });
+  pedirBaratos(r.nome, r.shiny, (linhas) => {
+    if (linhas == null) { if (r.estado === 'consultando') r.estado = 'comprado'; SNR.pedido = null; return; } // sem resposta: tenta depois
+    try { aoRevendaVitrine({ ordem: 'baratos', linhas }); } catch (e) { logErro('revenda', e); }
+  });
 }
 // resposta de market.meus: liga cada compra ao seu anúncio (id, preço atual, quando pode editar)
 function aoRevendaMeus(m) {
@@ -1516,7 +1560,7 @@ function aoMensagem(m) {
   if (m.t === 'market' && m.aba === 'cotacaoLote') aoCotacao(m);
   if (m.t === 'market' && m.aba === 'medias' && m.medias) S.precos = { em: Date.now(), medias: m.medias, dias: m.dias ?? null };
   if (m.t === 'market' && (m.aba === 'medias' || m.aba === 'itens')) aoMercadoVivo(m);
-  if (m.t === 'market' && m.aba === 'vitrine') { try { aoRevendaVitrine(m); } catch (e) { logErro('revenda', e); } }
+  if (m.t === 'market' && m.aba === 'vitrine' && m.ordem === 'baratos') { try { aoBaratos(m); } catch (e) { logErro('consulta de baratos', e); } }
   if (m.t === 'market' && m.aba === 'historicoGlobal') { try { aoHistorico(m); } catch (e) { logErro('histórico de vendas', e); } }
   if (m.t === 'market' && m.aba === 'meus') { try { aoRevendaMeus(m); } catch (e) { logErro('revenda', e); } }
   if (m.t === 'market' && (m.aba === 'vitrine' || m.aba === 'historicoGlobal')) { try { aoSniperPk(m); } catch (e) { logErro('sniper de pokemon', e); } }
