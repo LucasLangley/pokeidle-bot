@@ -66,8 +66,8 @@
   .top {
     position:sticky; top:0; z-index:15;
     display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:10px 20px;
-    max-width:1320px; width:100%; margin:0 auto;
-    padding:16px 28px;
+    max-width:1800px; width:100%; margin:0 auto;
+    padding:14px 24px;
     background:color-mix(in srgb, var(--bg) 86%, transparent);
     backdrop-filter:blur(14px);
     -webkit-backdrop-filter:blur(14px);
@@ -96,16 +96,31 @@
   .esp { flex:1 1 0; min-width:0; }
   .top-nick { font-size:14px; font-weight:700; letter-spacing:-.01em; }
 
-  .views { width:100%; max-width:1320px; margin:0 auto; padding:8px 28px 48px; }
+  .views { width:100%; max-width:1800px; margin:0 auto; padding:8px 24px 48px; }
   .aba { display:none; flex-direction:column; gap:24px; }
   .aba.on { display:flex; }
 
   /* Layout do Ao vivo: dados do personagem à esquerda, simulação ampla à direita */
   .vivo-layout {
-    display:grid; grid-template-columns:328px minmax(0,1fr);
+    display:grid; grid-template-columns:360px minmax(0,1fr);
     gap:22px; align-items:start;
   }
   .vivo-esq, .vivo-dir { display:flex; flex-direction:column; gap:18px; min-width:0; }
+  .xp-buffs {
+    border-top:1px solid var(--div);
+    padding-top:12px;
+    display:flex; flex-direction:column; gap:8px;
+  }
+  .xp-buffs-head {
+    display:flex; align-items:center; justify-content:space-between; gap:8px;
+    font-size:11.5px; font-weight:600; letter-spacing:.04em; text-transform:uppercase; color:var(--sub);
+  }
+  .chip.twitch { background:var(--twitch-soft, rgba(145,70,255,.16)); border-color:transparent; color:var(--twitch-txt, #c49bff); }
+  .chip.twitch b { color:var(--twitch-txt, #c49bff); }
+  .chip.kick { background:var(--kick-soft, rgba(83,252,24,.13)); border-color:transparent; color:var(--kick-txt, #74f74b); }
+  .chip.kick b { color:var(--kick-txt, #74f74b); }
+  .chip.guild { background:var(--guild-soft, rgba(56,189,248,.14)); border-color:transparent; color:var(--guild-txt, #7dd3fc); }
+  .chip.guild b { color:var(--guild-txt, #7dd3fc); }
   .cena-head {
     display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:10px 14px;
   }
@@ -319,7 +334,7 @@
 
   /* Palco da cena "No jogo agora" */
   .palco {
-    position:relative; width:100%; height:316px;
+    position:relative; width:100%; height:340px;
     border-radius:16px; overflow:hidden;
     border:1px solid var(--border);
     background:radial-gradient(ellipse at 50% 25%, var(--scene2), var(--scene1) 75%);
@@ -559,6 +574,13 @@
                 <div class="tile item"><img id="i-gema" class="oi" alt=""><div><small>Gemas</small><strong id="k-gemas">—</strong></div></div>
                 <div class="tile item"><img id="i-pocao" class="oi" alt=""><div><small id="k-pocao-n">Poção</small><strong id="k-pocao">—</strong></div></div>
                 <div class="tile item"><img id="i-bola" class="oi" alt=""><div><small id="k-bola-n">Bola</small><strong id="k-bola">—</strong></div></div>
+              </div>
+              <div class="xp-buffs" aria-label="Buffs de XP ativos">
+                <div class="xp-buffs-head">
+                  <span>Buffs de XP</span>
+                  <span class="chip accent" id="k-buffs-total" hidden></span>
+                </div>
+                <div class="chips" id="k-buffs"><span class="mini fraco">Nenhum buff de XP ativo</span></div>
               </div>
             </section>
 
@@ -998,6 +1020,12 @@ function aplicarTema(k) {
     bad: t.bad, 'bad-soft': L ? 'rgba(220,38,38,.1)' : 'rgba(248,113,113,.12)',
     shiny: L ? '#b45309' : '#f3cf6b',
     'shiny-fundo': L ? '#fef9e7' : '#252010',
+    'twitch-soft': L ? 'rgba(124,58,237,.12)' : 'rgba(145,70,255,.16)',
+    'twitch-txt': L ? '#6d28d9' : '#c9a6ff',
+    'kick-soft': L ? 'rgba(21,128,61,.12)' : 'rgba(83,252,24,.13)',
+    'kick-txt': L ? '#15803d' : '#74f74b',
+    'guild-soft': L ? 'rgba(2,132,199,.12)' : 'rgba(56,189,248,.14)',
+    'guild-txt': L ? '#0369a1' : '#7dd3fc',
     shadow: L ? '0 1px 2px rgba(18,14,40,.05), 0 6px 20px rgba(18,14,40,.04)' : '0 1px 2px rgba(0,0,0,.28), 0 8px 24px rgba(0,0,0,.18)',
   };
   for (const [nome, val] of Object.entries(v)) document.documentElement.style.setProperty('--' + nome, val);
@@ -1357,7 +1385,11 @@ $('sn-form').addEventListener('submit', async (e) => {
 // ---- extras, patrimônio, PvP, moedas, Pokédex, saúde ----
 const TIPOS = { NORMAL:'Normal', FIRE:'Fogo', WATER:'Água', GRASS:'Planta', ELECTRIC:'Elétrico', ICE:'Gelo', FIGHTING:'Lutador', POISON:'Veneno', GROUND:'Terra', FLYING:'Voador', PSYCHIC:'Psíquico', BUG:'Inseto', ROCK:'Pedra', GHOST:'Fantasma', DRAGON:'Dragão', DARK:'Sombrio', STEEL:'Aço', FAIRY:'Fada' };
 const tipoPt = (t) => TIPOS[String(t).toUpperCase()] ?? t ?? '—';
-const PARTES = { vip:'VIP', evento:'Evento', kick:'Kick', twitch:'Twitch', guild:'Guild' };
+const PARTES = {
+  vip:'VIP', evento:'Evento', kick:'Kick', twitch:'Twitch', guild:'Guild',
+  boost:'Boost XP', xp:'Boost XP', pokexp:'XP Pokémon', sacrificio:'Sacrifício',
+  atrasados:'Atrasados', prey:'Prey', casa:'Casa', passe:'Passe', dia:'Dia do Tipo',
+};
 const kv = (a, b, estilo = '') => `<div class="kv"><span>${a}</span><b style="${estilo}">${b}</b></div>`;
 const fx = (v, d = 2) => Number(v).toLocaleString('pt-BR', { maximumFractionDigits: d });
 const cap = (t) => String(t ?? '').charAt(0).toUpperCase() + String(t ?? '').slice(1);
@@ -1542,13 +1574,55 @@ function desenharBosses(t) {
 const NOME_BOOST = { xp: 'XP', pokexp: 'XP Pokémon', loot: 'Loot', captura: 'Captura', shiny: 'Shiny' };
 const dur = (m) => m >= 2880 ? `${Math.floor(m / 1440)} dias` : m >= 120 ? `${Math.floor(m / 60)} h` : `${m} min`;
 function mostrarBonus(s) {
-  const b = s.bonus ?? {}, on = [];
+  const b = s.bonus ?? {}, x = s.extras ?? {}, agora = s.agora ?? Date.now(), on = [];
   if (b.vip) on.push(`<span class="chip on">VIP <b>${b.vipPermanente ? 'permanente' : dur(b.vipMin)}</b></span>`);
   if (b.passeVipMin > 0) on.push(`<span class="chip on">VIP do passe <b>${dur(b.passeVipMin)}</b></span>`);
   for (const [k, m] of Object.entries(b.boosts ?? {})) on.push(`<span class="chip on">Boost ${esc(NOME_BOOST[k] ?? k)} <b>${dur(m)}</b></span>`);
   for (const [k, m] of Object.entries(b.pausados ?? {})) on.push(`<span class="chip">Boost ${esc(NOME_BOOST[k] ?? k)} <b>pausado (${dur(m)})</b></span>`);
   if (b.guildPct > 0) on.push(`<span class="chip on">Guild <b>+${b.guildPct}%</b></span>`);
   $('bonus').innerHTML = on.length ? on.join('') : '<span class="vazio">nenhum bônus ativo</span>';
+
+  // Buffs de XP no card do perfil (Twitch, Kick, Guild, VIP, Boost XP, Evento, Sacrifício, etc.)
+  const liveMin = Object.fromEntries((s.lives ?? []).map((l) => [l.plataforma, { xp: l.bonus?.xp ?? 0, pct: l.pct ?? 15 }]));
+  const tempoDe = (id, ate) => {
+    if (ate && Number(ate) > agora) return dur(Math.max(1, Math.round((Number(ate) - agora) / 60000)));
+    if (id === 'twitch' && liveMin.twitch?.xp > 0) return dur(liveMin.twitch.xp);
+    if (id === 'kick' && liveMin.kick?.xp > 0) return dur(liveMin.kick.xp);
+    if ((id === 'boost' || id === 'xp') && b.boosts?.xp > 0) return dur(b.boosts.xp);
+    if (id === 'pokexp' && b.boosts?.pokexp > 0) return dur(b.boosts.pokexp);
+    if (id === 'vip' && b.vip) return b.vipPermanente ? 'perm.' : dur(b.vipMin);
+    if (id === 'evento' && x.evento?.terminaEm > agora) return 'até ' + hora(x.evento.terminaEm);
+    return '';
+  };
+  const clsDe = (id) => id === 'twitch' ? 'twitch' : id === 'kick' ? 'kick' : id === 'guild' ? 'guild' : id === 'evento' ? 'shiny' : id === 'vip' ? 'accent' : 'on';
+  const vistos = new Set(), buffs = [];
+  const addBuff = (id, nome, valor, tempo) => {
+    const raw = String(id).toLowerCase();
+    const k = raw === 'xp' || raw === 'boostxp' ? 'boost' : raw;
+    if (vistos.has(k)) return;
+    vistos.add(k);
+    buffs.push(`<span class="chip ${clsDe(k)}">${esc(nome)} <b>${esc(valor)}</b>${tempo ? ` <span style="opacity:.8">· ${esc(tempo)}</span>` : ''}</span>`);
+  };
+  for (const p of x.bonusXp?.partes ?? []) {
+    const k = String(p.id ?? '').toLowerCase();
+    const tr = Number(p.tr) || 0;
+    if (tr <= 1 && !p.ate) continue;
+    addBuff(k, PARTES[k] ?? cap(p.id), tr > 1 ? fx(tr) + 'x' : 'ativo', tempoDe(k, p.ate));
+  }
+  if (liveMin.twitch?.xp > 0) addBuff('twitch', 'Twitch', `+${liveMin.twitch.pct}%`, dur(liveMin.twitch.xp));
+  if (liveMin.kick?.xp > 0) addBuff('kick', 'Kick', `+${liveMin.kick.pct}%`, dur(liveMin.kick.xp));
+  if (b.guildPct > 0) addBuff('guild', 'Guild', `+${b.guildPct}%`, '');
+  if (b.vip) addBuff('vip', 'VIP', '1,5x', b.vipPermanente ? 'perm.' : dur(b.vipMin));
+  if (b.boosts?.xp > 0) addBuff('boost', 'Boost XP', '1,5x', dur(b.boosts.xp));
+  if (b.boosts?.pokexp > 0) addBuff('pokexp', 'XP Pokémon', '1,5x', dur(b.boosts.pokexp));
+  if (x.evento && x.evento.terminaEm > agora && x.evento.xpTr > 0) addBuff('evento', 'Evento', `+${x.evento.xpTr}%`, 'até ' + hora(x.evento.terminaEm));
+  if (s.atrasados?.ativo) addBuff('atrasados', 'Atrasados', 'ativo', '');
+
+  const mult = x.bonusXp?.tr ?? 1;
+  const totEl = $('k-buffs-total');
+  totEl.hidden = !(mult > 1);
+  if (mult > 1) totEl.innerHTML = `Total <b>${fx(mult)}x</b>`;
+  trocarHtml($('k-buffs'), buffs.length ? buffs.join('') : '<span class="mini fraco">Nenhum buff de XP ativo</span>');
 }
 
 // ---- sprites & cena harmonizada ----
