@@ -335,12 +335,15 @@ function degrauMedido(candsIn, lv, regioes) {
   let melhor = [...cands].sort((a, b) => metrica(b) - metrica(a))[0];
   // histerese: medições quase iguais (25/11: 1,86 bi × 1,86 bi XP/h) faziam trocar 850 ↔ 1000 a cada 2 min;
   // só sai do degrau atual se o outro render HUNT_HISTERESE a mais e depois de HUNT_PERMANENCIA_MIN nele
+  // (a permanência conta desde que o bot chegou no degrau atual; só segura o degrau que ele mesmo escolheu por comparação,
+  // não o que estava só explorando nem o de onde está saindo — 25/11 12:32 a trava segurou o 850 durante a viagem para o 1000)
   const nAtual = S.hunts.find((h) => h.slug === S.eu?.huntSlug)?.nivel;
-  if (nAtual != null && nAtual !== melhor && cands.includes(nAtual)) {
-    const cedo = Date.now() - (S.degrauDesde ?? 0) < CFG.huntPermanenciaMin * 60_000;
+  if (nAtual !== S.nivelAtual) { S.nivelAtual = nAtual; S.nivelAtualDesde = Date.now(); }
+  if (nAtual != null && nAtual !== melhor && nAtual === S.degrauEscolhido && cands.includes(nAtual)) {
+    const cedo = Date.now() - (S.nivelAtualDesde ?? 0) < CFG.huntPermanenciaMin * 60_000;
     if (cedo || metrica(melhor) < metrica(nAtual) * CFG.huntHisterese) melhor = nAtual;
   }
-  if (S.degrauEscolhido !== melhor) { S.degrauEscolhido = melhor; S.degrauDesde = Date.now(); }
+  S.degrauEscolhido = melhor;
   const resumo = cands.map((n) => { const m = M[`${area}:${n}`]; return `nível ${n}: ${Math.round(m.xp / m.seg * 3600).toLocaleString('pt-BR')} XP/h${m.ouroSeg ? `, ${Math.round(m.ouro / m.ouroSeg * 3600).toLocaleString('pt-BR')} ouro/h` : ''}`; }).join(' · ');
   const chaveLog = `${eco ? 'eco' : 'xp'}:${melhor}`;
   if (S.ultimoDegrauMed !== chaveLog) { S.ultimoDegrauMed = chaveLog; log(`degrau medido${eco ? ' (economia, pelo ouro)' : ''} → nível ${melhor} (${resumo})`); }
