@@ -159,29 +159,8 @@
   .pkm .bar i { border-radius:5px; background:#4aa3ff; }
   .pkm .bar i.ok { background:#48d868; } .pkm .bar i.low { background:#f05a5a; } .pkm .bar i.mid { background:#f8c83c; }
   .pkm .heroi canvas { border:3px solid #0b0b12; border-radius:14px; box-shadow:inset 0 0 0 2px #ffffff55; }
-  .pkm #cena { height:340px; border:3px solid #0b0b12; border-radius:12px; background:linear-gradient(180deg,#7ec8ff 0,#bfe6ff 52%,#4cb157 52%,#4cb157 100%); }
+  .pkm #cena { border:3px solid #0b0b12; border-radius:12px; background:linear-gradient(180deg,#7ec8ff 0,#bfe6ff 52%,#4cb157 52%,#4cb157 100%); }
   .pkm .shiny-faixa { border-width:3px; border-radius:10px; }
-
-
-  /* estilo Trainer Card (faixa, etiquetas de tipo, cartões de item brancos, abas em relevo) */
-  .tcband, .tags { display:none; }
-  .tc .tcband { display:flex; align-items:center; gap:8px; margin:-6px -6px 16px; padding:8px 10px; border-radius:8px; background:linear-gradient(180deg, var(--a), color-mix(in srgb, var(--a) 62%, #000)); border:2px solid #0b0b12; flex-wrap:wrap; }
-  .tc .tcband .lab { font-family:var(--pix); font-size:9px; color:#fff; letter-spacing:.5px; padding:5px 9px; border-radius:6px; border:2px solid #ffffff88; background:#ffffff22; margin-right:auto; }
-  .tcchip { font-family:var(--pix); font-size:8px; padding:5px 8px; border-radius:5px; border:2px solid #0b0b12; background:#fafafa; color:#0b0b12; }
-  .tcchip[hidden] { display:none; }
-  .tcchip.on { background:#2fbf5b; color:#fff; } .tcchip.lv { background:#26264a; color:#ffd34d; } .tcchip.vip { background:#f5c842; color:#3a2e00; }
-  .tc .tags { display:flex; flex-wrap:wrap; align-items:center; gap:6px; margin-top:8px; }
-  .tp { font-family:var(--pix); font-size:8px; padding:5px 8px; border-radius:5px; border:2px solid #0b0b12; color:#fff; letter-spacing:.5px; text-transform:uppercase; }
-  .tc .heroi canvas { background:#fafafa repeating-linear-gradient(0deg, #e6e9f2 0 3px, #fafafa 3px 7px); box-shadow:inset 0 0 0 3px #fff, 4px 4px 0 rgba(0,0,0,.35); }
-  .tc .heroi .tile.item { background:#fafafa; border:3px solid #0b0b12; border-radius:10px; box-shadow:3px 3px 0 rgba(0,0,0,.35); }
-  .tc .heroi .tile.item small { color:#5a5f78; font-size:10px; }
-  .tc .heroi .tile.item strong { color:#1b1d2e; font-size:12px; }
-  .tc .heroi .tile.item .ico { background:#e9ecf7; border:2px solid #0b0b12; border-radius:8px; }
-  .tc #abas { background:transparent; border:0; gap:6px; padding:0; }
-  .tc #abas .tab { background:#fafafa; color:#0b0b12; border:3px solid #0b0b12; border-radius:8px; box-shadow:0 3px 0 #0b0b12; margin:0 2px; white-space:nowrap; }
-  .tc #abas .tab[aria-selected=true] { background:#e53935; color:#fff; } .tc #abas .tab[aria-selected=true]::before { content:'▶ '; color:#ffd34d; }
-  .tc .card h2 { display:inline-block; background:var(--a); color:#fff; border:2px solid #0b0b12; border-radius:7px; padding:6px 10px; }
-  .tc .cabeca h2 { margin:0; }
 
   @media (max-width:700px) {
     .estilo span { display:none; }
@@ -221,23 +200,21 @@
   <div class="row">
     <div class="colesq">
     <section class="card heroi">
-      <div class="tcband"><span class="lab">TRAINER'S CARD</span><span class="tcchip on">● ON</span><span class="tcchip lv" id="tc-lv">LV.—</span><span class="tcchip vip" id="tc-vip" hidden>★ VIP</span></div>
       <div class="topo2">
         <canvas id="av" width="96" height="96" aria-label="Seu treinador"></canvas>
         <div style="flex:1;min-width:0">
           <div><span class="nome disp" id="k-nick">—</span><span class="chip" id="k-regiao">—</span></div>
           <div class="niv">Treinador Nv. <b id="k-nivel">—</b> · <span id="k-poke">—</span></div>
-          <div class="tags" id="tc-tags"></div>
         </div>
       </div>
       <div class="xplinha"><span id="k-xplabel">XP até o próximo nível</span><span id="k-xppct">—</span></div>
       <div class="bar" title="XP até o próximo nível"><i id="k-xpbar" style="width:0"></i></div>
       <div class="xplinha" style="margin:8px 0 0"><span>Próximo nível em <b id="k-eta" style="color:var(--txt)">—</b></span><span id="k-falta"></span></div>
       <div class="tiles">
-        <div class="tile item"><span class="ico"><img id="i-ouro" class="oi" alt="" width="26" height="26"></span><div><small>Ouro</small><strong class="num" id="k-ouro">—</strong></div></div>
-        <div class="tile item"><span class="ico"><img id="i-gema" class="oi" alt="" width="26" height="26"></span><div><small>Gemas</small><strong class="num" id="k-gemas">—</strong></div></div>
-        <div class="tile item"><span class="ico"><img id="i-pocao" class="oi" alt="" width="26" height="26"></span><div style="min-width:0"><small>Poção equipada</small><strong id="k-pocao">—</strong></div></div>
-        <div class="tile item"><span class="ico"><img id="i-bola" class="oi" alt="" width="26" height="26"></span><div style="min-width:0"><small>Bola equipada</small><strong id="k-bola">—</strong></div></div>
+        <div class="tile"><span class="ico"><img id="i-ouro" class="oi" alt="" width="26" height="26"></span><div><small>Ouro</small><strong class="num" id="k-ouro">—</strong></div></div>
+        <div class="tile"><span class="ico"><img id="i-gema" class="oi" alt="" width="26" height="26"></span><div><small>Gemas</small><strong class="num" id="k-gemas">—</strong></div></div>
+        <div class="tile"><span class="ico"><img id="i-pocao" class="oi" alt="" width="26" height="26"></span><div style="min-width:0"><small>Poção equipada</small><strong id="k-pocao">—</strong></div></div>
+        <div class="tile"><span class="ico"><img id="i-bola" class="oi" alt="" width="26" height="26"></span><div style="min-width:0"><small>Bola equipada</small><strong id="k-bola">—</strong></div></div>
       </div>
     </section>
 
@@ -404,12 +381,12 @@ function aplicarTema(k) {
   desenharGrafico();
 }
 $('temas').addEventListener('click', (e) => { const b = e.target.closest('button[data-t]'); if (b) aplicarTema(b.dataset.t); });
-let estilo = 'tc';
-try { const e = localStorage.getItem('pk-estilo'); if (e === 'pkm' || e === 'moderno' || e === 'tc') estilo = e; } catch {}
+let estilo = 'pkm';
+try { const e = localStorage.getItem('pk-estilo'); if (e === 'pkm' || e === 'moderno') estilo = e; } catch {}
 function aplicarEstilo(k) {
-  estilo = k; document.body.classList.toggle('pkm', k !== 'moderno'); document.body.classList.toggle('tc', k === 'tc');
+  estilo = k; document.body.classList.toggle('pkm', k === 'pkm');
   try { localStorage.setItem('pk-estilo', k); } catch {}
-  $('estilos').innerHTML = [['tc', 'Trainer Card'], ['pkm', 'Pokémon'], ['moderno', 'Moderno']].map(([id, nome]) =>
+  $('estilos').innerHTML = [['pkm', 'Pokémon'], ['moderno', 'Moderno']].map(([id, nome]) =>
     `<button class="tab" type="button" data-e="${id}" aria-selected="${id === k}">${nome}</button>`).join('');
 }
 $('estilos').addEventListener('click', (e) => { const b = e.target.closest('button[data-e]'); if (b) aplicarEstilo(b.dataset.e); });
@@ -564,13 +541,7 @@ const kv = (a, b, estilo = '') => `<div class="kv"><span>${a}</span><b style="${
 const fx = (v, d = 2) => Number(v).toLocaleString('pt-BR', { maximumFractionDigits: d });
 const cap = (t) => String(t ?? '').charAt(0).toUpperCase() + String(t ?? '').slice(1);
 const SVG_COROA = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8l4 4 5-7 5 7 4-4-2 11H5z"/></svg>', SVG_MEDALHA = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4a5 5 0 100 10 5 5 0 000-10zM8.5 13.5L7 21l5-3 5 3-1.5-7.5"/></svg>';
-const COR_TIPO = { fire:'#f2802f', flying:'#7f92e8', water:'#4a90e2', grass:'#5fbd58', electric:'#f5c842', poison:'#a552cc', ghost:'#6b5b95', dragon:'#6f58e5', normal:'#a8a77a', psychic:'#f95587', rock:'#b6a136', ground:'#d9b34e', bug:'#a6b91a', ice:'#6dd3e8', fighting:'#c22e28', steel:'#8e8ea8', dark:'#705746', fairy:'#d685ad' };
-const TIPO_POR_ESPECIE = { charizard:['fire','flying'], gyarados:['water','flying'], gengar:['ghost','poison'], dragonite:['dragon','flying'], meganium:['grass'], blastoise:['water'], venusaur:['grass','poison'], pikachu:['electric'], alakazam:['psychic'], machamp:['fighting'], snorlax:['normal'], tyranitar:['rock','dark'], garchomp:['dragon','ground'], lucario:['fighting','steel'] };
 function mostrarExtras(s) {
-  $('tc-lv').textContent = 'LV.' + (s.nivel ?? '—');
-  $('tc-vip').hidden = !s.bonus?.vip;
-  const eu = s.equipe?.find((p) => p.ativo), tipos = TIPO_POR_ESPECIE[String(eu?.nome ?? '').toLowerCase().split(' ').pop()] ?? [];
-  $('tc-tags').innerHTML = tipos.map((t) => `<span class="tp" style="background:${COR_TIPO[t]}">${t}</span>`).join('') + (s.hunt?.nome ? `<span class="sub" style="font-size:12px">📍 ${esc(s.hunt.nome)} Nv. ${s.hunt.nivel ?? ''}</span>` : '');
   const x = s.extras ?? {}, agora = s.agora ?? Date.now();
   // faixa de evento e multiplicador de XP
   const ev = x.evento && x.evento.terminaEm > agora ? x.evento : null, mult = x.bonusXp?.tr ?? 1;
@@ -651,7 +622,7 @@ function desenhar(ctx, alvo, dir, cx, chao, escala, t, opts = {}) {
     const e = f.h > 32 ? escala * 0.7 : escala;
     const w = f.w * e, h = f.h * e;
     if (img?.complete && img.naturalWidth) ctx.drawImage(img, f.x, f.y, f.w, f.h, Math.round(cx - w / 2 + treme), Math.round(chao - h), w, h);
-    topo = estilo !== 'moderno' ? chao - h - (opts.compacto ? 6 : 30) : chao - (f.h > 32 ? h * 0.7 : h * 0.85) - 4; // pkm: placa acima da cabeça, sem cobrir o sprite
+    topo = estilo === 'pkm' ? chao - h - (opts.compacto ? 6 : 30) : chao - (f.h > 32 ? h * 0.7 : h * 0.85) - 4; // pkm: placa acima da cabeça, sem cobrir o sprite
   } else {
     ctx.fillStyle = cor('line'); ctx.beginPath(); ctx.arc(cx + treme, chao - 16 * escala / 2, 12 * escala / 2, 0, 7); ctx.fill();
     ctx.fillStyle = cor('sub'); ctx.font = '600 13px system-ui'; ctx.textAlign = 'center'; ctx.fillText((alvo.nome ?? '?')[0], cx + treme, chao - 16 * escala / 2 + 5);
@@ -659,12 +630,12 @@ function desenhar(ctx, alvo, dir, cx, chao, escala, t, opts = {}) {
   }
   ctx.globalAlpha = 1;
   if (opts.morto) return;
-  if (estilo !== 'moderno') topo = chao + (opts.compacto ? 19 : 25); // pkm: placa abaixo do pokemon
+  if (estilo === 'pkm') topo = chao + (opts.compacto ? 19 : 25); // pkm: placa abaixo do pokemon
   const bw = Math.max(34, 12 * escala), pct = alvo.mhp ? Math.max(0, Math.min(1, alvo.hp / alvo.mhp)) : 0;
-  if (estilo !== 'moderno') { const pw = Math.max(bw, opts.compacto ? 70 : 96) + 12, ph = opts.compacto ? 22 : 28, py = Math.round(topo - ph + 7); ctx.fillStyle = '#f7f3dc'; ctx.strokeStyle = '#3a3a3a'; ctx.lineWidth = 2; ctx.fillRect(Math.round(cx - pw / 2), py, pw, ph); ctx.strokeRect(Math.round(cx - pw / 2), py, pw, ph); }
-  ctx.fillStyle = estilo !== 'moderno' ? '#46465a' : cor('tile'); ctx.fillRect(Math.round(cx - bw / 2), Math.round(topo), bw, 4);
+  if (estilo === 'pkm') { const pw = Math.max(bw, opts.compacto ? 70 : 96) + 12, ph = opts.compacto ? 22 : 28, py = Math.round(topo - ph + 7); ctx.fillStyle = '#f7f3dc'; ctx.strokeStyle = '#3a3a3a'; ctx.lineWidth = 2; ctx.fillRect(Math.round(cx - pw / 2), py, pw, ph); ctx.strokeRect(Math.round(cx - pw / 2), py, pw, ph); }
+  ctx.fillStyle = estilo === 'pkm' ? '#46465a' : cor('tile'); ctx.fillRect(Math.round(cx - bw / 2), Math.round(topo), bw, 4);
   ctx.fillStyle = alvo.shiny ? '#e9c868' : pct < 0.25 ? cor('bad') : pct < 0.5 ? '#f8c83c' : cor('ok'); ctx.fillRect(Math.round(cx - bw / 2), Math.round(topo), Math.round(bw * pct), 4);
-  ctx.fillStyle = estilo !== 'moderno' ? (alvo.shiny ? '#9a7a10' : '#262626') : (alvo.shiny ? '#e9c868' : cor('sub')); ctx.font = (opts.compacto ? '10px' : '12px') + ' system-ui'; ctx.textAlign = 'center';
+  ctx.fillStyle = estilo === 'pkm' ? (alvo.shiny ? '#9a7a10' : '#262626') : (alvo.shiny ? '#e9c868' : cor('sub')); ctx.font = (opts.compacto ? '10px' : '12px') + ' system-ui'; ctx.textAlign = 'center';
   ctx.fillText(`${alvo.shiny ? '✨ ' : ''}${alvo.nome ?? '?'} ${alvo.nv ?? ''}`, cx, Math.round(topo - 5));
 }
 function avatar(t) {
@@ -688,19 +659,19 @@ function quadro(t) {
   if (cv.width !== Math.round(W * dpr) || cv.height !== Math.round(H * dpr)) { cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); }
   const ctx = cv.getContext('2d'); ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.imageSmoothingEnabled = false;
   ctx.clearRect(0, 0, W, H);
-  ctx.strokeStyle = cor('line'); ctx.globalAlpha = estilo !== 'moderno' ? 0 : 0.55; ctx.lineWidth = 1;
+  ctx.strokeStyle = cor('line'); ctx.globalAlpha = estilo === 'pkm' ? 0 : 0.55; ctx.lineWidth = 1;
   for (let y = H * 0.45; y < H; y += 22) { ctx.beginPath(); ctx.moveTo(0, Math.round(y) + 0.5); ctx.lineTo(W, Math.round(y) + 0.5); ctx.stroke(); }
   ctx.globalAlpha = 1;
   if (s.noCentro) { ctx.fillStyle = cor('sub'); ctx.font = '14px system-ui'; ctx.textAlign = 'center'; ctx.fillText('No Centro Pokemon, curando', W / 2, H / 2); return; }
   const eu = s.equipe.find((p) => p.ativo);
-  if (eu) desenhar(ctx, eu, 2, Math.max(70, W * 0.18), H * (estilo !== 'moderno' ? 0.66 : 0.78), 3, t, { treme: levouDano('eu', eu.hp) });
+  if (eu) desenhar(ctx, eu, 2, Math.max(70, W * 0.18), H * (estilo === 'pkm' ? 0.66 : 0.78), 3, t, { treme: levouDano('eu', eu.hp) });
   const mobs = [...s.campo].sort((a, b) => (a.slot ?? 0) - (b.slot ?? 0)).slice(0, 12);
   const area = { x: W * 0.4, w: W * 0.56 }, cols = Math.min(4, Math.max(1, Math.ceil(mobs.length / 2))), linhas = Math.ceil(mobs.length / cols) || 1;
   mobs.forEach((m, i) => {
     const col = i % cols, l = Math.floor(i / cols);
     const cx = area.x + (col + 0.5) * area.w / cols + (l % 2 ? area.w / cols / 4 : 0);
-    const chao = estilo !== 'moderno' ? H * 0.2 + (l + 1) * (H * 0.64 / linhas) - 26 : H * 0.3 + (l + 1) * (H * 0.66 / linhas) - 6;
-    desenhar(ctx, m, 4, cx, chao, linhas > 2 ? (estilo !== 'moderno' ? 1.5 : 2) : 2.5, t, { compacto: linhas > 1, morto: m.morto, treme: !m.morto && levouDano('m' + m.slot, m.hp), fase: i });
+    const chao = estilo === 'pkm' ? H * 0.2 + (l + 1) * (H * 0.64 / linhas) - 26 : H * 0.3 + (l + 1) * (H * 0.66 / linhas) - 6;
+    desenhar(ctx, m, 4, cx, chao, linhas > 2 ? 2 : 2.5, t, { compacto: linhas > 1, morto: m.morto, treme: !m.morto && levouDano('m' + m.slot, m.hp), fase: i });
   });
   if (!mobs.length) { ctx.fillStyle = cor('fraco'); ctx.font = '13px system-ui'; ctx.textAlign = 'center'; ctx.fillText('esperando selvagens…', W * 0.68, H * 0.6); }
 }
