@@ -5,358 +5,923 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>PokeIdle bot</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
 <style>
-  /* Layout: menu lateral + uma tela por seção, sem rolar a página. Tema por variáveis CSS (Ajustes). */
+  /* Design system: superfícies limpas com elevação sutil, menos bordas e rolagem natural. */
   :root {
-    --a:#8b5cf6; --a2:#c4a8ff; --a-soft:#8b5cf626; --bg:#0f0b1c; --card:#1a1430; --card-hi:#241a45; --tile:#221a3c; --line:#352a5a;
-    --txt:#efeaff; --sub:#a99fd0; --fraco:#8d82b8; --glow:#8b5cf655; --glow2:#2a1b55; --scene1:#150f29; --scene2:#1f1640;
-    --ok:#4ade80; --ok-soft:#4ade8022; --bad:#f87171; --shiny:#e9c868; --shiny-fundo:#2c2614;
+    --a:#8b5cf6; --a2:#b89cff; --a-soft:rgba(139,92,246,.14); --a-ring:rgba(139,92,246,.35);
+    --bg:#0b0a12; --side:#100f1a; --card:#151322; --card-hi:#1c1930; --tile:rgba(255,255,255,.032); --tile-hover:rgba(255,255,255,.055);
+    --border:rgba(255,255,255,.07); --div:rgba(255,255,255,.055);
+    --txt:#f2effc; --sub:#9b94b8; --fraco:#6c658a;
+    --scene1:#121024; --scene2:#1b1736; --scene-ground:#141227;
+    --ok:#4ade80; --ok-soft:rgba(74,222,128,.12); --bad:#f87171; --bad-soft:rgba(248,113,113,.12);
+    --warn:#fbbf24; --warn-soft:rgba(251,191,36,.12);
+    --shiny:#f3cf6b; --shiny-fundo:#252010;
+    --shadow:0 1px 2px rgba(0,0,0,.28), 0 8px 24px rgba(0,0,0,.18);
+    --r-card:22px; --r-tile:14px; --r-sm:8px; --on-a:#ffffff;
   }
   * { box-sizing:border-box; }
   [hidden] { display:none !important; }
-  html, body { height:100%; }
-  body { margin:0; background:var(--bg); color:var(--txt); font:13px/1.45 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif; font-variant-numeric:tabular-nums; }
-  h2, .disp, .big, .mid { font-family:'Space Grotesk', 'Inter', system-ui, sans-serif; }
-  b { font-weight:600; }
-  .sub { color:var(--sub); } .fraco { color:var(--fraco); }
-  .up { color:var(--ok) !important; } .down { color:var(--bad) !important; }
+  html, body { min-height:100%; }
+  body {
+    margin:0;
+    background:var(--bg);
+    color:var(--txt);
+    font:13.5px/1.5 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+    font-variant-numeric:tabular-nums;
+    -webkit-font-smoothing:antialiased;
+  }
+  h1, h2, .disp, .big, .mid, .kpi-v { font-family:'Space Grotesk', 'Inter', system-ui, sans-serif; }
+  b, strong { font-weight:600; }
+  .sub { color:var(--sub); }
+  .fraco { color:var(--fraco); }
+  .up { color:var(--ok) !important; }
+  .down { color:var(--bad) !important; }
 
-  .app { height:100%; display:grid; grid-template-columns:168px minmax(0,1fr); overflow:hidden; }
-  .side { display:flex; flex-direction:column; gap:4px; padding:12px 10px; background:var(--card); border-right:1px solid var(--line); min-height:0; overflow:auto; }
-  .marca { display:flex; align-items:center; gap:9px; padding:2px 6px 12px; font-size:15px; font-weight:700; white-space:nowrap; }
-  .bola { width:26px; height:26px; border-radius:50%; border:3px solid #0b0b12; background:linear-gradient(180deg,#e53935 0 45%,#0b0b12 45% 55%,#fafafa 55%); flex:none; }
-  #abas { display:flex; flex-direction:column; gap:4px; }
-  .tab { display:flex; align-items:center; gap:10px; min-height:42px; padding:0 12px; border:0; border-radius:10px; background:transparent; color:var(--sub); font:600 13px 'Inter', system-ui, sans-serif; cursor:pointer; text-align:left; white-space:nowrap; }
-  .tab[aria-selected=true] { background:linear-gradient(135deg, var(--a), var(--a2)); color:#fff; }
-  .tab:focus-visible, .btn:focus-visible, .sw:focus-visible { outline:2px solid var(--txt); outline-offset:2px; }
-  .main { display:grid; grid-template-rows:auto minmax(0,1fr); min-width:0; min-height:0; }
-  .top { display:flex; flex-wrap:wrap; align-items:center; gap:6px 10px; padding:9px 14px; border-bottom:1px solid var(--line); background:var(--card); }
+  /* Scrollbars discretas */
+  ::-webkit-scrollbar { width:8px; height:8px; }
+  ::-webkit-scrollbar-track { background:transparent; }
+  ::-webkit-scrollbar-thumb { background:var(--border); border-radius:999px; }
+  ::-webkit-scrollbar-thumb:hover { background:var(--fraco); }
+
+  /* Shell principal (estilo "Arena em foco"): topo com navegação em pílulas, sem barra lateral */
+  .app { min-height:100vh; }
+  .main { display:flex; flex-direction:column; min-width:0; }
+  .marca {
+    display:flex; align-items:center; gap:10px;
+    font-size:17px; font-weight:700; letter-spacing:-.01em; white-space:nowrap;
+  }
+  .bola {
+    width:24px; height:24px; border-radius:50%; flex:none;
+    border:2px solid rgba(0,0,0,.65);
+    background:linear-gradient(180deg, #ef4444 0 46%, #18181b 46% 54%, #f4f4f5 54%);
+    box-shadow:0 0 0 1px rgba(255,255,255,.12);
+    position:relative;
+  }
+  .bola::after {
+    content:""; position:absolute; inset:0; margin:auto;
+    width:7px; height:7px; border-radius:50%;
+    background:#f4f4f5; border:2px solid #18181b;
+  }
+  .top {
+    position:sticky; top:0; z-index:15;
+    display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:10px 20px;
+    max-width:1320px; width:100%; margin:0 auto;
+    padding:16px 28px;
+    background:color-mix(in srgb, var(--bg) 86%, transparent);
+    backdrop-filter:blur(14px);
+    -webkit-backdrop-filter:blur(14px);
+  }
+  .nav-pilulas { min-width:0; max-width:100%; overflow-x:auto; }
+  #abas {
+    display:flex; gap:2px; padding:4px;
+    background:var(--card); border:1px solid var(--border); border-radius:999px;
+    width:max-content;
+  }
+  .tab {
+    display:flex; align-items:center;
+    min-height:36px; padding:0 16px;
+    border:0; border-radius:999px;
+    background:transparent; color:var(--sub);
+    font:500 13px 'Inter', system-ui, sans-serif;
+    cursor:pointer; white-space:nowrap;
+    transition:background .15s, color .15s;
+  }
+  .tab:hover { color:var(--txt); background:var(--tile-hover); }
+  .tab[aria-selected=true] { background:var(--a); color:var(--on-a); font-weight:600; }
+  .tab:focus-visible, .btn:focus-visible, .sw:focus-visible, .seg button:focus-visible {
+    outline:2px solid var(--a2); outline-offset:2px;
+  }
+  .top-dir { display:flex; flex-wrap:wrap; align-items:center; gap:10px; }
   .esp { flex:1 1 0; min-width:0; }
-  .views { min-height:0; overflow:auto; }
-  .aba { display:none; height:100%; min-height:520px; padding:12px; gap:12px; grid-template-rows:minmax(0,1fr); }
-  .aba.on { display:grid; }
-  .g-vivo { grid-template-columns:270px minmax(0,1fr) 288px; }
-  .g-ganhos { grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(0,1.3fr); }
-  .g-3 { grid-template-columns:repeat(3, minmax(0,1fr)); }
-.g-sniper { grid-template-columns:minmax(0,1fr) minmax(0,1.6fr); }
-.sn-modos { display:flex; gap:6px; flex-wrap:wrap; }
-.sn-modos .btn[data-sn-modo="1"][aria-pressed=true] { background:var(--bad); border-color:var(--bad); }
-.sn-form { display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:8px 12px; }
-.sn-form label { display:flex; flex-direction:column; gap:4px; font-size:12.5px; color:var(--sub); }
-.sn-form input[type=number] { font:500 13px 'Inter', system-ui, sans-serif; min-height:32px; padding:0 9px; border-radius:8px; border:1px solid var(--line); background:var(--tile); color:var(--txt); width:100%; }
-.sn-form input:focus-visible { outline:2px solid var(--txt); outline-offset:1px; }
-.sn-form .sn-check { flex-direction:row; align-items:center; grid-column:1 / -1; }
-.sn-acoes { grid-column:1 / -1; display:flex; align-items:center; gap:10px; }
-.lt td.sn-acao { white-space:nowrap; font-weight:600; }
-.sn-modos + .mini { margin-bottom:2px; }
-.sn-sub { grid-column:1 / -1; margin-top:6px; font-size:12px; font-weight:600; letter-spacing:.05em; text-transform:uppercase; color:var(--a2); }
-.sn-modos .btn[data-sn-rev="1"][aria-pressed=true] { background:var(--bad); border-color:var(--bad); }
-  .g-conta.on { grid-template-columns:repeat(3, minmax(0,1fr)); grid-template-rows:minmax(0,1fr) minmax(0,1fr); }
-  .g-bosses.on { grid-template-columns:repeat(3, minmax(0,1fr)); grid-template-rows:minmax(0,1fr) auto; }
-  .g-1 { grid-template-columns:minmax(0,1fr); }
-  .col { display:flex; flex-direction:column; gap:12px; min-width:0; min-height:0; }
-  .card { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:12px 14px; min-width:0; min-height:0; display:flex; flex-direction:column; gap:8px; overflow:auto; }
-  .card > * { flex:none; }
-  .card > .grow, .grow { flex:1 1 0; min-height:0; }
-  .card h2 { margin:0; font-size:12px; font-weight:600; letter-spacing:.05em; text-transform:uppercase; color:var(--a2); display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:8px; }
-  .card h2 > span { text-transform:none; letter-spacing:0; font-family:'Inter', system-ui, sans-serif; font-weight:500; }
-  .scroll { overflow:auto; min-height:0; }
-  .tile { background:var(--tile); border:1px solid var(--line); border-radius:10px; padding:8px 10px; min-width:0; }
+  .top-nick { font-size:14px; font-weight:700; letter-spacing:-.01em; }
+
+  .views { width:100%; max-width:1320px; margin:0 auto; padding:8px 28px 48px; }
+  .aba { display:none; flex-direction:column; gap:24px; }
+  .aba.on { display:flex; }
+
+  /* Layout do Ao vivo: dados do personagem à esquerda, simulação ampla à direita */
+  .vivo-layout {
+    display:grid; grid-template-columns:328px minmax(0,1fr);
+    gap:22px; align-items:start;
+  }
+  .vivo-esq, .vivo-dir { display:flex; flex-direction:column; gap:18px; min-width:0; }
+  .cena-head {
+    display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:10px 14px;
+  }
+  .cena-titulo { display:flex; align-items:baseline; gap:10px; flex-wrap:wrap; }
+  .hero-alvo { margin:0; font-size:22px; font-weight:700; letter-spacing:-.02em; line-height:1.15; }
+  .hero-alvo span { color:var(--a2); font-weight:600; font-size:16px; }
+  .vivo-kpis { display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:14px; }
+  .kpi-c {
+    background:var(--card); border:1px solid var(--border); border-radius:var(--r-card);
+    padding:16px 18px; min-width:0; box-shadow:var(--shadow);
+    display:flex; flex-direction:column; gap:4px;
+  }
+  .kpi-c .kpi-v { font-size:22px; }
+
+  /* Avisos recolhíveis no card lateral */
+  .card.faixa:not(.aberto) .avisos-recentes .feed:nth-child(n+4) { display:none; }
+  .card.faixa.aberto .avisos-recentes { max-height:320px; overflow-y:auto; padding-right:4px; }
+
+  /* Cabeçalho de cada página */
+  .page-head {
+    display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:12px;
+  }
+  .page-head h1 { margin:0; font-size:20px; font-weight:700; letter-spacing:-.02em; }
+  .page-head .mini { margin-top:2px; }
+
+  /* Grids com respiro */
+  .g-kpis { display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:14px; }
+  .g-kpis-3 { display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:14px; }
+  .g-vivo { display:grid; grid-template-columns:minmax(0,1.9fr) minmax(320px,1fr); gap:24px; align-items:start; }
+  .g-2 { display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:20px; align-items:start; }
+  .g-2-asym { display:grid; grid-template-columns:minmax(0,1.05fr) minmax(0,1.45fr); gap:20px; align-items:start; }
+  .g-3 { display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:18px; align-items:start; }
+  .col { display:flex; flex-direction:column; gap:18px; min-width:0; }
+
+  /* Cards limpos */
+  .card {
+    background:var(--card);
+    border:1px solid var(--border);
+    border-radius:var(--r-card);
+    padding:22px 24px;
+    min-width:0;
+    display:flex; flex-direction:column; gap:14px;
+    box-shadow:var(--shadow);
+  }
+  .card h2 {
+    margin:0; font-size:16px; font-weight:600; letter-spacing:-.01em;
+    color:var(--txt);
+    display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:8px;
+  }
+  .card h2 > .meta, .card h2 > span {
+    font-family:'Inter', system-ui, sans-serif;
+    font-size:12px; font-weight:500; color:var(--sub);
+  }
+  .card-sub { font-size:11.5px; font-weight:600; letter-spacing:.06em; text-transform:uppercase; color:var(--fraco); margin-top:4px; }
+
+  /* KPI cards */
+  .kpi {
+    background:var(--card);
+    border:1px solid var(--border);
+    border-radius:var(--r-card);
+    padding:16px 18px;
+    display:flex; flex-direction:column; gap:4px;
+    min-width:0;
+    box-shadow:var(--shadow);
+  }
+  .kpi-l { font-size:12px; font-weight:500; color:var(--sub); display:flex; align-items:center; justify-content:space-between; gap:6px; }
+  .kpi-v { font-size:24px; font-weight:700; letter-spacing:-.02em; line-height:1.2; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .kpi-s { font-size:12px; color:var(--fraco); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+
+  /* Tiles internos sem borda pesada */
+  .tile {
+    background:var(--tile);
+    border-radius:var(--r-tile);
+    padding:10px 12px;
+    min-width:0;
+    transition:background .15s;
+  }
+  .tile:hover { background:var(--tile-hover); }
   .tile small { display:block; font-size:11px; color:var(--sub); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-  .tile strong { display:block; font-size:15px; font-weight:600; overflow-wrap:break-word; }
-  .tile .sb { display:block; font-size:11px; color:var(--sub); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-  .item { display:flex; align-items:center; gap:8px; } .item > div { min-width:0; }
-  .tile.item small { white-space:normal; line-height:1.25; font-size:10.5px; }
-  .tiles2 { display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:6px; }
-  .tiles3 { display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:6px; }
-  .kpis { display:grid; grid-template-columns:repeat(5, minmax(0,1fr)); gap:8px; }
-  .kpis strong { font:700 19px 'Space Grotesk', sans-serif; white-space:nowrap; }
-  .big { font-size:30px; font-weight:700; line-height:1.1; }
-  .mid { font-size:20px; font-weight:700; line-height:1.2; }
-  .mini { font-size:11.5px; color:var(--sub); line-height:1.45; }
-  .chip { display:inline-block; font-size:11.5px; font-weight:500; padding:3px 9px; border-radius:7px; background:var(--tile); border:1px solid var(--line); color:var(--sub); white-space:nowrap; }
-  .chip b { color:var(--txt); }
-  .chip.on { border-color:var(--ok); } .chip.on b { color:var(--ok); }
+  .tile strong { display:block; font-size:15px; font-weight:600; margin-top:1px; overflow-wrap:break-word; }
+  .item { display:flex; align-items:center; gap:10px; }
+  .item > div { min-width:0; }
+  .tiles2 { display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:8px; }
+  .tiles3 { display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:8px; }
+
+  .big { font-size:28px; font-weight:700; line-height:1.15; letter-spacing:-.02em; }
+  .mid { font-size:19px; font-weight:700; line-height:1.2; letter-spacing:-.015em; }
+  .mini { font-size:12px; color:var(--sub); line-height:1.5; }
+  .vazio { color:var(--fraco); padding:10px 0; font-size:13px; }
+
+  /* Chips, pills e botões */
+  .chips { display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
+  .chip {
+    display:inline-flex; align-items:center; gap:5px;
+    font-size:12px; font-weight:500;
+    padding:4px 10px; border-radius:999px;
+    background:var(--tile); border:1px solid var(--border);
+    color:var(--sub); white-space:nowrap;
+  }
+  .chip b { color:var(--txt); font-weight:600; }
+  .chip.on { background:var(--ok-soft); border-color:transparent; color:var(--ok); }
+  .chip.on b { color:var(--ok); }
+  .chip.accent { background:var(--a-soft); border-color:transparent; color:var(--a2); }
+  .chip.accent b { color:var(--a2); }
+  .chip.shiny { background:var(--warn-soft); border-color:transparent; color:var(--shiny); }
   .chip.shiny b { color:var(--shiny); }
-  button.chip { font-family:inherit; cursor:pointer; }
-  .chips { display:flex; flex-wrap:wrap; gap:6px; }
-  .pill { display:inline-flex; align-items:center; gap:6px; font-size:11px; font-weight:600; padding:4px 10px; border-radius:999px; background:var(--ok-soft); color:var(--ok); border:1px solid var(--ok); white-space:nowrap; }
-  .pill i { width:7px; height:7px; border-radius:50%; background:var(--ok); display:block; }
-  .pill.off { background:#f8717122; color:var(--bad); border-color:var(--bad); } .pill.off i { background:var(--bad); }
-  .bar { height:7px; border-radius:5px; background:var(--tile); overflow:hidden; }
-  .bar i { display:block; height:100%; border-radius:5px; background:linear-gradient(90deg, var(--a), var(--a2)); transition:width .6s; }
-  .bar i.ok { background:var(--ok); } .bar i.low { background:var(--bad); } .bar i.mid { background:#f8c83c; }
-  .kv { display:flex; justify-content:space-between; align-items:baseline; gap:10px; color:var(--sub); padding:5px 0; border-bottom:1px solid var(--line); font-size:12.5px; }
-  .kv:last-child { border-bottom:0; } .kv b { color:var(--txt); text-align:right; }
-  .hb { display:flex; align-items:center; gap:8px; font-size:12px; margin:4px 0; }
-  .hb .t { width:96px; flex:none; color:var(--sub); } .hb .bar { flex:1; } .hb .v { flex:none; width:68px; text-align:right; font-weight:600; }
-  .linha { display:flex; justify-content:space-between; gap:8px; }
-  .btn { font:600 12.5px 'Inter', system-ui, sans-serif; min-height:34px; padding:0 12px; border-radius:9px; border:1px solid var(--line); background:var(--tile); color:var(--txt); cursor:pointer; white-space:nowrap; }
-  .btn.pri { background:linear-gradient(135deg, var(--a), var(--a2)); border:0; color:#fff; }
-  .btn[aria-pressed=true] { background:var(--a); border-color:var(--a); color:#fff; }
-  .sw { width:30px; height:30px; border-radius:50%; border:2px solid var(--card); cursor:pointer; padding:0; }
-  #temas { display:flex; flex-wrap:wrap; gap:8px; }
-  .vazio { color:var(--fraco); padding:6px 0; }
+  .chip.bad { background:var(--bad-soft); border-color:transparent; color:var(--bad); }
+  .chip.bad b { color:var(--bad); }
+
+  .pill {
+    display:inline-flex; align-items:center; gap:7px;
+    font-size:12px; font-weight:600;
+    padding:5px 11px; border-radius:999px;
+    background:var(--ok-soft); color:var(--ok);
+    white-space:nowrap;
+  }
+  .pill i { width:7px; height:7px; border-radius:50%; background:var(--ok); display:block; box-shadow:0 0 8px var(--ok); }
+  .pill.off { background:var(--bad-soft); color:var(--bad); }
+  .pill.off i { background:var(--bad); box-shadow:none; }
+
+  .btn {
+    display:inline-flex; align-items:center; justify-content:center; gap:6px;
+    font:500 12.5px 'Inter', system-ui, sans-serif;
+    min-height:34px; padding:0 13px;
+    border-radius:9px; border:1px solid var(--border);
+    background:var(--tile); color:var(--txt);
+    cursor:pointer; white-space:nowrap;
+    transition:background .15s, border-color .15s, opacity .15s;
+  }
+  .btn:hover { background:var(--tile-hover); border-color:var(--a-ring); }
+  .btn.pri { background:var(--a); border-color:transparent; color:var(--on-a); font-weight:600; }
+  .btn.pri:hover { filter:brightness(1.08); }
+  .btn.ghost { background:transparent; border-color:transparent; color:var(--sub); }
+  .btn.ghost:hover { background:var(--tile); color:var(--txt); }
+  .btn.sm { min-height:28px; padding:0 10px; font-size:12px; border-radius:7px; }
+  .btn[aria-pressed=true] { background:var(--a); border-color:transparent; color:var(--on-a); font-weight:600; }
+
+  /* Segmented control (sub-abas e métricas) */
+  .seg {
+    display:inline-flex; align-items:center; gap:2px;
+    padding:3px; border-radius:10px;
+    background:var(--tile); border:1px solid var(--border);
+  }
+  .seg button {
+    border:0; background:transparent; color:var(--sub);
+    font:500 12.5px 'Inter', system-ui, sans-serif;
+    padding:5px 12px; border-radius:7px; cursor:pointer; white-space:nowrap;
+    transition:background .15s, color .15s;
+  }
+  .seg button:hover { color:var(--txt); }
+  .seg button[aria-pressed=true], .seg button[aria-selected=true] {
+    background:var(--card-hi); color:var(--txt); font-weight:600;
+    box-shadow:0 1px 3px rgba(0,0,0,.25);
+  }
+
+  /* Barras de progresso e pares chave-valor */
+  .bar { height:6px; border-radius:999px; background:var(--tile-hover); overflow:hidden; }
+  .bar i { display:block; height:100%; border-radius:999px; background:linear-gradient(90deg, var(--a), var(--a2)); transition:width .5s ease; }
+  .bar i.ok { background:var(--ok); }
+  .bar i.low { background:var(--bad); }
+  .bar i.mid { background:var(--warn); }
+
+  .kv {
+    display:flex; justify-content:space-between; align-items:baseline; gap:12px;
+    color:var(--sub); padding:8px 0;
+    border-bottom:1px solid var(--div); font-size:13px;
+  }
+  .kv:first-child { padding-top:0; }
+  .kv:last-child { border-bottom:0; padding-bottom:0; }
+  .kv b { color:var(--txt); text-align:right; font-weight:600; }
+
+  .hb { display:flex; align-items:center; gap:10px; font-size:12.5px; padding:4px 0; }
+  .hb .t { width:118px; flex:none; color:var(--sub); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .hb .bar { flex:1; }
+  .hb .v { flex:none; min-width:74px; text-align:right; font-weight:600; color:var(--txt); }
+  .linha { display:flex; justify-content:space-between; align-items:center; gap:8px; }
+
   .oi { image-rendering:pixelated; object-fit:contain; width:22px; height:22px; flex:none; }
   .chip .ci, .ci { width:16px; height:16px; vertical-align:-3px; margin-right:5px; image-rendering:pixelated; object-fit:contain; }
+  .ico { color:var(--a2); display:inline-flex; flex:none; }
 
-  .heroi { background:linear-gradient(160deg, var(--card-hi), var(--card) 60%); border-color:var(--a); }
-  .heroi canvas { width:56px; height:56px; border-radius:16px; background:radial-gradient(circle at 50% 35%, var(--a2), var(--a) 70%); flex:none; image-rendering:pixelated; }
+  /* Card do treinador */
+  .heroi {
+    background:linear-gradient(155deg, color-mix(in srgb, var(--a) 11%, var(--card)), var(--card) 58%);
+  }
+  .heroi-head { display:flex; align-items:center; gap:14px; }
+  .heroi canvas {
+    width:54px; height:54px; border-radius:14px; flex:none;
+    background:radial-gradient(circle at 50% 35%, color-mix(in srgb, var(--a2) 38%, transparent), var(--a-soft) 72%);
+    border:1px solid var(--a-ring);
+    image-rendering:pixelated;
+  }
+  .xp-box { display:flex; flex-direction:column; gap:6px; }
+
+  /* Lista de equipe */
   .lista { list-style:none; margin:0; padding:0; }
-  .lista li { display:grid; grid-template-columns:minmax(0,1fr) 24px auto; gap:6px; align-items:center; padding:5px 0; border-bottom:1px solid var(--line); }
-  .lista li:last-child { border-bottom:0; }
-  .lista .nome { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-  .lista .nome small { display:block; color:var(--sub); font-size:10.5px; }
-  .lista .v { white-space:nowrap; text-align:right; color:var(--sub); font-size:11px; }
+  .lista li {
+    display:grid; grid-template-columns:minmax(0,1fr) 64px auto;
+    gap:10px; align-items:center;
+    padding:8px 0; border-bottom:1px solid var(--div);
+  }
+  .lista li:first-child { padding-top:0; }
+  .lista li:last-child { border-bottom:0; padding-bottom:0; }
+  .lista .nome { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-weight:500; }
+  .lista .nome small { display:block; color:var(--fraco); font-size:11px; font-weight:400; }
+  .lista .v { white-space:nowrap; text-align:right; color:var(--sub); font-size:12px; }
   .lista li.ativo .nome::before { content:"▸ "; color:var(--a2); }
-  .lista li.caido .nome { color:var(--fraco); } .lista li.caido .bar { visibility:hidden; }
+  .lista li.caido .nome { color:var(--fraco); }
+  .lista li.caido .bar { visibility:hidden; }
   .lista li.shiny .nome { color:var(--shiny); }
-  .card > .palco { flex:1 1 0; min-height:0; position:relative; }
-  .card.cena-card { flex:0 0 clamp(284px, 43vh, 390px); overflow:hidden; }
-  /* a cena "No jogo agora" tem o visual de jogo: céu, gramado e placas */
-  #cena { position:absolute; inset:0; width:100%; height:100%; border:3px solid #0b0b12; border-radius:12px; background:linear-gradient(180deg,#7ec8ff 0,#bfe6ff 52%,#4cb157 52%,#4cb157 100%); image-rendering:pixelated; }
-  .card.graf { flex:1 1 0; min-height:150px; overflow:hidden; }
-  .card > .gwrap { flex:1 1 0; min-height:0; }
-  .grafico { display:block; width:100%; height:100%; }
-  .grafico .g { stroke:var(--line); } .grafico .l { stroke:var(--a2); fill:none; } .grafico .ar { fill:var(--a-soft); }
 
-  .feed { display:flex; gap:10px; padding:6px 0; border-bottom:1px solid var(--line); align-items:flex-start; }
-  .feed:last-child { border-bottom:0; } .feed > div { min-width:0; overflow-wrap:break-word; }
-  .dot { width:8px; height:8px; border-radius:50%; background:var(--a2); flex:none; margin-top:5px; }
-  table { width:100%; border-collapse:collapse; font-size:12px; }
-  th { text-align:right; font-size:11px; font-weight:600; color:var(--sub); padding:0 0 6px; border-bottom:1px solid var(--line); white-space:nowrap; }
-  td { text-align:right; padding:6px 0; border-bottom:1px solid var(--line); }
-  th + th, td + td { padding-left:8px; }
+  /* Palco da cena "No jogo agora" */
+  .palco {
+    position:relative; width:100%; height:316px;
+    border-radius:16px; overflow:hidden;
+    border:1px solid var(--border);
+    background:radial-gradient(ellipse at 50% 25%, var(--scene2), var(--scene1) 75%);
+  }
+  .palco.classico {
+    background:linear-gradient(180deg, #7ec8ff 0, #bfe6ff 52%, #4cb157 52%, #4cb157 100%);
+  }
+  #cena { position:absolute; inset:0; width:100%; height:100%; image-rendering:pixelated; display:block; }
+
+  /* Gráfico SVG */
+  .gwrap { position:relative; width:100%; height:210px; }
+  .grafico { display:block; width:100%; height:100%; overflow:visible; }
+  .grafico .g { stroke:var(--div); stroke-dasharray:3 4; }
+  .grafico .l { stroke:var(--a2); fill:none; }
+  .grafico .pt { fill:var(--card); stroke:var(--a2); }
+  .grafico .lbl { fill:var(--fraco); font-size:10.5px; font-family:'Inter', system-ui, sans-serif; }
+  .g-tip {
+    position:absolute; pointer-events:none; z-index:5;
+    padding:6px 10px; border-radius:8px;
+    background:var(--card-hi); border:1px solid var(--border);
+    box-shadow:var(--shadow); font-size:12px; white-space:nowrap;
+    transform:translate(-50%, -115%);
+  }
+  .g-stats { display:flex; flex-wrap:wrap; gap:14px; font-size:12px; color:var(--sub); }
+  .g-stats b { color:var(--txt); margin-left:4px; }
+
+  /* Feed de avisos */
+  .scroll { overflow-y:auto; max-height:360px; padding-right:4px; }
+  .scroll-lg { overflow-y:auto; max-height:460px; padding-right:4px; }
+  .feed { display:flex; gap:10px; padding:8px 0; border-bottom:1px solid var(--div); align-items:flex-start; }
+  .feed:first-child { padding-top:0; }
+  .feed:last-child { border-bottom:0; padding-bottom:0; }
+  .feed > div { min-width:0; overflow-wrap:break-word; }
+  .dot { width:7px; height:7px; border-radius:50%; background:var(--a2); flex:none; margin-top:6px; }
+
+  /* Tabelas limpas */
+  table { width:100%; border-collapse:collapse; font-size:12.5px; }
+  th {
+    text-align:right; font-size:11px; font-weight:600; color:var(--fraco);
+    text-transform:uppercase; letter-spacing:.04em;
+    padding:0 0 8px; border-bottom:1px solid var(--border); white-space:nowrap;
+  }
+  td { text-align:right; padding:8px 0; border-bottom:1px solid var(--div); }
+  th + th, td + td { padding-left:10px; }
   th:first-child, td:first-child { text-align:left; }
   tr:last-child td { border-bottom:0; }
-  td.zero { color:var(--fraco); } td.shiny { color:var(--shiny); }
-  .lt td:last-child { color:var(--sub); white-space:nowrap; } .lt td.vazio { text-align:left; }
-  .rolar { overflow:auto; }
+  td.zero { color:var(--fraco); }
+  td.shiny { color:var(--shiny); }
+  .lt td:last-child { color:var(--fraco); white-space:nowrap; font-size:12px; }
+  .lt td.vazio { text-align:left; }
+  .rolar { overflow-x:auto; }
   #dias td { white-space:nowrap; }
-  .barras { display:flex; align-items:flex-end; justify-content:space-around; gap:10px; border-bottom:1px solid var(--line); min-height:110px; }
-  .barras > div { flex:1; max-width:84px; height:100%; display:flex; flex-direction:column; justify-content:flex-end; align-items:center; gap:3px; font-size:11.5px; }
-  .barras i { display:block; width:100%; border-radius:8px 8px 0 0; background:var(--a); } .barras > div:last-child i { background:var(--a2); }
-  .mochila { display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:6px; align-content:start; }
-  .card > .palco-boss { flex:1 1 0; min-height:96px; display:flex; align-items:center; justify-content:center; background:linear-gradient(180deg, var(--scene1), var(--scene2)); border-radius:10px; overflow:hidden; }
-  .palco-boss canvas { height:min(100%, 192px); aspect-ratio:1; max-width:100%; image-rendering:pixelated; }
-  .tp { font-size:10px; font-weight:700; padding:2px 7px; border-radius:5px; background:var(--a-soft); border:1px solid var(--line); text-transform:uppercase; }
-  ol { margin:0; padding-left:18px; color:var(--sub); font-size:12.5px; } ol li { margin:3px 0; }
-  code { font:12px ui-monospace, Consolas, monospace; color:var(--txt); background:var(--tile); border-radius:4px; padding:1px 5px; overflow-wrap:anywhere; }
-  .log { margin:0; font:12px/1.7 ui-monospace, Consolas, monospace; color:var(--sub); white-space:pre-wrap; word-break:break-word; overflow:auto; }
 
-  .shiny-faixa { position:fixed; z-index:20; top:58px; right:14px; max-width:min(460px, calc(100% - 28px)); display:flex; gap:14px; align-items:center; padding:12px 16px; border-radius:14px; background:var(--shiny-fundo); border:1px solid var(--shiny); box-shadow:0 10px 30px #0008; }
-  .shiny-faixa b { color:var(--shiny); font-size:15px; display:block; } .shiny-faixa span { color:#e7dcb6; }
-  .shiny-faixa button { background:var(--shiny); color:#1a1710; border:0; border-radius:8px; padding:6px 14px; font:600 13px system-ui, sans-serif; cursor:pointer; }
+  /* Gráfico de barras (Dia a dia) */
+  .barras {
+    display:flex; align-items:flex-end; justify-content:space-around; gap:10px;
+    height:150px; padding-top:18px;
+    border-bottom:1px solid var(--div);
+  }
+  .barras > div {
+    flex:1; max-width:74px; height:100%;
+    display:flex; flex-direction:column; justify-content:flex-end; align-items:center;
+    gap:5px; font-size:11.5px;
+  }
+  .barras b { font-size:11px; color:var(--sub); font-weight:600; }
+  .barras i {
+    display:block; width:100%; max-width:38px;
+    border-radius:7px 7px 2px 2px;
+    background:linear-gradient(180deg, var(--a2), var(--a));
+    opacity:.72; transition:opacity .15s, height .35s ease;
+  }
+  .barras > div:hover i, .barras > div:last-child i { opacity:1; }
+  .barras > div:last-child b { color:var(--txt); }
+
+  /* Mochila */
+  .mochila { display:grid; grid-template-columns:repeat(auto-fill, minmax(145px, 1fr)); gap:8px; align-content:start; }
+
+  /* Bosses */
+  .palco-boss {
+    height:136px; display:flex; align-items:center; justify-content:center;
+    background:radial-gradient(circle at 50% 60%, var(--scene2), var(--scene1));
+    border-radius:12px; overflow:hidden;
+  }
+  .palco-boss canvas { height:128px; width:128px; image-rendering:pixelated; }
+  .tp {
+    font-size:10.5px; font-weight:600; padding:2px 8px; border-radius:6px;
+    background:var(--tile-hover); color:var(--sub); text-transform:uppercase; letter-spacing:.03em;
+  }
+
+  /* Sniper */
+  .sn-modos { display:flex; gap:6px; flex-wrap:wrap; }
+  .sn-modos .btn[data-sn-modo="1"][aria-pressed=true],
+  .sn-modos .btn[data-sn-rev="1"][aria-pressed=true] { background:var(--bad); color:#fff; }
+  .sn-form { display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:12px 14px; }
+  .sn-form label { display:flex; flex-direction:column; gap:5px; font-size:12.5px; color:var(--sub); }
+  .sn-form label > span.lbl-row { display:flex; justify-content:space-between; gap:6px; align-items:baseline; }
+  .sn-form input[type=number], .inp {
+    font:500 13px 'Inter', system-ui, sans-serif;
+    min-height:36px; padding:0 11px;
+    border-radius:9px; border:1px solid var(--border);
+    background:var(--tile); color:var(--txt); width:100%;
+    transition:border-color .15s, background .15s;
+  }
+  .sn-form input[type=number]:focus, .inp:focus {
+    outline:none; border-color:var(--a2); background:var(--card-hi);
+  }
+  .sn-form .sn-check {
+    flex-direction:row; align-items:center; gap:8px; grid-column:1 / -1;
+    padding:6px 10px; border-radius:9px; background:var(--tile); color:var(--txt);
+  }
+  .sn-acoes { grid-column:1 / -1; display:flex; align-items:center; gap:12px; padding-top:4px; }
+  .sn-sub {
+    grid-column:1 / -1; margin-top:6px; padding-top:12px;
+    border-top:1px solid var(--div);
+    font-size:11.5px; font-weight:600; letter-spacing:.06em; text-transform:uppercase; color:var(--a2);
+  }
+  .lt td.sn-acao { white-space:nowrap; font-weight:600; }
+
+  /* Temas e ajustes */
+  #temas { display:flex; flex-wrap:wrap; gap:8px; }
+  .sw-btn {
+    display:inline-flex; align-items:center; gap:8px;
+    padding:6px 11px 6px 8px; border-radius:999px;
+    background:var(--tile); border:1px solid var(--border);
+    color:var(--sub); font:500 12px 'Inter', system-ui, sans-serif;
+    cursor:pointer; transition:border-color .15s, color .15s, background .15s;
+  }
+  .sw-btn:hover { background:var(--tile-hover); color:var(--txt); }
+  .sw-btn[aria-pressed=true] { border-color:var(--a2); color:var(--txt); background:var(--a-soft); }
+  .sw-dot { width:14px; height:14px; border-radius:50%; flex:none; }
+
+  details.passos { background:var(--tile); border-radius:10px; padding:10px 12px; }
+  details.passos summary { cursor:pointer; font-size:12.5px; font-weight:500; color:var(--txt); list-style:none; display:flex; align-items:center; justify-content:space-between; }
+  details.passos summary::after { content:"▾"; color:var(--sub); }
+  details.passos[open] summary::after { content:"▴"; }
+  details.passos[open] summary { margin-bottom:8px; }
+  ol { margin:0; padding-left:18px; color:var(--sub); font-size:12.5px; }
+  ol li { margin:4px 0; }
+  code {
+    font:12px ui-monospace, Consolas, monospace;
+    color:var(--a2); background:var(--tile-hover);
+    border-radius:5px; padding:1px 6px; overflow-wrap:anywhere;
+  }
+
+  /* Log */
+  .log-bar { display:flex; flex-wrap:wrap; align-items:center; gap:8px; }
+  .log-bar .inp { max-width:280px; min-height:32px; font-size:12.5px; }
+  .log {
+    margin:0; padding:14px; border-radius:12px;
+    background:var(--bg); border:1px solid var(--border);
+    font:12px/1.65 ui-monospace, Consolas, monospace;
+    color:var(--sub); white-space:pre-wrap; word-break:break-word;
+    overflow:auto; height:min(68vh, 620px);
+  }
+
+  /* Alerta flutuante de shiny */
+  .shiny-faixa {
+    position:fixed; z-index:30; top:68px; right:20px;
+    max-width:min(440px, calc(100% - 32px));
+    display:flex; gap:14px; align-items:center;
+    padding:14px 16px; border-radius:14px;
+    background:var(--shiny-fundo); border:1px solid var(--shiny);
+    box-shadow:0 16px 40px rgba(0,0,0,.55);
+  }
+  .shiny-faixa b { color:var(--shiny); font-size:14.5px; display:block; }
+  .shiny-faixa span { color:#e7dcb6; font-size:12.5px; }
+  .shiny-faixa button {
+    background:var(--shiny); color:#1a1710; border:0; border-radius:8px;
+    padding:7px 14px; font:600 12.5px 'Inter', system-ui, sans-serif; cursor:pointer; flex:none;
+  }
   .shiny-faixa.novo { animation:pisca 1s ease-in-out 6; }
-  @keyframes pisca { 50% { background:#4a3d14; } }
+  @keyframes pisca { 50% { background:#443812; } }
   @media (prefers-reduced-motion:reduce) { .shiny-faixa.novo { animation:none; } .bar i { transition:none; } }
 
-  /* telas estreitas: vira uma coluna e a página rola */
-  @media (max-width:1100px) {
-    html, body { height:auto; }
-    .app { height:auto; overflow:visible; grid-template-columns:minmax(0,1fr); }
-    .side { flex-direction:row; align-items:center; border-right:0; border-bottom:1px solid var(--line); padding:8px 12px; position:sticky; top:0; z-index:10; }
-    .marca { padding:0 8px 0 0; } .marca span:last-child { display:none; }
-    #abas { flex-direction:row; } .tab { min-height:40px; }
-    .views { overflow:visible; }
-    .aba, .g-conta.on, .g-bosses.on { height:auto; min-height:0; grid-template-columns:minmax(0,1fr); grid-template-rows:none; }
-    .g-bosses > section { grid-column:auto !important; }
-    .card { overflow:visible; }
-    .card > .grow, .grow { flex:0 0 auto; }
-    .card.cena-card { flex:none; }
-    .card > .palco { flex:none; height:240px; }
-    .card.graf { flex:none; height:180px; }
-    .card .scroll { max-height:320px; }
-    .barras { height:150px; }
-    .kpis { grid-template-columns:repeat(2, minmax(0,1fr)); }
+  /* Sub-painéis internos */
+  .subview { display:none; flex-direction:column; gap:20px; }
+  .subview.on { display:flex; }
+
+  /* Responsivo */
+  @media (max-width:1120px) {
+    .top { position:static; padding:12px 16px; }
+    .views { padding:8px 16px 32px; }
+    .vivo-layout, .g-vivo, .g-2, .g-2-asym, .g-3 { grid-template-columns:minmax(0,1fr); }
+    .vivo-kpis, .g-kpis { grid-template-columns:repeat(2, minmax(0,1fr)); }
+    .g-kpis-3 { grid-template-columns:minmax(0,1fr); }
+  }
+  @media (max-width:760px) {
+    .palco { height:240px; }
+    .marca span:last-child { display:none; }
+  }
+  @media (max-width:560px) {
+    .sn-form { grid-template-columns:minmax(0,1fr); }
+    .vivo-kpis, .g-kpis { grid-template-columns:minmax(0,1fr); }
   }
 </style>
 </head>
 <body>
 <div class="app">
-  <nav class="side" aria-label="Seções">
-    <div class="marca disp"><span class="bola" aria-hidden="true"></span><span>PokeIdle bot</span></div>
-    <div id="abas" role="tablist"></div>
-  </nav>
   <div class="main">
     <header class="top">
-      <span class="pill off" id="pilula"><i></i><span id="pilula-t">DESCONECTADO</span></span>
-      <span class="disp" style="font-size:15px;font-weight:700" id="h-nick">—</span>
-      <span class="chip" id="con">conectando…</span>
-      <span class="chip" id="h-vip" hidden></span>
-      <span class="esp"></span>
-      <span class="chip" id="evento" hidden><span id="ev-t"></span> <b id="ev-fim"></b></span>
-      <span class="chip" id="h-xp" hidden>XP total <b id="ev-x" style="color:var(--a2)"></b></span>
-      <button type="button" class="btn" data-ir="ajustes" id="h-avisos">Avisos</button>
+      <div class="marca disp"><span class="bola" aria-hidden="true"></span><span>PokeIdle</span></div>
+      <nav class="nav-pilulas" aria-label="Navegação principal"><div id="abas" role="tablist"></div></nav>
+      <div class="top-dir">
+        <span class="pill off" id="pilula"><i></i><span id="pilula-t">Conectando…</span></span>
+        <span class="disp top-nick" id="h-nick">—</span>
+        <span class="chip accent" id="h-vip" hidden></span>
+        <button type="button" class="btn sm" data-ir="ajustes" data-sub="config" id="h-avisos">Avisos</button>
+        <b id="side-tempo" hidden>—</b>
+      </div>
     </header>
 
-    <div class="views">
-      <!-- AO VIVO -->
-      <div class="aba g-vivo" data-aba="vivo" role="tabpanel">
-        <div class="col">
-          <section class="card heroi">
-            <div style="display:flex;align-items:center;gap:12px">
-              <canvas id="av" width="96" height="96" aria-label="Seu treinador"></canvas>
-              <div style="min-width:0">
-                <div><span class="mid" id="k-nick">—</span></div>
-                <div class="mini"><span id="k-regiao">—</span> · Nv <b id="k-nivel" style="color:var(--txt)">—</b></div>
-                <div class="mini" id="k-poke">—</div>
+    <main class="views">
+      <!-- ==================== AO VIVO ==================== -->
+      <div class="aba" data-aba="vivo" role="tabpanel">
+        <div class="vivo-layout">
+          <!-- Coluna esquerda: dados do personagem, equipe e avisos -->
+          <div class="vivo-esq">
+            <section class="card heroi" aria-label="Dados do personagem">
+              <div class="heroi-head">
+                <canvas id="av" width="96" height="96" aria-label="Seu treinador"></canvas>
+                <div style="min-width:0;flex:1">
+                  <div class="mid" id="k-nick">—</div>
+                  <div class="mini"><span id="k-regiao">—</span> · Nv <b id="k-nivel" style="color:var(--txt)">—</b></div>
+                  <div class="mini" id="k-poke">—</div>
+                </div>
+              </div>
+              <div class="xp-box">
+                <div class="linha mini">
+                  <span>Próximo nível em <b id="k-eta" style="color:var(--txt)">—</b></span>
+                  <span id="k-xppct">—</span>
+                </div>
+                <div class="bar" title="XP até o próximo nível"><i id="k-xpbar" style="width:0"></i></div>
+                <div class="mini fraco" id="k-falta"></div>
+              </div>
+              <div class="tiles2">
+                <div class="tile item"><img id="i-ouro" class="oi" alt=""><div><small>Ouro</small><strong id="k-ouro">—</strong></div></div>
+                <div class="tile item"><img id="i-gema" class="oi" alt=""><div><small>Gemas</small><strong id="k-gemas">—</strong></div></div>
+                <div class="tile item"><img id="i-pocao" class="oi" alt=""><div><small id="k-pocao-n">Poção</small><strong id="k-pocao">—</strong></div></div>
+                <div class="tile item"><img id="i-bola" class="oi" alt=""><div><small id="k-bola-n">Bola</small><strong id="k-bola">—</strong></div></div>
+              </div>
+            </section>
+
+            <section class="card">
+              <h2>Equipe <span class="meta" id="eq-meta"></span></h2>
+              <ul class="lista" id="equipe"></ul>
+            </section>
+
+            <section class="card faixa" id="faixa">
+              <h2>
+                <span>Avisos recentes</span>
+                <button type="button" class="btn sm ghost" id="btn-avisos" aria-expanded="false" aria-controls="avisos">Ver todos</button>
+              </h2>
+              <div class="avisos-recentes" id="avisos"></div>
+            </section>
+          </div>
+
+          <!-- Coluna direita: simulação, KPIs e ritmo de XP -->
+          <div class="vivo-dir">
+            <section class="card" aria-label="No jogo agora">
+              <div class="cena-head">
+                <div class="cena-titulo">
+                  <span class="card-sub" style="margin:0">No jogo agora</span>
+                  <h1 class="hero-alvo" id="k-alvo">—</h1>
+                </div>
+                <div class="chips">
+                  <span class="chip shiny" id="evento" hidden><span id="ev-t"></span> <b id="ev-fim"></b></span>
+                  <span class="chip accent" id="h-xp" hidden>XP <b id="ev-x"></b></span>
+                  <span class="chips" id="k-chips"></span>
+                  <button type="button" class="btn sm ghost" id="btn-cena-estilo" title="Alternar visual da arena"></button>
+                </div>
+              </div>
+              <div class="palco" id="palco-wrap"><canvas id="cena" aria-label="Seu pokemon ativo e os selvagens do campo"></canvas></div>
+            </section>
+
+            <div class="vivo-kpis">
+              <div class="kpi-c">
+                <span class="kpi-l">XP / h</span>
+                <strong class="kpi-v" id="m-xph">—</strong>
+                <span class="kpi-s" id="m-xph-s">aguardando</span>
+              </div>
+              <div class="kpi-c">
+                <span class="kpi-l">Ouro / h</span>
+                <strong class="kpi-v" id="m-ouroh">—</strong>
+                <span class="kpi-s" id="m-ouroh-s">líquido</span>
+              </div>
+              <div class="kpi-c">
+                <span class="kpi-l">Abates / h</span>
+                <strong class="kpi-v" id="m-abh">—</strong>
+                <span class="kpi-s" id="m-abh-s"></span>
+              </div>
+              <div class="kpi-c">
+                <span class="kpi-l">Capturas hoje <span id="m-des-badge"></span></span>
+                <strong class="kpi-v" id="m-cap">—</strong>
+                <span class="kpi-s" id="m-cap-s"></span>
               </div>
             </div>
-            <div class="linha mini"><span>Próximo nível em <b id="k-eta" style="color:var(--txt)">—</b></span><span id="k-xppct">—</span></div>
-            <div class="bar" title="XP até o próximo nível"><i id="k-xpbar" style="width:0"></i></div>
-            <div class="mini" id="k-falta"></div>
-            <div class="tiles2">
-              <div class="tile item"><img id="i-ouro" class="oi" alt=""><div><small>Ouro</small><strong id="k-ouro">—</strong></div></div>
-              <div class="tile item"><img id="i-gema" class="oi" alt=""><div><small>Gemas</small><strong id="k-gemas">—</strong></div></div>
-              <div class="tile item"><img id="i-pocao" class="oi" alt=""><div><small id="k-pocao-n">Poção</small><strong id="k-pocao">—</strong></div></div>
-              <div class="tile item"><img id="i-bola" class="oi" alt=""><div><small id="k-bola-n">Bola</small><strong id="k-bola">—</strong></div></div>
-            </div>
-          </section>
-          <section class="card grow"><h2>Equipe</h2><div class="grow scroll"><ul class="lista" id="equipe"></ul></div></section>
-        </div>
-        <div class="col">
-          <section class="card cena-card">
-            <h2>No jogo agora <span class="chips" id="k-chips"></span></h2>
-            <div class="palco"><canvas id="cena" aria-label="Seu pokemon ativo e os selvagens do campo"></canvas></div>
-          </section>
-          <div class="kpis">
-            <div class="tile"><small>XP por hora</small><strong id="m-xph">—</strong><span class="sb" id="m-xph-s"></span></div>
-            <div class="tile"><small>Ouro por hora</small><strong id="m-ouroh">—</strong><span class="sb" id="m-ouroh-s"></span></div>
-            <div class="tile"><small>Abates por hora</small><strong id="m-abh">—</strong><span class="sb" id="m-abh-s"></span></div>
-            <div class="tile"><small>Capturas hoje</small><strong id="m-cap">—</strong><span class="sb" id="m-cap-s"></span></div>
-            <div class="tile"><small>Desmaios hoje</small><strong id="m-des">—</strong><span class="sb" id="m-des-s"></span></div>
+
+            <section class="card">
+              <h2>
+                <span>Ritmo de XP</span>
+                <span class="g-stats" id="g-chip">coletando…</span>
+              </h2>
+              <div class="gwrap" id="gwrap">
+                <svg class="grafico" id="grafico" viewBox="0 0 600 200" role="img" aria-label="Gráfico de XP por hora na última hora"></svg>
+                <div class="g-tip" id="g-tip" hidden></div>
+              </div>
+              <div class="linha mini fraco"><span>há 60 min</span><span>agora</span></div>
+            </section>
           </div>
-          <section class="card graf">
-            <h2>XP por hora, última hora <span class="chip" id="g-chip">coletando…</span></h2>
-            <div class="gwrap"><svg class="grafico" id="grafico" viewBox="0 0 600 190" role="img" aria-label="Gráfico de XP por hora na última hora"></svg></div>
-          </section>
         </div>
-        <div class="col">
-          <section class="card">
-            <h2>Compensa?</h2>
-            <div><div class="big" id="cp-net">—</div><div class="mini">ouro por hora hoje, já sem as compras e os prêmios</div></div>
-            <div>
-              <div class="kv"><span>Cada captura vende por</span><b id="cp-venda">—</b></div>
-              <div class="kv"><span>Bolas gastas por captura</span><b id="cp-custo">—</b></div>
-              <div class="kv"><span>Gemas/mês em drops (teto)</span><b id="cp-gemas">—</b></div>
+      </div>
+
+      <!-- ==================== GANHOS ==================== -->
+      <div class="aba" data-aba="ganhos" role="tabpanel">
+        <div class="page-head">
+          <div>
+            <h1>Ganhos & Economia</h1>
+            <div class="mini">Fluxo de ouro hoje, eficiência de captura, drops em gemas e evolução dos últimos 7 dias.</div>
+          </div>
+        </div>
+
+        <div class="g-kpis-3">
+          <div class="kpi">
+            <span class="kpi-l">Ouro líquido por hora (hoje)</span>
+            <strong class="kpi-v" id="cp-net">—</strong>
+            <span class="kpi-s">já descontando compras e sem prêmios</span>
+          </div>
+          <div class="kpi">
+            <span class="kpi-l">Gemas pelos drops (teto/mês)</span>
+            <strong class="kpi-v" id="gg-top">—</strong>
+            <span class="kpi-s" id="gg-top-s">aguardando preços e 1 h de farm</span>
+          </div>
+          <div class="kpi">
+            <span class="kpi-l">Patrimônio líquido estimado <span id="pt-fonte" class="fraco"></span></span>
+            <strong class="kpi-v" id="pt-top">—</strong>
+            <span class="kpi-s" id="pt-top-s">calculando…</span>
+          </div>
+        </div>
+
+        <section class="card">
+          <h2>
+            <span>Resumo econômico</span>
+          </h2>
+          <div class="tiles3">
+            <div class="tile"><small>Venda por captura</small><strong id="cp-venda">—</strong></div>
+            <div class="tile"><small>Custo em bolas</small><strong id="cp-custo">—</strong></div>
+            <div class="tile"><small>Drops (teto/mês)</small><strong id="cp-gemas">—</strong></div>
+          </div>
+        </section>
+
+        <div class="g-2-asym">
+          <div class="col">
+            <section class="card">
+              <h2>A conta de hoje <span class="meta" id="gc-desde"></span></h2>
+              <div id="gc"></div>
+            </section>
+            <section class="card">
+              <h2>Por captura e por abate</h2>
+              <div id="gp"></div>
+            </section>
+            <section class="card">
+              <h2>Detalhes dos drops em gemas</h2>
+              <div id="gg"></div>
+            </section>
+          </div>
+
+          <div class="col">
+            <section class="card">
+              <h2>
+                <span>Dia a dia (últimos 7 dias)</span>
+                <div class="seg" id="metricas" role="group" aria-label="Métrica do gráfico"></div>
+              </h2>
+              <div class="barras" id="barras"></div>
+              <div class="rolar">
+                <table id="dias">
+                  <thead><tr><th>Dia</th><th>Online</th><th>Nível</th><th>Ouro</th><th>Abates</th><th>Capturas</th></tr></thead>
+                  <tbody></tbody>
+                </table>
+              </div>
+            </section>
+
+            <section class="card">
+              <h2>Composição do patrimônio</h2>
+              <div id="patri" class="scroll"><div class="vazio">Aguardando os preços do Mercado…</div></div>
+            </section>
+          </div>
+        </div>
+      </div>
+
+      <!-- ==================== FARM ==================== -->
+      <div class="aba" data-aba="farm" role="tabpanel">
+        <div class="page-head">
+          <div>
+            <h1>Farm & Mochila</h1>
+            <div class="mini">Comparação de hunts medidas, histórico de shinies, itens na mochila e capturas da sessão.</div>
+          </div>
+        </div>
+
+        <div class="g-2">
+          <div class="col">
+            <section class="card">
+              <h2>XP/h por hunt medida</h2>
+              <div id="hunts"></div>
+              <div class="mini">Medições dos últimos 20 níveis. A barra verde indica a hunt atual.</div>
+            </section>
+
+            <section class="card">
+              <h2>Shiny <span class="chip shiny">capturados <b id="m-sh">0</b></span></h2>
+              <div class="chips" id="shinyacum"></div>
+              <div class="mini" id="m-sh-s"></div>
+              <div class="scroll"><table class="lt" id="shinies"></table></div>
+            </section>
+
+            <section class="card">
+              <h2>Capturas recentes</h2>
+              <div class="scroll"><table class="lt" id="capturados"></table></div>
+            </section>
+          </div>
+
+          <div class="col">
+            <section class="card">
+              <h2>Mochila <span class="meta" id="moch-meta"></span></h2>
+              <div class="scroll-lg mochila" id="mochila"></div>
+            </section>
+
+            <section class="card">
+              <h2>Drops desta sessão</h2>
+              <div class="scroll"><table class="lt" id="drops"></table></div>
+            </section>
+          </div>
+        </div>
+      </div>
+
+      <!-- ==================== CONTA & BOSSES ==================== -->
+      <div class="aba" data-aba="conta" role="tabpanel">
+        <div class="page-head">
+          <div>
+            <h1>Conta & Bosses</h1>
+            <div class="mini">Progresso do treinador, bônus ativos e compatibilidade com os bosses lendários.</div>
+          </div>
+          <div class="seg" role="tablist" aria-label="Subseções de Conta">
+            <button type="button" role="tab" data-sub-tab="conta:perfil" aria-selected="true">Perfil & Bônus</button>
+            <button type="button" role="tab" data-sub-tab="conta:bosses" aria-selected="false">Bosses Lendários</button>
+          </div>
+        </div>
+
+        <div class="subview on" data-subview="conta:perfil">
+          <div class="g-3">
+            <section class="card"><h2>PvP ranqueado</h2><div id="pvp"></div></section>
+            <section class="card"><h2>Pokédex</h2><div id="dex"></div></section>
+            <section class="card"><h2>Moedas e passe</h2><div id="moedas"></div></section>
+          </div>
+          <div class="g-3">
+            <section class="card"><h2>Hoje no jogo</h2><div id="hoje"></div></section>
+            <section class="card">
+              <h2>Bônus ativos</h2>
+              <div class="chips" id="bonus"></div>
+              <div class="chips" id="ev-partes"></div>
+            </section>
+            <section class="card">
+              <h2>Lives vinculadas</h2>
+              <div class="chips" id="lives"></div>
+              <div class="mini" id="canais"></div>
+            </section>
+          </div>
+        </div>
+
+        <div class="subview" data-subview="conta:bosses">
+          <div id="bosses-wrap" class="col">
+            <section class="card"><div class="vazio">Aguardando o catálogo do jogo…</div></section>
+          </div>
+        </div>
+      </div>
+
+      <!-- ==================== SNIPER ==================== -->
+      <div class="aba" data-aba="sniper" role="tabpanel">
+        <div class="page-head">
+          <div>
+            <h1>Sniper do Mercado</h1>
+            <div class="mini">Monitoramento de anúncios de Pokémon em Gemas e regras opcionais de compra/revenda.</div>
+          </div>
+          <span class="chip" id="sn-modo-chip">—</span>
+        </div>
+
+        <div class="g-2-asym">
+          <div class="col">
+            <section class="card">
+              <h2>Controle</h2>
+              <div>
+                <div class="card-sub" style="margin-bottom:6px">Compra automática</div>
+                <div class="sn-modos" role="group" aria-label="Modo do sniper">
+                  <button type="button" class="btn" data-sn-modo="0">Desligado</button>
+                  <button type="button" class="btn" data-sn-modo="observar">Só observar</button>
+                  <button type="button" class="btn" data-sn-modo="1">Comprar</button>
+                </div>
+                <div class="mini" id="sn-modo-t" style="margin-top:6px"></div>
+              </div>
+              <div>
+                <div class="card-sub" style="margin-bottom:6px">Revenda automática</div>
+                <div class="sn-modos" role="group" aria-label="Revenda automática">
+                  <button type="button" class="btn" data-sn-rev="0">Revenda desligada</button>
+                  <button type="button" class="btn" data-sn-rev="1">Revender sozinho</button>
+                </div>
+                <div class="mini" id="sn-rev-t" style="margin-top:6px"></div>
+              </div>
+              <div id="sn-hoje"></div>
+            </section>
+
+            <section class="card">
+              <h2>Limites e regras</h2>
+              <form id="sn-form" class="sn-form" autocomplete="off">
+                <label><span class="lbl-row"><span>Máximo por pokemon</span><span class="fraco">Gemas</span></span><input type="number" name="max" min="0" step="1"></label>
+                <label><span class="lbl-row"><span>Máximo por dia</span><span class="fraco">Gemas</span></span><input type="number" name="dia" min="0" step="1"></label>
+                <label><span class="lbl-row"><span>Compras por dia</span></span><input type="number" name="qtdDia" min="0" max="50" step="1"></label>
+                <label><span class="lbl-row"><span>Saldo mínimo</span><span class="fraco">Gemas</span></span><input type="number" name="reserva" min="0" step="1"></label>
+                <label><span class="lbl-row"><span>Ganho mínimo</span><span class="fraco">% líq.</span></span><input type="number" name="lucro" min="5" max="500" step="1"></label>
+                <label><span class="lbl-row"><span>Vendas parecidas mín.</span></span><input type="number" name="vendas" min="3" max="100" step="1"></label>
+                <label><span class="lbl-row"><span>Intervalo</span><span class="fraco">seg</span></span><input type="number" name="seg" min="3" max="600" step="1"></label>
+                <label class="sn-check"><input type="checkbox" name="soShiny"> <span>Só shiny <span class="fraco">(sem shiny quase não vende)</span></span></label>
+                <div class="sn-sub">Revenda</div>
+                <label><span class="lbl-row"><span>Abaixo do mercado</span><span class="fraco">Gemas</span></span><input type="number" name="abaixo" min="0" max="10000" step="1"></label>
+                <label><span class="lbl-row"><span>Margem mínima</span><span class="fraco">% líq. (negativo aceita perda)</span></span><input type="number" name="margem" min="-50" max="500" step="1"></label>
+                <label><span class="lbl-row"><span>Dias na vitrine</span><span class="fraco">100k/dia</span></span><input type="number" name="revDias" min="1" max="30" step="1"></label>
+                <div class="sn-acoes"><button type="submit" class="btn pri">Salvar limites</button><span class="mini" id="sn-form-r"></span></div>
+              </form>
+            </section>
+          </div>
+
+          <div class="col">
+            <section class="card">
+              <h2>Compras e revendas <span class="meta" id="sn-lucro"></span></h2>
+              <div class="scroll" style="max-height:280px"><table class="lt" id="sn-compras"></table></div>
+            </section>
+            <section class="card">
+              <h2>O que ele viu <span class="meta" id="sn-visto"></span></h2>
+              <div class="scroll-lg"><table class="lt" id="sn-eventos"></table></div>
+              <div class="mini">O Mercado segura todo anúncio novo por 2 min e, na liberação, sorteia quem pediu nos 3 primeiros segundos; quem perde não paga.</div>
+            </section>
+          </div>
+        </div>
+      </div>
+
+      <!-- ==================== SISTEMA (AJUSTES + LOG) ==================== -->
+      <div class="aba" data-aba="ajustes" role="tabpanel">
+        <div class="page-head">
+          <div>
+            <h1>Sistema</h1>
+            <div class="mini">Aparência do painel, notificações, acesso na rede local e log do bot em tempo real.</div>
+          </div>
+          <div class="seg" role="tablist" aria-label="Subseções de Sistema">
+            <button type="button" role="tab" data-sub-tab="ajustes:config" aria-selected="true">Configurações</button>
+            <button type="button" role="tab" data-sub-tab="ajustes:log" aria-selected="false">Log ao vivo</button>
+          </div>
+        </div>
+
+        <div class="subview on" data-subview="ajustes:config">
+          <div class="g-2">
+            <div class="col">
+              <section class="card">
+                <h2>Aparência</h2>
+                <div class="mini">Escolha a paleta de cores do painel.</div>
+                <div id="temas" role="group" aria-label="Escolher cor do painel"></div>
+              </section>
+
+              <section class="card">
+                <h2>Saúde do bot</h2>
+                <div id="saude"></div>
+              </section>
             </div>
-            <button type="button" class="btn" data-ir="ganhos">Ver a conta completa</button>
-          </section>
-          <section class="card grow"><h2>Avisos</h2><div class="grow scroll" id="avisos"></div></section>
-        </div>
-      </div>
 
-      <!-- GANHOS -->
-      <div class="aba g-ganhos" data-aba="ganhos" role="tabpanel">
-        <div class="col">
-          <section class="card"><h2>A conta de hoje <span class="mini" id="gc-desde"></span></h2><div id="gc"></div></section>
-          <section class="card grow"><h2>Por captura e por abate</h2><div id="gp"></div></section>
-        </div>
-        <div class="col">
-          <section class="card"><h2>Gemas pelos drops</h2><div id="gg"></div></section>
-          <section class="card grow"><h2>Patrimônio estimado <span class="mini" id="pt-fonte">calculando…</span></h2><div id="patri" class="grow scroll"><div class="vazio">Aguardando os preços do Mercado…</div></div></section>
-        </div>
-        <div class="col">
-          <section class="card grow">
-            <h2>Dia a dia</h2>
-            <div class="chips" id="metricas" role="group" aria-label="O que o gráfico mostra"></div>
-            <div class="barras grow" id="barras"></div>
-            <div class="rolar"><table id="dias"><thead><tr><th>Dia</th><th>Online</th><th>Nível</th><th>Ouro</th><th>Abates</th><th>Capturas</th></tr></thead><tbody></tbody></table></div>
-          </section>
-        </div>
-      </div>
+            <div class="col">
+              <section class="card">
+                <h2>Avisos no celular <span class="chip" id="aj-ntfy">—</span></h2>
+                <div id="aj-avisos"></div>
+                <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+                  <button type="button" class="btn pri" id="aj-teste">Mandar aviso de teste</button>
+                  <span class="mini" id="aj-teste-r"></span>
+                </div>
+              </section>
 
-      <!-- FARM -->
-      <div class="aba g-3" data-aba="farm" role="tabpanel">
-        <div class="col">
-          <section class="card"><h2>XP/h por hunt medida</h2><div id="hunts"></div><div class="mini">Só medições dos últimos 20 níveis. A barra verde é a hunt atual.</div></section>
-          <section class="card grow"><h2>Shiny <span class="chip">capturados <b id="m-sh">0</b></span></h2><div class="chips" id="shinyacum"></div><div class="mini" id="m-sh-s"></div><div class="grow scroll"><table class="lt" id="shinies"></table></div></section>
-        </div>
-        <div class="col"><section class="card grow"><h2>Mochila</h2><div class="grow scroll mochila" id="mochila"></div></section></div>
-        <div class="col">
-          <section class="card grow"><h2>Drops desta sessão</h2><div class="grow scroll"><table class="lt" id="drops"></table></div></section>
-          <section class="card grow"><h2>Capturas recentes</h2><div class="grow scroll"><table class="lt" id="capturados"></table></div></section>
-        </div>
-      </div>
-
-      <!-- BOSSES -->
-      <div class="aba g-bosses" data-aba="bosses" role="tabpanel"><section class="card"><div class="vazio">Aguardando o catálogo do jogo…</div></section></div>
-
-      <!-- CONTA -->
-      <div class="aba g-conta" data-aba="conta" role="tabpanel">
-        <section class="card"><h2>PvP ranqueado</h2><div id="pvp"></div></section>
-        <section class="card"><h2>Pokédex</h2><div id="dex"></div></section>
-        <section class="card"><h2>Moedas e passe</h2><div id="moedas"></div></section>
-        <section class="card"><h2>Hoje no jogo</h2><div id="hoje"></div></section>
-        <section class="card"><h2>Bônus ativos</h2><div class="chips" id="bonus"></div><div class="chips" id="ev-partes"></div></section>
-        <section class="card"><h2>Lives</h2><div class="chips" id="lives"></div><div class="mini" id="canais"></div></section>
-      </div>
-
-      <!-- AJUSTES -->
-      <div class="aba g-3" data-aba="ajustes" role="tabpanel">
-        <section class="card"><h2>Avisos no celular <span class="chip" id="aj-ntfy">—</span></h2><div id="aj-avisos"></div><button type="button" class="btn pri" id="aj-teste">Mandar aviso de teste</button><div class="mini" id="aj-teste-r"></div></section>
-        <div class="col">
-          <section class="card"><h2>Painel no celular <span class="chip" id="aj-rede">—</span></h2><div id="aj-rede-t"></div></section>
-          <section class="card grow"><h2>XP Share nas reservas <span class="chip">não ligado</span></h2><div class="mini">É grátis no jogo, mas muda o que o bot faz. Combine com seu amigo antes. Sua conta também precisa de uma casa em uso, e esse caminho ainda não foi testado.</div></section>
-        </div>
-        <section class="card"><h2>Aparência</h2><div class="mini">Cor do painel</div><div id="temas" role="group" aria-label="Escolher cor do painel"></div><h2 style="margin-top:8px">Saúde do bot</h2><div id="saude"></div></section>
-      </div>
-
-      <!-- SNIPER -->
-      <div class="aba g-sniper" data-aba="sniper" role="tabpanel">
-        <div class="col">
-          <section class="card">
-            <h2>Sniper de pokemon <span class="chip" id="sn-modo-chip">—</span></h2>
-            <div class="sn-modos" role="group" aria-label="Modo do sniper">
-              <button type="button" class="btn" data-sn-modo="0">Desligado</button>
-              <button type="button" class="btn" data-sn-modo="observar">Só observar</button>
-              <button type="button" class="btn" data-sn-modo="1">Comprar</button>
+              <section class="card">
+                <h2>Painel no celular <span class="chip" id="aj-rede">—</span></h2>
+                <div id="aj-rede-t"></div>
+              </section>
             </div>
-            <div class="mini" id="sn-modo-t"></div>
-            <div class="sn-modos" role="group" aria-label="Revenda automática">
-              <button type="button" class="btn" data-sn-rev="0">Revenda desligada</button>
-              <button type="button" class="btn" data-sn-rev="1">Revender sozinho</button>
-            </div>
-            <div class="mini" id="sn-rev-t"></div>
-            <div id="sn-hoje"></div>
-          </section>
-          <section class="card">
-            <h2>Limites</h2>
-            <form id="sn-form" class="sn-form" autocomplete="off">
-              <label>Máximo por pokemon <span class="mini">Gemas</span><input type="number" name="max" min="0" step="1"></label>
-              <label>Máximo por dia <span class="mini">Gemas</span><input type="number" name="dia" min="0" step="1"></label>
-              <label>Compras por dia<input type="number" name="qtdDia" min="0" max="50" step="1"></label>
-              <label>Saldo que sempre fica <span class="mini">Gemas</span><input type="number" name="reserva" min="0" step="1"></label>
-              <label>Ganho mínimo na revenda <span class="mini">% já sem a taxa</span><input type="number" name="lucro" min="5" max="500" step="1"></label>
-              <label>Vendas parecidas mínimas<input type="number" name="vendas" min="3" max="100" step="1"></label>
-              <label>Olhar a cada <span class="mini">segundos</span><input type="number" name="seg" min="3" max="600" step="1"></label>
-              <label class="sn-check"><input type="checkbox" name="soShiny"> Só shiny <span class="mini">(sem shiny quase não vende)</span></label>
-              <div class="sn-sub">Revenda</div>
-              <label>Anunciar abaixo do mercado <span class="mini">Gemas</span><input type="number" name="abaixo" min="0" max="10000" step="1"></label>
-              <label>Ganho mínimo sobre o que pagou <span class="mini">% já sem a taxa; negativo aceita perda</span><input type="number" name="margem" min="-50" max="500" step="1"></label>
-              <label>Dias na vitrine <span class="mini">100 mil de ouro por dia</span><input type="number" name="revDias" min="1" max="30" step="1"></label>
-              <div class="sn-acoes"><button type="submit" class="btn pri">Salvar limites</button><span class="mini" id="sn-form-r"></span></div>
-            </form>
-          </section>
+          </div>
         </div>
-        <div class="col">
+
+        <div class="subview" data-subview="ajustes:log">
           <section class="card">
-            <h2>Compras e revendas <span class="mini" id="sn-lucro"></span></h2>
-            <div class="scroll" style="max-height:260px"><table class="lt" id="sn-compras"></table></div>
-          </section>
-          <section class="card grow">
-            <h2>O que ele viu <span class="mini" id="sn-visto"></span></h2>
-            <div class="grow scroll"><table class="lt" id="sn-eventos"></table></div>
-            <div class="mini">O Mercado segura todo anúncio novo por 2 min e, na liberação, sorteia quem pediu nos 3 primeiros segundos; quem perde não paga. O sniper nunca anuncia para revender.</div>
+            <h2>
+              <span>Log ao vivo</span>
+              <span class="log-bar">
+                <input type="search" class="inp" id="log-filtro" placeholder="Filtrar linhas (ex: shiny, pvp, hunt)…">
+                <button type="button" class="btn sm" id="log-fim">Ir ao fim</button>
+              </span>
+            </h2>
+            <pre class="log" id="logtxt"></pre>
           </section>
         </div>
       </div>
-
-      <!-- LOG -->
-      <div class="aba g-1" data-aba="log" role="tabpanel"><section class="card"><h2>Log ao vivo</h2><pre class="log grow" id="logtxt"></pre></section></div>
-    </div>
+    </main>
   </div>
 </div>
 
@@ -369,7 +934,7 @@
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[c]));
 const n = (v) => v == null || Number.isNaN(v) ? '—' : Number(v).toLocaleString('pt-BR');
-function c(v) { // 264.677 → 264,7 mil; 15.010.478 → 15 mi
+function c(v) {
   if (v == null || Number.isNaN(v)) return '—';
   const a = Math.abs(v);
   if (a >= 1e9) return (v / 1e9).toLocaleString('pt-BR', { maximumFractionDigits: 1 }) + ' bi';
@@ -383,7 +948,7 @@ const TP = { xp: 'XP', captura: 'Captura', shiny: 'Lure' };
 const fmtMin = (m) => m >= 60 ? `${Math.floor(m / 60)} h ${m % 60} min` : `${m} min`;
 const hora = (t) => new Date(t).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 
-// ---- ícones oficiais do jogo (o bot entrega as URLs em /icones) ----
+// ---- ícones oficiais ----
 let ICON = { ouro: '', gema: '', generico: '', bolas: {}, itens: {} };
 const imgIc = (url) => url ? `<img class="ci" src="${url}" alt="" onerror="this.onerror=null;this.src=ICON.generico">` : '';
 function trocarIcone(id, url) {
@@ -393,45 +958,91 @@ function trocarIcone(id, url) {
 }
 fetch('/icones').then((r) => r.json()).then((j) => { ICON = { ...ICON, ...j }; trocarIcone('i-ouro', ICON.ouro); trocarIcone('i-gema', ICON.gema); }).catch(() => {});
 
-// ---- temas ----
+// ---- temas (refinados com superfícies calmas) ----
 const TEMAS = {
-  roxo:    { nome:'Roxo',    a:'#8b5cf6', a2:'#c4a8ff', bg:'#0f0b1c', card:'#1a1430', hi:'#241a45', tile:'#221a3c', line:'#352a5a', txt:'#efeaff', sub:'#a99fd0', fraco:'#7a6fa3', glow:'#8b5cf655', glow2:'#2a1b55', s1:'#150f29', s2:'#1f1640', ok:'#4ade80', bad:'#f87171' },
-  azul:    { nome:'Azul',    a:'#3b82f6', a2:'#8ec5ff', bg:'#0a1020', card:'#111b33', hi:'#162447', tile:'#172444', line:'#243a68', txt:'#e8f0ff', sub:'#9db0d6', fraco:'#6f84ae', glow:'#3b82f655', glow2:'#12285a', s1:'#0c1428', s2:'#14224a', ok:'#4ade80', bad:'#f87171' },
-  verde:   { nome:'Verde',   a:'#10b981', a2:'#6ee7b7', bg:'#08130f', card:'#0f1f19', hi:'#13291f', tile:'#142a21', line:'#1f4234', txt:'#e6fbf1', sub:'#95c2ae', fraco:'#648f7b', glow:'#10b98155', glow2:'#0d3a2a', s1:'#0a1812', s2:'#10281f', ok:'#86efac', bad:'#fb7185' },
-  pokedex: { nome:'Pokédex', a:'#e53935', a2:'#ff8a80', bg:'#120a0c', card:'#211214', hi:'#2e171a', tile:'#2a1619', line:'#4d2a2e', txt:'#fff0ee', sub:'#d4a5a0', fraco:'#a36f6a', glow:'#e5393555', glow2:'#431518', s1:'#170c0e', s2:'#2a1518', ok:'#4ade80', bad:'#ff8a80' },
-  rosa:    { nome:'Rosa',    a:'#ec4899', a2:'#f9a8d4', bg:'#1a0b14', card:'#2a1220', hi:'#381829', tile:'#321728', line:'#5a2a45', txt:'#ffe9f4', sub:'#d5a3bd', fraco:'#a06f88', glow:'#ec489955', glow2:'#4a1636', s1:'#1f0d18', s2:'#34162a', ok:'#4ade80', bad:'#fca5a5' },
-  laranja: { nome:'Laranja', a:'#f97316', a2:'#fdba74', bg:'#170e07', card:'#261710', hi:'#321e12', tile:'#2f1d12', line:'#55341f', txt:'#fff0e3', sub:'#d1ac90', fraco:'#9c7a60', glow:'#f9731655', glow2:'#4a2410', s1:'#1c1109', s2:'#2d1b10', ok:'#4ade80', bad:'#fca5a5' },
-  claro:   { nome:'Claro',   a:'#7c3aed', a2:'#6d28d9', bg:'#f4f1ff', card:'#ffffff', hi:'#f3edff', tile:'#f5f1ff', line:'#ddd3f7', txt:'#1e1538', sub:'#5b4f86', fraco:'#7d71a6', glow:'#7c3aed33', glow2:'#e4d9ff', s1:'#f1ecff', s2:'#e6ddff', ok:'#15803d', bad:'#b91c1c' },
+  roxo:    { nome:'Roxo',    a:'#8b5cf6', a2:'#b89cff', bg:'#0b0a12', side:'#100f1a', card:'#151322', hi:'#1d1a31', s1:'#121024', s2:'#1c1738', ok:'#4ade80', bad:'#f87171', light:false },
+  azul:    { nome:'Azul',    a:'#3b82f6', a2:'#8ec5ff', bg:'#080c15', side:'#0c1220', card:'#111829', hi:'#17223a', s1:'#0c1324', s2:'#142140', ok:'#4ade80', bad:'#f87171', light:false },
+  verde:   { nome:'Esmeralda',a:'#10b981',a2:'#6ee7b7', bg:'#070f0c', side:'#0b1612', card:'#101e19', hi:'#162a23', s1:'#0b1813', s2:'#122920', ok:'#6ee7b7', bad:'#fb7185', light:false },
+  pokedex: { nome:'Pokédex', a:'#e53935', a2:'#ff8a80', bg:'#10090a', side:'#170d0f', card:'#1e1214', hi:'#2a181b', s1:'#180d0f', s2:'#291518', ok:'#4ade80', bad:'#ff8a80', light:false },
+  rosa:    { nome:'Rosa',    a:'#ec4899', a2:'#f9a8d4', bg:'#12090e', side:'#1a0d15', card:'#22121b', hi:'#2d1824', s1:'#1b0d16', s2:'#2e1625', ok:'#4ade80', bad:'#fca5a5', light:false },
+  laranja: { nome:'Âmbar',   a:'#f97316', a2:'#fdba74', bg:'#110c07', side:'#18110b', card:'#211710', hi:'#2b1e14', s1:'#19110a', s2:'#2b1c11', ok:'#4ade80', bad:'#fca5a5', light:false },
+  claro:   { nome:'Claro',   a:'#7c3aed', a2:'#6d28d9', bg:'#f5f5f9', side:'#ffffff', card:'#ffffff', hi:'#f0edfb', s1:'#edeaf7', s2:'#e2dcf5', ok:'#15803d', bad:'#dc2626', light:true },
 };
 let temaAtual = 'roxo';
 try { const t = localStorage.getItem('pk-tema'); if (TEMAS[t]) temaAtual = t; } catch {}
+function luminancia(hex) {
+  const c = [1, 3, 5].map((i) => { const x = parseInt(hex.slice(i, i + 2), 16) / 255; return x <= 0.03928 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4; });
+  return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+}
+function textoSobre(hex) {
+  const l = luminancia(hex);
+  return 1.05 / (l + 0.05) >= (l + 0.05) / (luminancia('#0b0a12') + 0.05) ? '#ffffff' : '#0b0a12';
+}
 function aplicarTema(k) {
   const t = TEMAS[k] ?? TEMAS.roxo; temaAtual = TEMAS[k] ? k : 'roxo';
-  const v = { a:t.a, a2:t.a2, 'a-soft':t.a + '26', bg:t.bg, card:t.card, 'card-hi':t.hi, tile:t.tile, line:t.line, txt:t.txt, sub:t.sub, fraco:t.fraco, glow:t.glow, glow2:t.glow2, scene1:t.s1, scene2:t.s2, ok:t.ok, 'ok-soft':t.ok + '22', bad:t.bad };
+  const L = t.light;
+  const v = {
+    a: t.a, a2: t.a2, 'on-a': textoSobre(t.a),
+    'a-soft': L ? t.a + '18' : t.a + '24',
+    'a-ring': L ? t.a + '44' : t.a + '55',
+    bg: t.bg, side: t.side, card: t.card, 'card-hi': t.hi,
+    tile: L ? 'rgba(18,14,40,.035)' : 'rgba(255,255,255,.032)',
+    'tile-hover': L ? 'rgba(18,14,40,.065)' : 'rgba(255,255,255,.058)',
+    border: L ? 'rgba(18,14,40,.09)' : 'rgba(255,255,255,.075)',
+    div: L ? 'rgba(18,14,40,.065)' : 'rgba(255,255,255,.055)',
+    txt: L ? '#18142b' : '#f2effc',
+    sub: L ? '#575073' : '#9b94b8',
+    fraco: L ? '#847da3' : '#6c658a',
+    scene1: t.s1, scene2: t.s2,
+    ok: t.ok, 'ok-soft': L ? 'rgba(21,128,61,.11)' : 'rgba(74,222,128,.12)',
+    bad: t.bad, 'bad-soft': L ? 'rgba(220,38,38,.1)' : 'rgba(248,113,113,.12)',
+    shiny: L ? '#b45309' : '#f3cf6b',
+    'shiny-fundo': L ? '#fef9e7' : '#252010',
+    shadow: L ? '0 1px 2px rgba(18,14,40,.05), 0 6px 20px rgba(18,14,40,.04)' : '0 1px 2px rgba(0,0,0,.28), 0 8px 24px rgba(0,0,0,.18)',
+  };
   for (const [nome, val] of Object.entries(v)) document.documentElement.style.setProperty('--' + nome, val);
   try { localStorage.setItem('pk-tema', temaAtual); } catch {}
   $('temas').innerHTML = Object.entries(TEMAS).map(([id, x]) =>
-    `<button class="sw" type="button" data-t="${id}" title="${x.nome}" aria-label="Tema ${x.nome}" aria-pressed="${id === temaAtual}" style="background:linear-gradient(135deg,${x.a},${x.a2});box-shadow:0 0 0 2px ${id === temaAtual ? x.a2 : 'transparent'}"></button>`).join('');
+    `<button class="sw-btn" type="button" data-t="${id}" aria-pressed="${id === temaAtual}"><span class="sw-dot" style="background:linear-gradient(135deg,${x.a},${x.a2})"></span>${x.nome}</button>`).join('');
   desenharGrafico();
 }
 $('temas').addEventListener('click', (e) => { const b = e.target.closest('button[data-t]'); if (b) aplicarTema(b.dataset.t); });
-const estilo = 'pkm'; // visual de jogo só na cena (céu, gramado, placas de nome)
 const cor = (nome) => getComputedStyle(document.documentElement).getPropertyValue('--' + nome).trim();
 
-// ---- listas ----
+// ---- estilo da cena: integrado (padrão) ou clássico ----
+let estiloCena = 'dark';
+try { if (localStorage.getItem('pk-cena') === 'pkm') estiloCena = 'pkm'; } catch {}
+function atualizarEstiloCena() {
+  $('palco-wrap').classList.toggle('classico', estiloCena === 'pkm');
+  $('btn-cena-estilo').textContent = estiloCena === 'pkm' ? 'Arena escura' : 'Arena clássica';
+}
+$('btn-avisos').onclick = () => {
+  const f = $('faixa'), aberto = f.classList.toggle('aberto');
+  $('btn-avisos').setAttribute('aria-expanded', String(aberto));
+  $('btn-avisos').textContent = aberto ? 'Recolher' : 'Ver todos';
+};
+$('btn-cena-estilo').onclick = () => {
+  estiloCena = estiloCena === 'pkm' ? 'dark' : 'pkm';
+  try { localStorage.setItem('pk-cena', estiloCena); } catch {}
+  atualizarEstiloCena();
+};
+atualizarEstiloCena();
+
+// ---- listas & utilitários ----
 function linhaHp({ nome, extra, hp, mhp, classes = '', direita }) {
   const pct = mhp ? Math.max(0, Math.min(100, 100 * hp / mhp)) : 0;
   return `<li class="${classes}"><span class="nome">${nome}${extra ? `<small>${extra}</small>` : ''}</span>` +
-    `<span class="bar"><i class="${pct < 30 ? 'low' : 'ok'}" style="width:${pct}%"></i></span>` +
-    `<span class="v num">${direita ?? `${c(hp)}/${c(mhp)}`}</span></li>`;
+    `<span class="bar"><i class="${pct < 30 ? 'low' : pct < 55 ? 'mid' : 'ok'}" style="width:${pct}%"></i></span>` +
+    `<span class="v">${direita ?? `${c(hp)}/${c(mhp)}`}</span></li>`;
 }
 function lista(el, html, vazio) { el.innerHTML = html.length ? html.join('') : `<li class="vazio" style="display:block">${vazio}</li>`; }
-function tabela(el, html, vazio) { el.innerHTML = html.length ? html.join('') : `<tr><td class="vazio" colspan="2">${vazio}</td></tr>`; }
+function tabela(el, html, vazio) { el.innerHTML = html.length ? html.join('') : `<tr><td class="vazio" colspan="3">${vazio}</td></tr>`; }
 
-// ---- histórico de XP/h (guarda o XP total a cada 30 s por 1 h no navegador; o ritmo é o XP ganho nos últimos 5 min) ----
+// ---- gráfico de XP/h com gradiente + tooltip ----
 let amostras = [];
 try { amostras = (JSON.parse(localStorage.getItem('pk-xp2')) ?? []).filter((p) => Date.now() - p[0] < 3600_000 + 300_000); } catch {}
 let ultimaAmostra = 0;
+let ultimosPontosGraf = [];
 function amostrar(s) {
   if (!s.conectado || s.xp == null || Date.now() - ultimaAmostra < 30_000) return;
   ultimaAmostra = Date.now(); amostras.push([Date.now(), s.xp]);
@@ -439,7 +1050,6 @@ function amostrar(s) {
   try { localStorage.setItem('pk-xp2', JSON.stringify(amostras)); } catch {}
   desenharGrafico();
 }
-// ritmo em cada ponto: XP ganho / tempo, contra a amostra de 5 min antes (ou a mais antiga, se já passou de 2 min)
 function ritmos() {
   const out = [];
   for (let i = 0; i < amostras.length; i++) {
@@ -452,72 +1062,189 @@ function ritmos() {
 }
 function desenharGrafico() {
   const el = $('grafico'); if (!el) return;
-  const W = el.clientWidth || 600, H = el.clientHeight || 120, pad = 9, rs = ritmos();
-  el.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
-  let html = [0.1, 0.37, 0.63, 0.9].map((f) => Math.round(f * H)).map((y) => `<line class="g" x1="0" y1="${y}" x2="${W}" y2="${y}" stroke-width="1"/>`).join('');
-  if (rs.length < 2) { el.innerHTML = html + `<text x="${W / 2}" y="${H / 2}" text-anchor="middle" fill="${cor('sub')}" font-size="14">coletando os primeiros pontos…</text>`; $('g-chip').textContent = 'coletando…'; return; }
+  const W = el.clientWidth || 600, H = el.clientHeight || 180;
+  const padL = 6, padR = 8, padT = 14, padB = 18;
+  const rs = ritmos();
+  el.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  const ys = [0.15, 0.5, 0.85].map((f) => Math.round(padT + f * (H - padT - padB)));
+  const grid = ys.map((y) => `<line class="g" x1="${padL}" y1="${y}" x2="${W - padR}" y2="${y}" stroke-width="1"/>`).join('');
+  if (rs.length < 2) {
+    ultimosPontosGraf = [];
+    el.innerHTML = grid + `<text x="${W / 2}" y="${H / 2}" text-anchor="middle" fill="${cor('fraco')}" font-size="13">coletando os primeiros pontos…</text>`;
+    $('g-chip').textContent = 'coletando…';
+    return;
+  }
   const t1 = Date.now(), t0 = t1 - 3600_000, vs = rs.map((p) => p[1]);
-  let lo = Math.min(...vs), hi = Math.max(...vs); const folga = Math.max((hi - lo) * 0.15, hi * 0.02, 1); lo -= folga; hi += folga;
-  const pts = rs.map(([t, v]) => [Math.round((t - t0) / (t1 - t0) * W), Math.round(H - pad - (v - lo) / (hi - lo) * (H - 2 * pad))]);
-  const linha = pts.map((p) => p.join(',')).join(' ');
-  const ult = pts[pts.length - 1];
-  el.innerHTML = html + `<polygon class="ar" points="${pts[0][0]},${H - pad} ${linha} ${ult[0]},${H - pad}"/><polyline class="l" points="${linha}" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/><circle class="pt" cx="${ult[0]}" cy="${ult[1]}" r="5" stroke-width="3"/>`;
+  let lo = Math.min(...vs), hi = Math.max(...vs);
+  const folga = Math.max((hi - lo) * 0.16, hi * 0.03, 1); lo = Math.max(0, lo - folga); hi += folga;
+  const pts = rs.map(([t, v]) => ({
+    t, v,
+    x: Math.round(padL + (t - t0) / (t1 - t0) * (W - padL - padR)),
+    y: Math.round(H - padB - (v - lo) / (hi - lo) * (H - padT - padB)),
+  }));
+  ultimosPontosGraf = pts;
+  const linha = pts.map((p) => `${p.x},${p.y}`).join(' ');
+  const ult = pts[pts.length - 1], baseY = H - padB;
+  const defs = `<defs><linearGradient id="xpGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="${cor('a')}" stop-opacity="0.28"/><stop offset="100%" stop-color="${cor('a')}" stop-opacity="0"/></linearGradient></defs>`;
+  const labels = `<text class="lbl" x="${padL + 2}" y="${padT - 2}">${c(hi)}/h</text><text class="lbl" x="${padL + 2}" y="${baseY - 4}">${c(lo)}/h</text>`;
+  el.innerHTML = defs + grid + labels +
+    `<polygon fill="url(#xpGrad)" points="${pts[0].x},${baseY} ${linha} ${ult.x},${baseY}"/>` +
+    `<polyline class="l" points="${linha}" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>` +
+    `<circle cx="${ult.x}" cy="${ult.y}" r="8" fill="${cor('a')}" fill-opacity="0.22"/>` +
+    `<circle class="pt" cx="${ult.x}" cy="${ult.y}" r="4" stroke-width="2.5"/>`;
   const prim = amostras.find((p) => t1 - p[0] <= 3600_000) ?? amostras[0], ultA = amostras[amostras.length - 1], dt = (ultA[0] - prim[0]) / 3600_000;
   const media = dt > 0.03 ? (ultA[1] - prim[1]) / dt : vs[vs.length - 1];
-  $('g-chip').innerHTML = `pico <b>${c(Math.max(...vs))}</b> · média <b>${c(media)}</b> · agora <b>${c(vs[vs.length - 1])}</b>`;
+  $('g-chip').innerHTML = `<span>Agora<b>${c(vs[vs.length - 1])}</b></span><span>Média<b>${c(media)}</b></span><span>Pico<b>${c(Math.max(...vs))}</b></span>`;
 }
+$('gwrap').addEventListener('mousemove', (e) => {
+  const tip = $('g-tip');
+  if (!ultimosPontosGraf.length) { tip.hidden = true; return; }
+  const r = $('grafico').getBoundingClientRect();
+  const mx = e.clientX - r.left;
+  let best = ultimosPontosGraf[0], dist = Infinity;
+  for (const p of ultimosPontosGraf) { const d = Math.abs(p.x - mx); if (d < dist) { dist = d; best = p; } }
+  tip.hidden = false;
+  tip.style.left = Math.max(54, Math.min(r.width - 54, best.x)) + 'px';
+  tip.style.top = Math.max(24, best.y) + 'px';
+  tip.innerHTML = `<b>${c(best.v)} XP/h</b> <span class="fraco">· ${hora(best.t)}</span>`;
+});
+$('gwrap').addEventListener('mouseleave', () => { $('g-tip').hidden = true; });
+
+// ---- navegação principal (6 abas agrupadas) + sub-abas ----
+const GRUPOS = [
+  { titulo: 'Monitor', itens: [
+    ['vivo', 'Ao vivo', 'M3 12h4l3-8 4 16 3-8h4'],
+    ['ganhos', 'Ganhos', 'M4 20V10M10 20V4M16 20v-7M22 20H2'],
+    ['farm', 'Farm & Mochila', 'M4 9h16l-1 11H5zM8 9V6a4 4 0 018 0v3'],
+  ]},
+  { titulo: 'Conta & Ferramentas', itens: [
+    ['conta', 'Conta & Bosses', 'M12 12a4 4 0 100-8 4 4 0 000 8zM4 21a8 8 0 0116 0'],
+    ['sniper', 'Sniper', 'M12 2v4M12 18v4M2 12h4M18 12h4M12 8a4 4 0 100 8 4 4 0 000-8z'],
+    ['ajustes', 'Sistema', 'M4 6h10M18 6h2M4 18h4M12 18h8M16 4v4M10 16v4'],
+  ]},
+];
+const IDS_ABAS = GRUPOS.flatMap((g) => g.itens.map((x) => x[0]));
+let abaAtual = 'vivo';
+const subAtuais = { conta: 'perfil', ajustes: 'config' };
+
+try {
+  const saved = localStorage.getItem('pk-aba');
+  if (saved === 'bosses') { abaAtual = 'conta'; subAtuais.conta = 'bosses'; }
+  else if (saved === 'log') { abaAtual = 'ajustes'; subAtuais.ajustes = 'log'; }
+  else if (IDS_ABAS.includes(saved)) abaAtual = saved;
+} catch {}
+
+function mostrarSub(aba, sub) {
+  subAtuais[aba] = sub;
+  document.querySelectorAll(`[data-sub-tab^="${aba}:"]`).forEach((b) => {
+    b.setAttribute('aria-selected', String(b.dataset.subTab === `${aba}:${sub}`));
+  });
+  document.querySelectorAll(`[data-subview^="${aba}:"]`).forEach((el) => {
+    el.classList.toggle('on', el.dataset.subview === `${aba}:${sub}`);
+  });
+  if (aba === 'ajustes' && sub === 'log') { const p = $('logtxt'); p.scrollTop = p.scrollHeight; }
+}
+function mostrarAba(k, sub) {
+  if (k === 'bosses') { k = 'conta'; sub = 'bosses'; }
+  if (k === 'log') { k = 'ajustes'; sub = 'log'; }
+  if (!IDS_ABAS.includes(k)) k = 'vivo';
+  abaAtual = k;
+  try { localStorage.setItem('pk-aba', k); } catch {}
+  $('abas').innerHTML = GRUPOS.flatMap((g) => g.itens).map(([id, t]) =>
+    `<button class="tab" type="button" role="tab" data-a="${id}" aria-selected="${id === k}">${t}</button>`
+  ).join('');
+  document.querySelectorAll('.aba').forEach((el) => el.classList.toggle('on', el.dataset.aba === k));
+  if (sub && subAtuais[k] !== undefined) mostrarSub(k, sub);
+  else if (subAtuais[k] !== undefined) mostrarSub(k, subAtuais[k]);
+  if (k === 'vivo') requestAnimationFrame(desenharGrafico);
+}
+$('abas').addEventListener('click', (e) => { const b = e.target.closest('button[data-a]'); if (b) mostrarAba(b.dataset.a); });
+document.addEventListener('click', (e) => {
+  const sb = e.target.closest('[data-sub-tab]');
+  if (sb) { const [a, s] = sb.dataset.subTab.split(':'); mostrarSub(a, s); return; }
+  const b = e.target.closest('[data-ir]');
+  if (b) mostrarAba(b.dataset.ir, b.dataset.sub);
+});
+mostrarAba(abaAtual);
 
 // ---- estado ----
 let ultimoEstado = null;
 async function atualizar() {
   let s;
   try { s = await (await fetch('/estado')).json(); }
-  catch { $('pilula').className = 'pill off'; $('pilula-t').textContent = 'SEM RESPOSTA'; $('con').textContent = 'o bot está rodando?'; return; }
+  catch {
+    $('pilula').className = 'pill off';
+    $('pilula-t').textContent = 'Sem resposta';
+    $('side-tempo').textContent = 'offline';
+    return;
+  }
   ultimoEstado = s;
   const tempo = s.minutos < 60 ? `${s.minutos} min` : `${(s.minutos / 60).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} h`;
-  $('con').textContent = `${s.somenteLer ? 'só leitura · ' : ''}${s.conectado ? 'online' : 'reconectando'} há ${tempo}`;
+  $('pilula').className = 'pill' + (s.conectado ? '' : ' off');
+  $('pilula-t').textContent = `${s.somenteLer ? 'Só leitura · ' : ''}${s.conectado ? 'Online' : 'Reconectando'} · ${tempo}`;
+  $('side-tempo').textContent = tempo;
   $('h-nick').textContent = s.nick ?? '—';
-  $('h-vip').hidden = !s.bonus?.vip; if (s.bonus?.vip) $('h-vip').innerHTML = `VIP <b>${s.bonus.vipPermanente ? 'permanente' : dur(s.bonus.vipMin)}</b>`;
-  $('pilula').className = 'pill' + (s.conectado ? '' : ' off'); $('pilula-t').textContent = s.conectado ? 'CONECTADO' : 'DESCONECTADO';
+  $('h-vip').hidden = !s.bonus?.vip;
+  if (s.bonus?.vip) $('h-vip').innerHTML = `VIP <b>${s.bonus.vipPermanente ? 'permanente' : dur(s.bonus.vipMin)}</b>`;
 
   const eu = s.equipe.find((p) => p.ativo), hs = s.huntSessao ?? {}, cedo = s.minutos < 5;
   const area = s.noCentro ? 'Centro' : s.hunt?.area ?? '—';
   $('k-nick').textContent = s.nick ?? '—';
-  $('k-regiao').textContent = area.charAt(0).toUpperCase() + area.slice(1) + (area === 'outland' && s.outlandTier ? ` · tier ${s.outlandTier - 100}` : '');
+  $('k-regiao').textContent = area.charAt(0).toUpperCase() + area.slice(1) + (area === 'outland' && s.outlandTier ? ` · T${s.outlandTier - 100}` : '');
   $('k-nivel').textContent = n(s.nivel);
-  $('k-poke').textContent = eu ? `${eu.nome} Nv ${n(eu.nv)}` : 'sem ativo';
+  $('k-poke').textContent = s.noCentro ? 'Curando no Centro' : eu ? `${eu.nome} Nv ${n(eu.nv)}` : 'sem pokémon ativo';
+  $('k-alvo').innerHTML = s.noCentro ? 'Centro Pokémon' : s.hunt ? `${esc(s.hunt.nome)} <span>Nv ${n(s.hunt.nivel)}</span>` : 'Sem hunt';
   const pct = 100 * (s.progresso ?? 0);
-  $('k-xpbar').style.width = pct + '%'; $('k-xppct').textContent = s.xpProximo ? `${Math.floor(pct)}%` : '—';
-  const falta = s.xpProximo != null && s.xp != null ? Math.max(0, s.xpProximo - s.xp) : null, minEta = falta != null && s.xph > 0 && !cedo ? falta / s.xph * 60 : null;
-  $('k-eta').textContent = minEta == null ? '—' : minEta < 1 ? 'menos de 1 min' : '≈ ' + (minEta < 60 ? `${Math.round(minEta)} min` : `${Math.floor(minEta / 60)} h ${Math.round(minEta % 60)} min`);
-  $('k-falta').textContent = falta != null ? `faltam ${c(falta)} XP` : '';
-  $('k-ouro').textContent = c(s.ouro); $('k-gemas').textContent = n(s.orbs ?? 0);
+  $('k-xpbar').style.width = `${Math.max(0, Math.min(100, pct))}%`;
+  $('k-xppct').textContent = s.xpProximo ? `${Math.floor(pct)}%` : '—';
+  const falta = s.xpProximo != null && s.xp != null ? Math.max(0, s.xpProximo - s.xp) : null;
+  const minEta = falta != null && s.xph > 0 && !cedo ? falta / s.xph * 60 : null;
+  $('k-eta').textContent = minEta == null ? '—' : minEta < 1 ? '< 1 min' : '≈ ' + (minEta < 60 ? `${Math.round(minEta)} min` : `${Math.floor(minEta / 60)} h ${Math.round(minEta % 60)} min`);
+  $('k-falta').textContent = falta != null ? `Faltam ${c(falta)} XP` : '';
+  $('k-ouro').textContent = c(s.ouro);
+  $('k-gemas').textContent = n(s.orbs ?? 0);
+
   const eq = s.equipado ?? {};
   if (eq.pocao) trocarIcone('i-pocao', ICON.itens[eq.pocao]);
   if (eq.bola) trocarIcone('i-bola', ICON.bolas[eq.bola]);
-  $('k-pocao-n').textContent = eq.pocao ? NOMES[eq.pocao] ?? s.nomesItens?.[eq.pocao] ?? 'item ' + eq.pocao : 'Poção'; $('k-pocao').textContent = eq.pocao ? n(eq.pocaoQtd) : 'nenhuma';
-  $('k-bola-n').textContent = eq.bola ? NOMES[eq.bola] ?? 'bola ' + eq.bola : 'Bola'; $('k-bola').textContent = eq.bola ? n(eq.bolaQtd) : 'nenhuma';
+  $('k-pocao-n').textContent = eq.pocao ? NOMES[eq.pocao] ?? s.nomesItens?.[eq.pocao] ?? 'item ' + eq.pocao : 'Poção';
+  $('k-pocao').textContent = eq.pocao ? n(eq.pocaoQtd) : 'nenhuma';
+  $('k-bola-n').textContent = eq.bola ? NOMES[eq.bola] ?? 'bola ' + eq.bola : 'Bola';
+  $('k-bola').textContent = eq.bola ? n(eq.bolaQtd) : 'nenhuma';
 
   const seg = Math.max(0, Math.floor((s.agora - (hs.desde ?? s.agora)) / 1000));
-  const durHunt = seg >= 3600 ? `${Math.floor(seg / 3600)} h ${Math.floor(seg % 3600 / 60)} min` : `${Math.floor(seg / 60)} min`;
-  const chips = [];
-  chips.push(s.noCentro ? '<span class="chip"><b>No Centro Pokemon</b></span>' : s.hunt ? `<span class="chip">Hunt <b>${esc(s.hunt.nome)} Nv. ${n(s.hunt.nivel)}</b></span><span class="chip">Nesta hunt <b>${durHunt} · ${n(hs.abates ?? 0)} abates</b></span>` : '<span class="chip">Sem hunt</span>');
-  $('k-chips').innerHTML = chips.join('');
+  const durHunt = seg >= 3600 ? `${Math.floor(seg / 3600)}h ${Math.floor(seg % 3600 / 60)}m` : `${Math.floor(seg / 60)} min`;
+  $('k-chips').innerHTML = s.hunt && !s.noCentro
+    ? `<span class="chip">${durHunt} nesta hunt</span><span class="chip"><b>${n(hs.abates ?? 0)}</b> abates</span><span class="chip"><b>${n(s.campo?.filter((m) => !m.morto).length ?? 0)}</b> no campo</span>`
+    : '';
 
   const ac = s.acumulado ?? {};
-  $('m-xph').textContent = cedo ? 'medindo…' : sinal(s.xph); $('m-xph-s').textContent = cedo ? `${Math.max(1, 5 - s.minutos)} min` : 'XP/h';
-  $('m-ouroh').textContent = cedo ? 'medindo…' : sinal(s.ouroh); $('m-ouroh-s').textContent = cedo ? '' : 'líquido';
-  $('m-abh').textContent = cedo ? 'medindo…' : n(s.abatesh); $('m-abh-s').textContent = s.hunt ? `${n(hs.abates ?? 0)} nesta hunt` : '';
   const hj = (ac.dias ?? {})[chaveDia(s.agora)] ?? {};
-  $('m-cap').textContent = n(hj.capturas ?? 0); $('m-cap-s').textContent = `${n(s.stats.capturas)} nesta sessão`;
-  $('m-des').textContent = n(hj.desmaios ?? 0); $('m-des-s').textContent = `${n(s.stats.desmaios)} nesta sessão`;
-  $('m-des-s').style.color = s.stats.desmaios ? cor('bad') : cor('ok');
-  $('m-sh').textContent = n(ac.shinyCapturados ?? 0); $('m-sh-s').textContent = 'Quando um shiny escapa, ele aparece aqui e vai para os avisos.';
+  $('m-xph').textContent = cedo ? 'medindo…' : sinal(s.xph);
+  $('m-xph-s').textContent = cedo ? `pronto em ${Math.max(1, 5 - s.minutos)} min` : 'ritmo da sessão';
+  $('m-ouroh').textContent = cedo ? 'medindo…' : sinal(s.ouroh);
+  $('m-ouroh').className = 'kpi-v' + (!cedo && s.ouroh > 0 ? ' up' : !cedo && s.ouroh < 0 ? ' down' : '');
+  $('m-ouroh-s').textContent = cedo ? '' : 'sessão, sem prêmios';
+  $('m-abh').textContent = cedo ? 'medindo…' : n(s.abatesh);
+  $('m-abh-s').textContent = s.hunt ? `${n(hs.abates ?? 0)} nesta hunt` : '';
+  $('m-cap').textContent = n(hj.capturas ?? 0);
+  $('m-cap-s').textContent = `${n(s.stats.capturas)} nesta sessão`;
+  const desHj = hj.desmaios ?? 0;
+  $('m-des-badge').innerHTML = desHj > 0
+    ? `<span class="chip bad" style="padding:1px 7px;font-size:11px">${n(desHj)} desmaio${desHj > 1 ? 's' : ''}</span>`
+    : `<span class="chip on" style="padding:1px 7px;font-size:11px">0 desmaios</span>`;
+
+  $('m-sh').textContent = n(ac.shinyCapturados ?? 0);
+  $('m-sh-s').textContent = 'Shinies vistos, capturados ou que escaparam aparecem aqui e nos avisos.';
+  $('eq-meta').textContent = `${s.equipe.length} na equipe`;
 
   lista($('equipe'), s.equipe.map((p) => linhaHp({
-    nome: `${p.shiny ? '✨ ' : ''}${esc(p.nome)} Nv${n(p.nv)}`, extra: `P${p.p} · Q${p.q} · N${p.nota ?? '—'}`,
-    hp: p.hp, mhp: p.mhp, classes: `${p.ativo ? 'ativo' : ''} ${p.shiny ? 'shiny' : ''} ${p.hp <= 0 ? 'caido' : ''}`,
-  })), 'vazia');
+    nome: `${p.shiny ? '✨ ' : ''}${esc(p.nome)} Nv ${n(p.nv)}`,
+    extra: `P${p.p} · Q${p.q} · N${p.nota ?? '—'}`,
+    hp: p.hp, mhp: p.mhp,
+    classes: `${p.ativo ? 'ativo' : ''} ${p.shiny ? 'shiny' : ''} ${p.hp <= 0 ? 'caido' : ''}`,
+  })), 'equipe vazia');
+
   $('shinyacum').innerHTML = [
     `<span class="chip ${ac.shinyEscapou ? 'shiny' : ''}">escaparam <b>${n(ac.shinyEscapou ?? 0)}</b></span>`,
     `<span class="chip">bolas confirmadas <b>${n(ac.bolasConfirmadas ?? 0)}</b></span>`,
@@ -533,17 +1260,21 @@ async function atualizar() {
     ativos.push(on.length ? on.map(([tp, m]) => `<span class="chip on">${nome} ${TP[tp]} <b>${fmtMin(m)}</b></span>`).join('') : `<span class="chip">${nome} <b>nenhum</b></span>`);
     if (l.noAr.length) canais.push(`${nome} no ar: ${esc(l.noAr.slice(0, 6).join(', '))}${l.noAr.length > 6 ? ` +${l.noAr.length - 6}` : ''}`);
   }
-  $('lives').innerHTML = ativos.join(''); $('canais').textContent = canais.join(' · ');
+  $('lives').innerHTML = ativos.join('');
+  $('canais').textContent = canais.join(' · ');
 
   const moch = [...Object.entries(s.bolas), ...Object.entries(s.itens)].filter(([, q]) => q > 0);
-  const mochHtml = moch.length ? moch.map(([id, q]) => `<div class="tile"><small>${imgIc(s.bolas[id] != null && s.itens[id] == null ? ICON.bolas[id] : ICON.itens[id])}${esc(NOMES[id] ?? s.nomesItens?.[id] ?? `item ${id}`)}</small><strong>${n(q)}</strong></div>`).join('') : '<span class="fraco">vazia</span>';
+  $('moch-meta').textContent = moch.length ? `${moch.length} tipos` : '';
+  const mochHtml = moch.length
+    ? moch.map(([id, q]) => `<div class="tile item">${imgIc(s.bolas[id] != null && s.itens[id] == null ? ICON.bolas[id] : ICON.itens[id])}<div><small>${esc(NOMES[id] ?? s.nomesItens?.[id] ?? `item ${id}`)}</small><strong>${n(q)}</strong></div></div>`).join('')
+    : '<span class="vazio">mochila vazia</span>';
   trocarHtml($('mochila'), mochHtml);
 
-  tabela($('drops'), s.drops.map(([nome, q]) => `<tr><td>${esc(nome)}</td><td class="num">${n(q)}</td></tr>`), 'nada ainda');
-  tabela($('capturados'), s.capturados.map((p) => `<tr><td class="${p.shiny ? 'shiny' : ''}">${p.shiny ? '✨ ' : ''}${esc(p.nome)} Nv${n(p.level)} <span class="fraco">Q${p.quality ?? '—'}</span></td><td class="num">${hora(p.em)}</td></tr>`), 'nenhuma ainda');
+  tabela($('drops'), s.drops.map(([nome, q]) => `<tr><td>${esc(nome)}</td><td>${n(q)}</td></tr>`), 'nada ainda');
+  tabela($('capturados'), s.capturados.map((p) => `<tr><td class="${p.shiny ? 'shiny' : ''}">${p.shiny ? '✨ ' : ''}${esc(p.nome)} Nv ${n(p.level)} <span class="fraco">Q${p.quality ?? '—'}</span></td><td>${hora(p.em)}</td></tr>`), 'nenhuma ainda');
 
   const dias = Object.entries(ac.dias ?? {}).sort(([a], [b]) => b.localeCompare(a)).slice(0, 7);
-  const cel = (v, cls = '') => `<td class="num ${v ? cls : 'zero'}">${typeof v === 'string' ? v : c(v)}</td>`;
+  const cel = (v, cls = '') => `<td class="${v ? cls : 'zero'}">${typeof v === 'string' ? v : c(v)}</td>`;
   $('dias').querySelector('tbody').innerHTML = dias.length ? dias.map(([dia, d]) => {
     const [, m, dd] = dia.split('-');
     return `<tr><td>${dd}/${m}</td>${cel(`${((d.segundosOnline ?? 0) / 3600).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} h`)}` +
@@ -553,36 +1284,38 @@ async function atualizar() {
   mostrarBonus(s); mostrarExtras(s); mostrarGanhos(s); mostrarBosses(s); mostrarAvisos(s); mostrarAjustes(s); mostrarAlertas(s.alertas); mostrarSniper(s.sniperPk, s.orbs); amostrar(s);
 }
 
-// ---- sniper de pokemon ----
+// ---- sniper ----
 const SN_ACAO = { compraria: ['compraria', 'var(--a2)'], pedindo: ['pedindo', 'var(--shiny)'], comprou: ['comprou', 'var(--ok)'], perdeu: ['não levou', 'var(--sub)'], barrado: ['barrado', 'var(--sub)'], modo: ['modo', 'var(--sub)'], anunciando: ['anunciou', 'var(--a2)'], vendeu: ['vendeu', 'var(--ok)'] };
 const SN_ESTADO = { comprado: ['na conta', 'var(--sub)'], consultando: ['vendo preço', 'var(--a2)'], anunciando: ['anunciando', 'var(--a2)'], anunciado: ['à venda', 'var(--shiny)'], vendido: ['vendido', 'var(--ok)'], parado: ['parado', 'var(--bad)'] };
 let snEditando = false;
 function mostrarSniper(sp, saldo) {
   if (!sp) return;
-  const nomeModo = sp.modo === '1' ? 'COMPRANDO' : sp.modo === 'observar' ? 'só observando' : 'desligado';
-  const chip = $('sn-modo-chip'); chip.innerHTML = `<b>${nomeModo}</b>`; chip.style.borderColor = sp.modo === '1' ? 'var(--bad)' : sp.modo === 'observar' ? 'var(--a2)' : '';
+  const nomeModo = sp.modo === '1' ? 'COMPRANDO' : sp.modo === 'observar' ? 'Só observando' : 'Desligado';
+  const chip = $('sn-modo-chip');
+  chip.className = 'chip ' + (sp.modo === '1' ? 'bad' : sp.modo === 'observar' ? 'accent' : '');
+  chip.innerHTML = `Status: <b>${nomeModo}</b>`;
   document.querySelectorAll('[data-sn-modo]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.snModo === sp.modo)));
-  $('sn-modo-t').textContent = sp.modo === '1' ? 'Compra sozinho com as suas Gemas, dentro dos limites abaixo.' : sp.modo === 'observar' ? 'Só registra o que compraria. Não gasta nada.' : 'Não olha o Mercado.';
+  $('sn-modo-t').textContent = sp.modo === '1' ? 'Compra sozinho com as suas Gemas, dentro dos limites ao lado.' : sp.modo === 'observar' ? 'Só registra o que compraria. Não gasta nada.' : 'Não monitora o Mercado.';
   const h = sp.hoje ?? {};
   const rg = sp.regua ?? {}, ul = rg.ultimo;
   const linhaRegua = kv('Desconto de segurança da régua', `${fx(rg.desconto ?? 0.9, 3)}${ul ? ` · calibrado ${new Date(ul.em).toLocaleDateString('pt-BR')}` : ' · calibra 1× por dia'}`)
     + (ul ? kv('Última calibração', `${n(ul.medidas)} de ${n(ul.decisoes)} decisões conferidas${ul.erro != null ? ` · erro do lucro ${n(ul.erro)}%` : ''}`) : '');
-  $('sn-hoje').innerHTML = linhaRegua + kv('Gasto hoje', `${n(h.gasto ?? 0)} de ${n(sp.dia)} Gemas`) + kv('Compras hoje', `${n(h.compras ?? 0)} de ${n(sp.qtdDia)}`) + (h.pendente ? kv('Esperando o sorteio', `${n(h.pendente)} Gemas`) : '') + kv('Seu saldo', `${n(saldo ?? 0)} Gemas`) + kv('Vendas para comparar', n(sp.comparaveis ?? 0));
-  $('sn-visto').textContent = sp.modo === '0' ? '' : `${n(sp.vistos ?? 0)} anúncios avaliados${sp.ultimaResposta ? ' · última olhada ' + hora(sp.ultimaResposta) : ''}`;
+  $('sn-hoje').innerHTML = linhaRegua + kv('Gasto hoje', `${n(h.gasto ?? 0)} de ${n(sp.dia)} Gemas`) + kv('Compras hoje', `${n(h.compras ?? 0)} de ${n(sp.qtdDia)}`) + (h.pendente ? kv('Aguardando sorteio', `${n(h.pendente)} Gemas`) : '') + kv('Seu saldo', `${n(saldo ?? 0)} Gemas`) + kv('Vendas para referência', n(sp.comparaveis ?? 0));
+  $('sn-visto').textContent = sp.modo === '0' ? '' : `${n(sp.vistos ?? 0)} avaliados${sp.ultimaResposta ? ' · ' + hora(sp.ultimaResposta) : ''}`;
   tabela($('sn-eventos'), (sp.eventos ?? []).map((e) => {
     const [rot, corA] = SN_ACAO[e.acao] ?? [e.acao, 'var(--sub)'];
-    const det = e.preco != null ? `${n(e.preco)} Gemas · referência ${n(e.ref)} · ganho ~${n(e.ganho)} (${e.pct}%)${e.barra ? ' · ' + esc(e.barra) : ''}` : '';
-    return `<tr><td class="sn-acao" style="color:${corA}">${rot}</td><td>${esc(e.desc)}<div class="fraco" title="${esc(e.motivo ?? '')}">${det}</div></td><td class="num">${hora(e.em)}</td></tr>`;
-  }), sp.modo === '0' ? 'desligado' : 'nada que valha a pena ainda');
+    const det = e.preco != null ? `${n(e.preco)} Gemas · ref. ${n(e.ref)} · ganho ~${n(e.ganho)} (${e.pct}%)${e.barra ? ' · ' + esc(e.barra) : ''}` : '';
+    return `<tr><td class="sn-acao" style="color:${corA}">${rot}</td><td>${esc(e.desc)}<div class="fraco" title="${esc(e.motivo ?? '')}">${det}</div></td><td>${hora(e.em)}</td></tr>`;
+  }), sp.modo === '0' ? 'desligado' : 'nada relevante ainda');
   document.querySelectorAll('[data-sn-rev]').forEach((b) => b.setAttribute('aria-pressed', String((b.dataset.snRev === '1') === !!sp.revender)));
-  $('sn-rev-t').textContent = sp.revender ? `Anuncia sozinho o que o sniper comprou, ${n(sp.abaixo)} Gemas abaixo do mercado, sem passar do piso.` : 'O que ele compra fica na sua conta; anunciar é com você.';
+  $('sn-rev-t').textContent = sp.revender ? `Anuncia automaticamente ${n(sp.abaixo)} Gemas abaixo do mercado, respeitando o piso.` : 'O que comprar fica na conta; anunciar fica por sua conta.';
   const cps = sp.compras ?? [];
   const lucro = cps.filter((x) => x.estado === 'vendido').reduce((t, x) => t + (x.lucro ?? 0), 0);
   $('sn-lucro').textContent = cps.some((x) => x.estado === 'vendido') ? `lucro ${lucro >= 0 ? '+' : ''}${n(lucro)} Gemas` : '';
   tabela($('sn-compras'), cps.map((x) => {
     const [rot, corE] = SN_ESTADO[x.estado] ?? [x.estado, 'var(--sub)'];
     const det = `pagou ${n(x.custo)}${x.preco ? ' · anunciado ' + n(x.preco) : ''}${x.estado === 'vendido' ? ' · recebeu ' + n(x.recebido) + ' (' + (x.lucro >= 0 ? '+' : '') + n(x.lucro) + ')' : ''}${x.obs ? ' · ' + esc(x.obs) : ''}`;
-    return `<tr><td class="sn-acao" style="color:${corE}">${rot}</td><td>${x.shiny ? '✨ ' : ''}${esc(x.nome)} Nv${n(x.nivel)}<div class="fraco">${det}</div></td><td class="num">${hora(x.em)}</td></tr>`;
+    return `<tr><td class="sn-acao" style="color:${corE}">${rot}</td><td>${x.shiny ? '✨ ' : ''}${esc(x.nome)} Nv ${n(x.nivel)}<div class="fraco">${det}</div></td><td>${hora(x.em)}</td></tr>`;
   }), 'nenhuma compra ainda');
   if (!snEditando) {
     const f = $('sn-form');
@@ -612,111 +1345,103 @@ document.addEventListener('click', async (e) => {
   }
   try { await mandarSniper({ modo }); } catch (err) { $('sn-form-r').textContent = err.message; }
 });
-$('sn-form').addEventListener('input', () => { snEditando = true; $('sn-form-r').textContent = 'não salvo'; });
+$('sn-form').addEventListener('input', () => { snEditando = true; $('sn-form-r').textContent = 'alterações não salvas'; });
 $('sn-form').addEventListener('submit', async (e) => {
   e.preventDefault();
   const f = e.target; const corpo = { soShiny: f.elements.soShiny.checked };
   for (const k of ['max', 'dia', 'qtdDia', 'reserva', 'lucro', 'vendas', 'seg', 'abaixo', 'margem', 'revDias']) corpo[k] = Number(f.elements[k].value);
-  try { const j = await mandarSniper(corpo); snEditando = false; $('sn-form-r').textContent = j.mudou?.length ? 'salvo' : 'nada mudou'; }
+  try { const j = await mandarSniper(corpo); snEditando = false; $('sn-form-r').textContent = j.mudou?.length ? 'salvo ✓' : 'nada mudou'; }
   catch (err) { $('sn-form-r').textContent = err.message; }
 });
 
-// ---- menu ----
-const ABAS = [['vivo', 'Ao vivo', 'M3 12h4l3-8 4 16 3-8h4'], ['ganhos', 'Ganhos', 'M4 20V10M10 20V4M16 20v-7M22 20H2'], ['farm', 'Farm', 'M4 9h16l-1 11H5zM8 9V6a4 4 0 018 0v3'], ['bosses', 'Bosses', 'M3 8l4 4 5-7 5 7 4-4-2 11H5z'], ['conta', 'Conta', 'M12 12a4 4 0 100-8 4 4 0 000 8zM4 21a8 8 0 0116 0'], ['sniper', 'Sniper', 'M12 2v4M12 18v4M2 12h4M18 12h4M12 8a4 4 0 100 8 4 4 0 000-8z'], ['ajustes', 'Ajustes', 'M4 6h10M18 6h2M4 18h4M12 18h8M16 4v4M10 16v4'], ['log', 'Log', 'M5 5h14M5 10h14M5 15h9M5 20h12']];
-let abaAtual = 'vivo';
-try { const a = localStorage.getItem('pk-aba'); if (ABAS.some((x) => x[0] === a)) abaAtual = a; } catch {}
-function mostrarAba(k) {
-  abaAtual = k; try { localStorage.setItem('pk-aba', k); } catch {}
-  $('abas').innerHTML = ABAS.map(([id, t, d]) => `<button class="tab" type="button" role="tab" data-a="${id}" aria-selected="${id === k}"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${d}"/></svg>${t}</button>`).join('');
-  document.querySelectorAll('.aba').forEach((el) => el.classList.toggle('on', el.dataset.aba === k));
-  if (k === 'vivo') requestAnimationFrame(desenharGrafico);
-  if (k === 'log') { const p = $('logtxt'); p.scrollTop = p.scrollHeight; }
-}
-$('abas').addEventListener('click', (e) => { const b = e.target.closest('button[data-a]'); if (b) mostrarAba(b.dataset.a); });
-document.addEventListener('click', (e) => { const b = e.target.closest('[data-ir]'); if (b) mostrarAba(b.dataset.ir); });
-mostrarAba(abaAtual);
-
-// ---- evento, meta, PvP, moedas, Pokédex, saúde ----
+// ---- extras, patrimônio, PvP, moedas, Pokédex, saúde ----
 const TIPOS = { NORMAL:'Normal', FIRE:'Fogo', WATER:'Água', GRASS:'Planta', ELECTRIC:'Elétrico', ICE:'Gelo', FIGHTING:'Lutador', POISON:'Veneno', GROUND:'Terra', FLYING:'Voador', PSYCHIC:'Psíquico', BUG:'Inseto', ROCK:'Pedra', GHOST:'Fantasma', DRAGON:'Dragão', DARK:'Sombrio', STEEL:'Aço', FAIRY:'Fada' };
 const tipoPt = (t) => TIPOS[String(t).toUpperCase()] ?? t ?? '—';
 const PARTES = { vip:'VIP', evento:'Evento', kick:'Kick', twitch:'Twitch', guild:'Guild' };
 const kv = (a, b, estilo = '') => `<div class="kv"><span>${a}</span><b style="${estilo}">${b}</b></div>`;
 const fx = (v, d = 2) => Number(v).toLocaleString('pt-BR', { maximumFractionDigits: d });
 const cap = (t) => String(t ?? '').charAt(0).toUpperCase() + String(t ?? '').slice(1);
-const SVG_COROA = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8l4 4 5-7 5 7 4-4-2 11H5z"/></svg>', SVG_MEDALHA = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4a5 5 0 100 10 5 5 0 000-10zM8.5 13.5L7 21l5-3 5 3-1.5-7.5"/></svg>';
+const SVG_COROA = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8l4 4 5-7 5 7 4-4-2 11H5z"/></svg>';
+const SVG_MEDALHA = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4a5 5 0 100 10 5 5 0 000-10zM8.5 13.5L7 21l5-3 5 3-1.5-7.5"/></svg>';
+
 function mostrarPatrimonio(p) {
   const el = $('patri'); if (!el) return;
-  if (!p) { $('pt-fonte').textContent = 'sem preços ainda'; return; }
+  if (!p) { $('pt-fonte').textContent = ''; $('pt-top').textContent = '—'; $('pt-top-s').textContent = 'aguardando preços do Mercado'; return; }
   const gm = (v) => n(Math.round(v)), usd = (v) => 'US$ ' + v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const idade = Math.max(0, Math.round((Date.now() - p.em) / 60000));
-  $('pt-fonte').textContent = `preços de há ${idade} min`;
+  $('pt-fonte').textContent = `há ${idade} min`;
+  $('pt-top').textContent = `${gm(p.liquido)} gemas`;
+  $('pt-top-s').innerHTML = `<span class="up">≈ ${usd(p.usd)}</span> líquido · bruto ${gm(p.bruto)}`;
   const linhas = [];
   if (p.gemas > 0) linhas.push({ nome: 'Gemas', det: 'saldo da conta', v: p.gemas });
   for (const i of p.itens) linhas.push({ nome: i.nome, det: `${n(i.qtd)} × ${gm(i.preco)} · ${n(i.vendas)} vendas`, v: i.total });
-  for (const s of p.shinies) linhas.push({ nome: '✨ ' + s.nome + (s.nv ? ' Nv' + s.nv : ''), det: 'preço da espécie (shiny)', v: s.bruto });
+  for (const s of p.shinies) linhas.push({ nome: '✨ ' + s.nome + (s.nv ? ' Nv ' + s.nv : ''), det: 'preço da espécie (shiny)', v: s.bruto });
   if (p.ouroOrb > 0) linhas.push({ nome: 'Ouro', det: `${c(p.ouro)} ÷ ${c(p.ouroPorOrb)} por gema`, v: p.ouroOrb });
   linhas.sort((a, b) => b.v - a.v);
   const max = Math.max(1, ...linhas.map((l) => l.v));
-  trocarHtml(el, `<div class="mid">${gm(p.liquido)} gemas</div><div class="mini up">≈ ${usd(p.usd)} já sem a taxa do Mercado</div>
-    <div class="mini">bruto ${gm(p.bruto)} gemas (≈ ${usd(p.usdBruto)})</div>
-    ${linhas.slice(0, 12).map((l) => `<div class="hb" title="${esc(l.det)}"><span class="t">${esc(l.nome)}</span><div class="bar"><i style="width:${Math.max(2, Math.round(l.v / max * 100))}%"></i></div><span class="v">${gm(l.v)}</span></div>`).join('') || '<div class="vazio">Nada com preço no momento.</div>'}
-    <div class="mini" style="margin-top:6px">Preço médio de ${p.dias ?? 7} dias, não é garantia de venda. Taxa: 15% nos itens, 7,5% a 13% nos Pokémon. Itens com menos de 10 vendas ficam fora${p.semPreco.length ? ' (' + p.semPreco.slice(0, 4).map(esc).join(', ') + ')' : ''}.</div>`);
+  trocarHtml(el,
+    (linhas.slice(0, 12).map((l) => `<div class="hb" title="${esc(l.det)}"><span class="t">${esc(l.nome)}</span><div class="bar"><i style="width:${Math.max(2, Math.round(l.v / max * 100))}%"></i></div><span class="v">${gm(l.v)}</span></div>`).join('') || '<div class="vazio">Nada com preço no momento.</div>') +
+    `<div class="mini" style="margin-top:10px">Média de ${p.dias ?? 7} dias (taxa: 15% itens, 7,5–13% Pokémon). Itens com menos de 10 vendas ficam fora${p.semPreco.length ? ' (' + p.semPreco.slice(0, 4).map(esc).join(', ') + ')' : ''}.</div>`);
 }
+
 function mostrarExtras(s) {
   const x = s.extras ?? {}, agora = s.agora ?? Date.now();
-  // faixa de evento e multiplicador de XP
   const ev = x.evento && x.evento.terminaEm > agora ? x.evento : null, mult = x.bonusXp?.tr ?? 1;
   $('evento').hidden = !ev;
   if (ev) { $('ev-t').textContent = `Evento +${ev.xpTr}% XP`; $('ev-fim').textContent = 'até ' + hora(ev.terminaEm); }
   $('h-xp').hidden = !(mult > 1); $('ev-x').textContent = fx(mult) + 'x';
   $('ev-partes').innerHTML = (x.bonusXp?.partes ?? []).map((p) => `<span class="chip">XP ${esc(PARTES[p.id] ?? cap(p.id))} <b>${fx(p.tr)}x</b></span>`).join('');
-  // patrimônio estimado
   mostrarPatrimonio(x.patrimonio);
-  // PvP
+
   const p = x.pvp;
-  $('pvp').innerHTML = p ? `<div style="display:flex;align-items:baseline;gap:10px"><span class="big">#${n(p.posicao)}</span><span class="mini">posição no ranking</span></div>
-    <div class="hb" style="margin-top:14px"><span class="t" style="width:70px">Vitórias</span><div class="bar"><i class="ok" style="width:${p.partidas ? 100 * p.vitorias / p.partidas : 0}%"></i></div><span class="v">${n(p.vitorias)} / ${n(p.partidas)}</span></div>
-    ${kv('Derrotas', n(p.derrotas))}${kv('Sequência atual', (p.sequencia > 0 ? '+' : '') + n(p.sequencia), p.sequencia < 0 ? 'color:var(--bad)' : p.sequencia > 0 ? 'color:var(--ok)' : '')}${kv('Pico de pontos', n(p.pico))}${kv('Divisão', esc(cap(p.tier ?? '—')))}` : '<span class="fraco">sem dados de PvP</span>';
-  // moedas e passe
-  $('moedas').innerHTML = `<div class="tiles2"><div class="tile"><span class="ico">${SVG_COROA}</span><div><small>Coroas</small><strong class="num">${c(x.coroas)}</strong></div></div><div class="tile"><span class="ico">${SVG_MEDALHA}</span><div><small>Medalhas</small><strong class="num">${c(x.medalhas)}</strong></div></div></div>
-    <div style="margin-top:10px">${kv('Diamantes', n(s.diamantes ?? 0))}${kv('Passe de batalha', x.passeDegrau != null ? 'degrau ' + n(x.passeDegrau) : '—')}${x.topCatch ? kv('Top Catch de hoje', `${n(x.topCatch.n)} / ${n(x.topCatch.m)}${x.topCatch.n >= x.topCatch.m ? ' ✓' : ''}`, x.topCatch.n >= x.topCatch.m ? 'color:var(--ok)' : '') : ''}</div>`;
-  // hoje no jogo
+  $('pvp').innerHTML = p ? `<div style="display:flex;align-items:baseline;gap:10px"><span class="big">#${n(p.posicao)}</span><span class="mini">${esc(cap(p.tier ?? '—'))}</span></div>
+    <div class="hb" style="margin:8px 0"><span class="t" style="width:64px">Vitórias</span><div class="bar"><i class="ok" style="width:${p.partidas ? 100 * p.vitorias / p.partidas : 0}%"></i></div><span class="v">${n(p.vitorias)}/${n(p.partidas)}</span></div>
+    ${kv('Derrotas', n(p.derrotas))}${kv('Sequência', (p.sequencia > 0 ? '+' : '') + n(p.sequencia), p.sequencia < 0 ? 'color:var(--bad)' : p.sequencia > 0 ? 'color:var(--ok)' : '')}${kv('Pico de pontos', n(p.pico))}` : '<span class="vazio">sem dados de PvP</span>';
+
+  $('moedas').innerHTML = `<div class="tiles2"><div class="tile item"><span class="ico">${SVG_COROA}</span><div><small>Coroas</small><strong>${c(x.coroas)}</strong></div></div><div class="tile item"><span class="ico">${SVG_MEDALHA}</span><div><small>Medalhas</small><strong>${c(x.medalhas)}</strong></div></div></div>
+    <div style="margin-top:8px">${kv('Diamantes', n(s.diamantes ?? 0))}${kv('Passe de batalha', x.passeDegrau != null ? 'degrau ' + n(x.passeDegrau) : '—')}${x.topCatch ? kv('Top Catch', `${n(x.topCatch.n)} / ${n(x.topCatch.m)}${x.topCatch.n >= x.topCatch.m ? ' ✓' : ''}`, x.topCatch.n >= x.topCatch.m ? 'color:var(--ok)' : '') : ''}</div>`;
+
   const d = x.diaSazonal;
-  $('hoje').innerHTML = (d ? `<div class="tile"><div><small>Dia do tipo</small><strong class="disp">${esc(tipoPt(d.tipo))}</strong></div><span class="chip" style="margin-left:auto">termina em <b>${d.fim > agora ? dur(Math.max(1, Math.round((d.fim - agora) / 60000))) : '—'}</b></span></div>
+  $('hoje').innerHTML = (d ? `<div class="tile linha"><div><small>Dia do tipo</small><strong class="disp">${esc(tipoPt(d.tipo))}</strong></div><span class="chip"><b>${d.fim > agora ? dur(Math.max(1, Math.round((d.fim - agora) / 60000))) : '—'}</b></span></div>
     <div style="margin-top:8px">${kv('Últimos dias', esc((d.ultimos3 ?? []).map(tipoPt).join(' · ') || '—'))}</div>` : '') +
     `<div>${x.chocadeira ? kv('Incubadora', `${n(x.chocadeira.total)} · ${x.chocadeira.ovos ? n(x.chocadeira.ovos) + ' ovo(s)' : 'sem ovos'}`) : ''}${x.casa ? kv('Casa', `${n(x.casa.emUso)} / ${n(x.casa.max)} em uso`) : ''}${kv('Bicicleta', x.bicicleta ? 'equipada' : 'nenhuma')}</div>`;
-  // Pokédex
+
   const dx = x.pokedex;
-  $('dex').innerHTML = dx ? `<div style="display:flex;align-items:baseline;gap:8px"><span class="big">${n(dx.capturadas)}</span><span class="mini">espécies capturadas</span></div>
-    <div class="bar" style="margin:12px 0"><i style="width:${dx.total ? Math.min(100, 100 * dx.capturadas / dx.total) : 0}%"></i></div>${dx.total ? kv('Total de espécies', n(dx.total)) : ''}${kv('Espécies vistas', n(dx.vistas))}${kv('Pokémon derrotados (total)', n(dx.abates))}` : '<span class="fraco">sem dados</span>';
-  // saúde do bot
-  $('saude').innerHTML = kv('Conexão', s.conectado ? 'estável' : 'reconectando', `color:${s.conectado ? 'var(--ok)' : 'var(--bad)'}`) + kv('Sessão', fmtMin(s.minutos)) + kv('Tentativas de reconexão', n(x.tentativas ?? 0)) + kv('Modo', s.somenteLer ? 'só leitura' : 'farm automático') +
-    '<div class="mini" style="margin-top:8px">Abrir o jogo no navegador derruba o bot e ele fica pausado por 2 h.</div>';
-  // XP/h por hunt medida
+  $('dex').innerHTML = dx ? `<div style="display:flex;align-items:baseline;gap:8px"><span class="big">${n(dx.capturadas)}</span><span class="mini">capturadas${dx.total ? ' de ' + n(dx.total) : ''}</span></div>
+    <div class="bar" style="margin:10px 0 6px"><i style="width:${dx.total ? Math.min(100, 100 * dx.capturadas / dx.total) : 0}%"></i></div>${kv('Espécies vistas', n(dx.vistas))}${kv('Pokémon derrotados', n(dx.abates))}` : '<span class="vazio">sem dados</span>';
+
+  $('saude').innerHTML = kv('Conexão', s.conectado ? 'estável' : 'reconectando', `color:${s.conectado ? 'var(--ok)' : 'var(--bad)'}`) + kv('Tempo de sessão', fmtMin(s.minutos)) + kv('Reconexões', n(x.tentativas ?? 0)) + kv('Modo', s.somenteLer ? 'só leitura' : 'farm automático') +
+    '<div class="mini" style="margin-top:10px">Abrir o jogo no navegador derruba o bot e o pausa por 2 h.</div>';
+
   const med = Object.entries(s.acumulado?.medicoes ?? {}).filter(([, m]) => m.seg > 30 && m.xp > 0 && s.nivel - (m.lv ?? 0) <= 20).map(([k, m]) => { const [r, lv] = k.split(':'); return { r, lv: Number(lv), xph: m.xp / m.seg * 3600, em: m.lv }; }).sort((a, b) => b.xph - a.xph).slice(0, 6);
   const topo = med[0]?.xph || 1, area = s.hunt?.area;
-  $('hunts').innerHTML = med.length ? med.map((m) => { const atual = m.lv === s.hunt?.nivel && (m.r === 'outland') === (area === 'outland');
-    return `<div class="hb"><span class="t" title="medido quando você estava no Nv ${m.em}">${m.r === 'outland' ? 'Outland · nível ' : 'Nível '}${m.lv}<small class="fraco"> · Nv ${m.em}</small></span><div class="bar"><i class="${atual ? 'ok' : ''}" style="width:${100 * m.xph / topo}%"></i></div><span class="v" style="width:90px">${c(m.xph)}/h</span></div>`; }).join('') : '<span class="fraco">sem medições recentes (últimos 20 níveis)</span>';
+  $('hunts').innerHTML = med.length ? med.map((m) => {
+    const atual = m.lv === s.hunt?.nivel && (m.r === 'outland') === (area === 'outland');
+    return `<div class="hb"><span class="t" title="medido no Nv ${m.em}">${m.r === 'outland' ? 'Outland ' : 'Nível '}${m.lv} <span class="fraco">· Nv ${m.em}</span></span><div class="bar"><i class="${atual ? 'ok' : ''}" style="width:${100 * m.xph / topo}%"></i></div><span class="v">${c(m.xph)}/h</span></div>`;
+  }).join('') : '<span class="vazio">sem medições recentes (últimos 20 níveis)</span>';
 }
 
 // ---- ganhos, bosses, avisos, ajustes ----
 const htmlDe = new WeakMap();
-function trocarHtml(el, html) { if (htmlDe.get(el) !== html) { htmlDe.set(el, html); el.innerHTML = html; } } // só redesenha quando muda (não perde a rolagem)
+function trocarHtml(el, html) { if (htmlDe.get(el) !== html) { htmlDe.set(el, html); el.innerHTML = html; } }
 const chaveDia = (t) => { const d = new Date(t); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
 const ouroDoDia = (d) => (d.ouroFim ?? 0) - (d.ouroIni ?? 0) - (d.ouroExtra ?? 0);
 let metrica = 'niveis';
 const METRICAS = { niveis: ['Níveis', (d) => (d.nivelFim ?? 0) - (d.nivelIni ?? 0)], abates: ['Abates', (d) => d.abates ?? 0], capturas: ['Capturas', (d) => d.capturas ?? 0], ouro: ['Ouro', ouroDoDia] };
 $('metricas').addEventListener('click', (e) => { const b = e.target.closest('button[data-m]'); if (b) { metrica = b.dataset.m; if (ultimoEstado) mostrarGanhos(ultimoEstado); } });
+
 function mostrarGanhos(s) {
   const ac = s.acumulado ?? {}, d = (ac.dias ?? {})[chaveDia(s.agora)] ?? {}, x = s.extras ?? {};
   const seg = d.segundosOnline ?? 0, netH = seg > 600 && d.ouroIni != null ? ouroDoDia(d) / (seg / 3600) : null;
   const venda = d.capturas ? (d.vendas ?? 0) / d.capturas : null;
   const preco = x.bolaPreco?.[s.equipado?.bola], custo = d.capturas && preco ? d.bolas / d.capturas * preco : null;
-  $('cp-net').textContent = netH == null ? 'medindo…' : sinal(netH); $('cp-net').className = 'big' + (netH > 0 ? ' up' : netH < 0 ? ' down' : '');
+
+  $('cp-net').textContent = netH == null ? 'medindo…' : sinal(netH);
+  $('cp-net').className = 'kpi-v' + (netH > 0 ? ' up' : netH < 0 ? ' down' : '');
   $('cp-venda').textContent = venda == null ? '—' : '≈ ' + c(venda);
   $('cp-custo').textContent = custo == null ? '—' : '≈ ' + c(custo);
-  $('cp-gemas').textContent = x.gemasMes ? '≈ ' + c(x.gemasMes.mes) : '—';
-  // conta do dia, desde que o bot passou a somar as compras
+  $('cp-gemas').textContent = x.gemasMes ? '≈ ' + c(x.gemasMes.mes) + ' gemas' : '—';
+
   const k = d.comp;
   if (!k) trocarHtml($('gc'), '<div class="vazio">A conta começa no próximo minuto.</div>');
   else {
@@ -724,53 +1449,87 @@ function mostrarGanhos(s) {
     const gasto = k.bolasOuro + k.pocoesOuro + k.outrosOuro, loot = liquido + gasto - vendas;
     $('gc-desde').textContent = 'desde ' + hora(k.em);
     const l = (t, v, cls) => `<div class="kv"><span>${t}</span><b class="${cls}">${v > 0 && cls === 'up' ? '+' : cls === 'down' && v > 0 ? '−' : ''}${c(v)}</b></div>`;
-    trocarHtml($('gc'), l('Entrou: abates e loot (calculado)', loot, loot >= 0 ? 'up' : 'down') + l('Entrou: venda das capturas', vendas, 'up') + l('Saiu: bolas', k.bolasOuro, 'down') + l('Saiu: poções e revives', k.pocoesOuro, 'down') + (k.outrosOuro ? l('Saiu: outras compras', k.outrosOuro, 'down') : '') +
-      `<div class="kv" style="font-size:14px"><span style="color:var(--txt)">Sobrou</span><b class="${liquido >= 0 ? 'up' : 'down'}">${sinal(liquido)}</b></div><div class="mini">Compras feitas pelo bot. Compra no Mercado ou à mão aparece descontada dos abates.</div>`);
+    trocarHtml($('gc'), l('Abates e loot (calculado)', loot, loot >= 0 ? 'up' : 'down') + l('Venda das capturas', vendas, 'up') + l('Compra de bolas', k.bolasOuro, 'down') + l('Poções e revives', k.pocoesOuro, 'down') + (k.outrosOuro ? l('Outras compras', k.outrosOuro, 'down') : '') +
+      `<div class="kv" style="font-size:14px;padding-top:10px"><span style="color:var(--txt);font-weight:600">Saldo líquido</span><b class="${liquido >= 0 ? 'up' : 'down'}">${sinal(liquido)}</b></div><div class="mini" style="margin-top:8px">Considera compras feitas pelo bot. Compras manuais aparecem descontadas dos abates.</div>`);
   }
+
   const pb = ac.porBola?.[s.equipado?.bola];
   trocarHtml($('gp'), kv('Tempo por abate', d.abates ? fx(seg / d.abates, 1) + ' s' : '—') + kv('Bolas por captura', d.capturas ? n(Math.round(d.bolas / d.capturas)) : '—') +
     kv('Custo em bolas por captura', custo == null ? '—' : '≈ ' + c(custo)) + kv('Venda média por captura', venda == null ? '—' : '≈ ' + c(venda)) +
     kv('Retorno da bola', custo && venda != null ? fx(venda / custo, 1) + 'x' : '—', custo && venda >= custo ? 'color:var(--ok)' : '') +
-    kv(`Chance medida, ${esc(NOMES[s.equipado?.bola] ?? 'bola')}`, pb?.lancadas ? fx(100 * pb.sucesso / pb.lancadas, 1) + '%' : '—') + '<div class="mini" style="margin-top:6px">Tudo do dia de hoje. O custo usa o preço da bola equipada.</div>');
+    kv(`Chance medida (${esc(NOMES[s.equipado?.bola] ?? 'bola')})`, pb?.lancadas ? fx(100 * pb.sucesso / pb.lancadas, 1) + '%' : '—') + '<div class="mini" style="margin-top:8px">Valores de hoje usando o preço da bola equipada.</div>');
+
   const g = x.gemasMes;
-  trocarHtml($('gg'), g ? `<div class="big">≈ ${c(g.mes)} <span style="font-size:15px">gemas/mês</span></div><div class="mini up" style="font-size:13px">≈ US$ ${g.usd.toLocaleString('pt-BR', { maximumFractionDigits: 0 })}/mês no teto</div><div class="mini">Base: drops de ${g.dias} dia(s), ${g.horas} h online, preço médio do Mercado já com a taxa de 15%. Só vale se vender tudo pela média; vender muito derruba o preço. Saque mínimo de 1.000 gemas.</div>` : '<div class="vazio">Aguardando preços e 1 h de farm.</div>');
-  // gráfico por dia
+  $('gg-top').textContent = g ? `≈ ${c(g.mes)} gemas` : '—';
+  $('gg-top-s').innerHTML = g ? `<span class="up">≈ US$ ${g.usd.toLocaleString('pt-BR', { maximumFractionDigits: 0 })}/mês</span> no teto (${g.horas} h de base)` : 'aguardando preços e 1 h de farm';
+  trocarHtml($('gg'), g
+    ? `<div class="mini">Base: drops de <b>${g.dias} dia(s)</b> (${g.horas} h online), preço médio do Mercado já com taxa de 15%. É um teto teórico — vender em grande volume reduz o preço. Saque mínimo: 1.000 gemas.</div>`
+    : '<div class="vazio">Aguardando preços e 1 h de farm.</div>');
+
   const dias = Object.entries(ac.dias ?? {}).sort(([a], [b]) => a.localeCompare(b)).slice(-7), val = METRICAS[metrica][1];
   const vals = dias.map(([, v]) => val(v)), maior = Math.max(1, ...vals);
-  trocarHtml($('metricas'), Object.entries(METRICAS).map(([id, [t]]) => `<button type="button" class="btn" data-m="${id}" aria-pressed="${id === metrica}">${t}</button>`).join(''));
-  trocarHtml($('barras'), dias.map(([dia], i) => `<div><b>${c(vals[i])}</b><i style="height:${Math.max(2, Math.round(Math.max(0, vals[i]) / maior * 72))}%"></i><span class="mini">${dia.slice(8)}/${dia.slice(5, 7)}</span></div>`).join(''));
+  trocarHtml($('metricas'), Object.entries(METRICAS).map(([id, [t]]) => `<button type="button" data-m="${id}" aria-pressed="${id === metrica}">${t}</button>`).join(''));
+  trocarHtml($('barras'), dias.map(([dia], i) => `<div><b>${c(vals[i])}</b><i style="height:${Math.max(4, Math.round(Math.max(0, vals[i]) / maior * 76))}%"></i><span class="fraco" style="font-size:11px">${dia.slice(8)}/${dia.slice(5, 7)}</span></div>`).join(''));
 }
+
 const PREMIO = { tm: 'TM', mega: 'Fragmento Mega', tickets: 'Tickets' };
 function mostrarBosses(s) {
-  const b = s.extras?.bosses, el = document.querySelector('.aba[data-aba=bosses]'); if (!b?.lista?.length) return;
+  const b = s.extras?.bosses, el = $('bosses-wrap'); if (!b?.lista?.length) return;
   const razao = b.lista.map((x) => x.dano == null ? 0 : x.dano / Math.max(x.leva, 0.25)), melhor = razao.indexOf(Math.max(...razao));
   const vezes = (v) => v == null ? '—' : fx(v, 2) + 'x';
-  trocarHtml(el, b.lista.map((x, i) => {
-    const [txt, corv] = x.leva >= 2 ? ['Arriscado', 'var(--bad)'] : i === melhor && x.dano >= 1 ? ['Melhor', 'var(--ok)'] : x.dano < 1 ? ['Lento', 'var(--a2)'] : ['Ok', 'var(--a2)'];
-    return `<section class="card" style="border-color:${corv}"><h2>${esc(x.nome)} <span class="chip">Nv mínimo <b>${n(b.nivelMin)}</b></span></h2>
-      <div class="palco-boss"><canvas class="bsp" width="192" height="192" data-lt="${x.lt ?? ''}" aria-label="${esc(x.nome)}"></canvas></div>
-      <div style="display:flex;align-items:center;gap:6px">${x.tipos.map((t) => `<span class="tp">${esc(tipoPt(t))}</span>`).join('')}<span class="esp"></span><span class="mid" style="color:${corv}">${txt}</span></div>
-      <div>${kv('Seu melhor tipo causa', vezes(x.dano))}${kv('O tipo dele causa em você', vezes(x.leva))}${kv('Prêmio de hoje (até 18h)', PREMIO[x.premio])}${kv('Chance por vitória', x.chance == null ? 'não informada' : fx(x.chance, 2) + '%')}</div></section>`;
-  }).join('') + `<section class="card" style="grid-column:1 / -1"><h2>Sua equipe para ${esc(b.regiao)} ${b.liberado ? '' : '<span class="chip">liberado no Nv <b>' + n(b.nivelMin) + '</b></span>'}</h2><div class="chips">${b.equipe.map((p) => `<span class="chip ${p.pronto ? 'on' : ''}">${esc(p.nome)} Nv ${n(p.nv)} <b>${p.pronto ? 'pronto' : 'abaixo'}</b></span>`).join('')}</div><div class="mini">A comparação supõe que o boss ataca com os próprios tipos. O painel não entra na luta.</div></section>`);
+  const cards = b.lista.map((x, i) => {
+    const [txt, cls] = x.leva >= 2 ? ['Arriscado', 'bad'] : i === melhor && x.dano >= 1 ? ['Melhor opção', 'on'] : x.dano < 1 ? ['Lento', ''] : ['Ok', 'accent'];
+    return `<section class="card">
+      <h2><span>${esc(x.nome)}</span><span class="chip ${cls}"><b>${txt}</b></span></h2>
+      <div class="palco-boss"><canvas class="bsp" width="160" height="160" data-lt="${x.lt ?? ''}" aria-label="${esc(x.nome)}"></canvas></div>
+      <div class="linha">
+        <div class="chips">${x.tipos.map((t) => `<span class="tp">${esc(tipoPt(t))}</span>`).join('')}</div>
+        <span class="mini">Nv mín. <b>${n(b.nivelMin)}</b></span>
+      </div>
+      <div>${kv('Seu melhor tipo causa', vezes(x.dano))}${kv('O tipo dele causa em você', vezes(x.leva))}${kv('Prêmio de hoje (até 18h)', PREMIO[x.premio])}${kv('Chance por vitória', x.chance == null ? 'não informada' : fx(x.chance, 2) + '%')}</div>
+    </section>`;
+  }).join('');
+  const eqCard = `<section class="card">
+    <h2><span>Sua equipe para ${esc(b.regiao)}</span>${b.liberado ? '<span class="chip on"><b>Liberado</b></span>' : `<span class="chip">libera no Nv <b>${n(b.nivelMin)}</b></span>`}</h2>
+    <div class="chips">${b.equipe.map((p) => `<span class="chip ${p.pronto ? 'on' : ''}">${esc(p.nome)} Nv ${n(p.nv)} <b>${p.pronto ? 'pronto' : 'abaixo'}</b></span>`).join('')}</div>
+    <div class="mini">A comparação supõe que o boss ataca com os próprios tipos. O painel é apenas consultivo.</div>
+  </section>`;
+  trocarHtml(el, `<div class="g-3">${cards}</div>${eqCard}`);
 }
+
 const COR_AVISO = { caiu: 'var(--bad)', voltou: 'var(--ok)', capturado: 'var(--shiny)', campo: 'var(--shiny)', escapou: 'var(--shiny)' };
 function mostrarAvisos(s) {
   const l = s.extras?.avisos ?? [];
   const quando = (t) => chaveDia(t) === chaveDia(s.agora) ? hora(t) : new Date(t).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) + ' ' + hora(t);
-  trocarHtml($('avisos'), l.length ? l.map((a) => `<div class="feed"><span class="dot" style="background:${COR_AVISO[a.tipo] ?? 'var(--a2)'}"></span><div><div>${esc(a.titulo)}</div><div class="mini">${quando(a.em)}${a.detalhe ? ' · ' + esc(a.detalhe) : ''}</div></div></div>`).join('') : '<div class="vazio">Nenhum aviso ainda.</div>');
+  trocarHtml($('avisos'), l.length ? l.map((a) => `<div class="feed"><span class="dot" style="background:${COR_AVISO[a.tipo] ?? 'var(--a2)'}"></span><div><div style="font-weight:500">${esc(a.titulo)}</div><div class="mini">${quando(a.em)}${a.detalhe ? ' · ' + esc(a.detalhe) : ''}</div></div></div>`).join('') : '<div class="vazio">Nenhum aviso recente.</div>');
 }
+
 function mostrarAjustes(s) {
   const cf = s.extras?.config ?? {};
-  $('h-avisos').textContent = cf.ntfy ? 'Avisos no celular: ligados' : 'Avisos no celular: desligados';
-  $('aj-ntfy').innerHTML = cf.ntfy ? '<b style="color:var(--ok)">ligado</b>' : '<b>desligado</b>';
-  trocarHtml($('aj-avisos'), `<ol><li>Instale o app <b>ntfy</b> no celular (grátis, sem conta).</li><li>No app, inscreva-se num nome difícil de adivinhar, ex.: <code>pkidle-</code> seguido de letras e números seus.</li><li>Coloque o mesmo nome em <code>NTFY_TOPICO=</code> no arquivo <code>.env</code> e reinicie o bot.</li></ol><div class="mini" style="margin-top:8px">Chegam no celular: shiny capturado, visto no campo ou que escapou; bot pausado, parado ou desconectado há 5 min; nível múltiplo de 50; resumo de ontem. Quem souber o nome do canal também recebe.</div>`);
-  $('aj-rede').innerHTML = cf.rede ? '<b style="color:var(--ok)">ligado</b>' : '<b>desligado</b>';
-  trocarHtml($('aj-rede-t'), cf.rede ? `<div class="mini">No celular, no mesmo Wi-Fi, abra <code>${esc(cf.url ?? 'http://IP-do-PC:8787')}</code>. Usuário qualquer, senha a do <code>.env</code>. Pela rede é só leitura.</div>` : '<ol><li>No <code>.env</code>, ponha <code>PAINEL_REDE=1</code> e <code>PAINEL_SENHA=</code> com 8 caracteres ou mais.</li><li>Reinicie o bot. O Windows pode pedir para liberar o Node na rede privada.</li></ol><div class="mini" style="margin-top:8px">Pela rede é só leitura. A conexão não é criptografada: use só no Wi-Fi de casa.</div>');
+  $('h-avisos').textContent = cf.ntfy ? 'Avisos: ON' : 'Avisos: OFF';
+  $('aj-ntfy').className = 'chip ' + (cf.ntfy ? 'on' : '');
+  $('aj-ntfy').innerHTML = cf.ntfy ? '<b>Ligado</b>' : 'Desligado';
+  trocarHtml($('aj-avisos'), `<div class="mini">Notifica no celular sobre shinies, desconexões (> 5 min), múltiplos de 50 níveis e resumo diário.</div>
+    <details class="passos" ${cf.ntfy ? '' : 'open'}><summary>Como configurar com ntfy</summary>
+      <ol><li>Instale o app <b>ntfy</b> no celular (grátis, sem conta).</li><li>Inscreva-se em um tópico único, ex.: <code>pkidle-seu-codigo</code>.</li><li>Coloque o mesmo nome em <code>NTFY_TOPICO=</code> no <code>.env</code> e reinicie o bot.</li></ol>
+    </details>`);
+  $('aj-rede').className = 'chip ' + (cf.rede ? 'on' : '');
+  $('aj-rede').innerHTML = cf.rede ? '<b>Ligado</b>' : 'Desligado';
+  trocarHtml($('aj-rede-t'), cf.rede
+    ? `<div class="mini">No mesmo Wi-Fi, abra <code>${esc(cf.url ?? 'http://IP-do-PC:8787')}</code> no celular (usuário qualquer, senha do <code>.env</code>). Acesso somente leitura.</div>`
+    : `<div class="mini">Permite acompanhar o painel pelo celular no Wi-Fi de casa (somente leitura, protegido por senha).</div>
+      <details class="passos"><summary>Como ativar na rede local</summary>
+        <ol><li>No <code>.env</code>, defina <code>PAINEL_REDE=1</code> e <code>PAINEL_SENHA=</code> (mínimo 8 caracteres).</li><li>Reinicie o bot e libere o Node na rede privada do Windows se solicitado.</li></ol>
+      </details>`);
 }
-$('aj-teste').onclick = async () => { const r = $('aj-teste-r'); try { const x = await fetch('/teste-aviso', { method: 'POST' }); r.textContent = x.ok ? 'Enviado. Se o celular estiver configurado, o aviso chega em instantes.' : 'Só dá para testar neste computador.'; } catch { r.textContent = 'O bot não respondeu.'; } };
-// sprites dos bosses (de frente)
+$('aj-teste').onclick = async () => {
+  const r = $('aj-teste-r');
+  try { const x = await fetch('/teste-aviso', { method: 'POST' }); r.textContent = x.ok ? 'Enviado ✓' : 'Disponível apenas neste PC.'; }
+  catch { r.textContent = 'O bot não respondeu.'; }
+};
+
 function desenharBosses(t) {
-  for (const cv of document.querySelectorAll('.aba.on canvas.bsp')) {
+  for (const cv of document.querySelectorAll('.aba.on .subview.on canvas.bsp')) {
     const sp = sprite(Number(cv.dataset.lt)), q = sp && (sp.s.dirs[3] ?? Object.values(sp.s.dirs)[0]); if (!q?.length) continue;
     const f = q[Math.floor(t / 200) % q.length], img = sp.imgs[f.p]; if (!img?.complete || !img.naturalWidth) continue;
     const ctx = cv.getContext('2d'); ctx.imageSmoothingEnabled = false; ctx.clearRect(0, 0, cv.width, cv.height);
@@ -779,20 +1538,20 @@ function desenharBosses(t) {
   }
 }
 
-// ---- bônus ativos ----
-const NOME_BOOST = { xp: 'XP', pokexp: 'XP de pokemon', loot: 'Loot', captura: 'Captura', shiny: 'Shiny' };
+// ---- bônus ----
+const NOME_BOOST = { xp: 'XP', pokexp: 'XP Pokémon', loot: 'Loot', captura: 'Captura', shiny: 'Shiny' };
 const dur = (m) => m >= 2880 ? `${Math.floor(m / 1440)} dias` : m >= 120 ? `${Math.floor(m / 60)} h` : `${m} min`;
 function mostrarBonus(s) {
   const b = s.bonus ?? {}, on = [];
   if (b.vip) on.push(`<span class="chip on">VIP <b>${b.vipPermanente ? 'permanente' : dur(b.vipMin)}</b></span>`);
   if (b.passeVipMin > 0) on.push(`<span class="chip on">VIP do passe <b>${dur(b.passeVipMin)}</b></span>`);
   for (const [k, m] of Object.entries(b.boosts ?? {})) on.push(`<span class="chip on">Boost ${esc(NOME_BOOST[k] ?? k)} <b>${dur(m)}</b></span>`);
-  for (const [k, m] of Object.entries(b.pausados ?? {})) on.push(`<span class="chip">Boost ${esc(NOME_BOOST[k] ?? k)} <b>pausado, ${dur(m)}</b></span>`);
+  for (const [k, m] of Object.entries(b.pausados ?? {})) on.push(`<span class="chip">Boost ${esc(NOME_BOOST[k] ?? k)} <b>pausado (${dur(m)})</b></span>`);
   if (b.guildPct > 0) on.push(`<span class="chip on">Guild <b>+${b.guildPct}%</b></span>`);
-  $('bonus').innerHTML = on.length ? on.join('') : '<span class="fraco">nenhum bônus ativo</span>';
+  $('bonus').innerHTML = on.length ? on.join('') : '<span class="vazio">nenhum bônus ativo</span>';
 }
 
-// ---- sprites do jogo (/sprite devolve os quadros; as imagens vêm de pokeidle.io) ----
+// ---- sprites & cena harmonizada ----
 const SPR = new Map();
 function sprite(lt) {
   if (!lt) return null;
@@ -810,39 +1569,65 @@ function levouDano(chave, hp) {
   golpe.set(chave, { hp, em: g?.em ?? 0 });
   return performance.now() - (golpe.get(chave).em) < 260;
 }
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.roundRect ? ctx.roundRect(x, y, w, h, r) : ctx.rect(x, y, w, h);
+}
 function desenhar(ctx, alvo, dir, cx, chao, escala, t, opts = {}) {
   const sp = sprite(alvo.lt);
   const q = sp && (sp.s.dirs[dir] ?? sp.s.dirs[3] ?? Object.values(sp.s.dirs)[0]);
   const treme = opts.treme ? Math.sin(t / 18) * 3 : 0;
-  ctx.globalAlpha = opts.morto ? 0.28 : 1;
-  let topo;
+  const dark = estiloCena !== 'pkm';
+
+  // sombra suave no chão
+  if (!opts.morto) {
+    ctx.fillStyle = dark ? 'rgba(0,0,0,.35)' : 'rgba(0,0,0,.18)';
+    ctx.beginPath(); ctx.ellipse(cx, chao - 2, opts.compacto ? 18 : 26, opts.compacto ? 5 : 7, 0, 0, Math.PI * 2); ctx.fill();
+  }
+
+  ctx.globalAlpha = opts.morto ? 0.25 : 1;
   if (q?.length) {
     const f = q[opts.morto ? 0 : Math.floor(t / 170 + (opts.fase ?? 0)) % q.length];
     const img = sp.imgs[f.p];
-    const e = f.h > 32 ? escala * 0.7 : escala;
+    const e = f.h > 32 ? escala * 0.72 : escala;
     const w = f.w * e, h = f.h * e;
     if (img?.complete && img.naturalWidth) ctx.drawImage(img, f.x, f.y, f.w, f.h, Math.round(cx - w / 2 + treme), Math.round(chao - h), w, h);
-    topo = estilo === 'pkm' ? chao - h - (opts.compacto ? 6 : 30) : chao - (f.h > 32 ? h * 0.7 : h * 0.85) - 4; // pkm: placa acima da cabeça, sem cobrir o sprite
   } else {
-    ctx.fillStyle = cor('line'); ctx.beginPath(); ctx.arc(cx + treme, chao - 16 * escala / 2, 12 * escala / 2, 0, 7); ctx.fill();
-    ctx.fillStyle = cor('sub'); ctx.font = '600 13px system-ui'; ctx.textAlign = 'center'; ctx.fillText((alvo.nome ?? '?')[0], cx + treme, chao - 16 * escala / 2 + 5);
-    topo = chao - 16 * escala - 6;
+    ctx.fillStyle = cor('border'); ctx.beginPath(); ctx.arc(cx + treme, chao - 16 * escala / 2, 12 * escala / 2, 0, 7); ctx.fill();
+    ctx.fillStyle = cor('sub'); ctx.font = '600 13px Inter, system-ui'; ctx.textAlign = 'center'; ctx.fillText((alvo.nome ?? '?')[0], cx + treme, chao - 16 * escala / 2 + 5);
   }
   ctx.globalAlpha = 1;
   if (opts.morto) return;
-  if (estilo === 'pkm') topo = chao + (opts.compacto ? 19 : 25); // pkm: placa abaixo do pokemon
-  const bw = Math.max(34, 12 * escala), pct = alvo.mhp ? Math.max(0, Math.min(1, alvo.hp / alvo.mhp)) : 0;
-  if (estilo === 'pkm') { const pw = Math.max(bw, opts.compacto ? 70 : 96) + 12, ph = opts.compacto ? 22 : 28, py = Math.round(topo - ph + 7); ctx.fillStyle = '#f7f3dc'; ctx.strokeStyle = '#3a3a3a'; ctx.lineWidth = 2; ctx.fillRect(Math.round(cx - pw / 2), py, pw, ph); ctx.strokeRect(Math.round(cx - pw / 2), py, pw, ph); }
-  ctx.fillStyle = estilo === 'pkm' ? '#46465a' : cor('tile'); ctx.fillRect(Math.round(cx - bw / 2), Math.round(topo), bw, 4);
-  ctx.fillStyle = alvo.shiny ? '#e9c868' : pct < 0.25 ? cor('bad') : pct < 0.5 ? '#f8c83c' : cor('ok'); ctx.fillRect(Math.round(cx - bw / 2), Math.round(topo), Math.round(bw * pct), 4);
-  ctx.fillStyle = estilo === 'pkm' ? (alvo.shiny ? '#9a7a10' : '#262626') : (alvo.shiny ? '#e9c868' : cor('sub')); ctx.font = (opts.compacto ? '10px' : '12px') + ' system-ui'; ctx.textAlign = 'center';
-  ctx.fillText(`${alvo.shiny ? '✨ ' : ''}${alvo.nome ?? '?'} ${alvo.nv ?? ''}`, cx, Math.round(topo - 5));
+
+  const topo = chao + (opts.compacto ? 20 : 26);
+  const bw = Math.max(44, 15 * escala), pct = alvo.mhp ? Math.max(0, Math.min(1, alvo.hp / alvo.mhp)) : 0;
+  const label = `${alvo.shiny ? '✨ ' : ''}${alvo.nome ?? '?'} ${alvo.nv ?? ''}`;
+  ctx.font = (opts.compacto ? '500 10.5px' : '600 11.5px') + ' Inter, system-ui';
+  const pw = Math.max(bw + 16, ctx.measureText(label).width + 18), ph = opts.compacto ? 24 : 28, py = Math.round(topo - ph + 8);
+
+  if (dark) {
+    ctx.fillStyle = 'rgba(12, 11, 20, 0.78)';
+    ctx.strokeStyle = alvo.shiny ? cor('shiny') : 'rgba(255,255,255,0.12)';
+    ctx.lineWidth = 1;
+    roundRect(ctx, Math.round(cx - pw / 2), py, pw, ph, 7); ctx.fill(); ctx.stroke();
+  } else {
+    ctx.fillStyle = '#f7f3dc'; ctx.strokeStyle = '#3a3a3a'; ctx.lineWidth = 2;
+    roundRect(ctx, Math.round(cx - pw / 2), py, pw, ph, 5); ctx.fill(); ctx.stroke();
+  }
+  ctx.fillStyle = dark ? 'rgba(255,255,255,0.14)' : '#46465a';
+  roundRect(ctx, Math.round(cx - bw / 2), Math.round(topo), bw, 4, 2); ctx.fill();
+  ctx.fillStyle = alvo.shiny ? cor('shiny') : pct < 0.25 ? cor('bad') : pct < 0.5 ? '#fbbf24' : cor('ok');
+  if (pct > 0) { roundRect(ctx, Math.round(cx - bw / 2), Math.round(topo), Math.max(3, Math.round(bw * pct)), 4, 2); ctx.fill(); }
+  ctx.fillStyle = dark ? (alvo.shiny ? cor('shiny') : '#f2effc') : (alvo.shiny ? '#9a7a10' : '#262626');
+  ctx.textAlign = 'center';
+  ctx.fillText(label, cx, Math.round(topo - 5));
 }
+
 function avatar(t) {
   const cv = $('av'), s = ultimoEstado; if (!cv || !s) return;
   const ctx = cv.getContext('2d'); ctx.imageSmoothingEnabled = false; ctx.clearRect(0, 0, cv.width, cv.height);
   const eu = s.equipe.find((p) => p.ativo);
-  let sp = sprite(s.treinadorLt); // o personagem; se o sprite não existir, cai no pokemon ativo
+  let sp = sprite(s.treinadorLt);
   if (!sp && s.treinadorLt && SPR.get(s.treinadorLt) === null) sp = eu && sprite(eu.lt);
   const q = sp && (sp.s.dirs[3] ?? sp.s.dirs[2] ?? Object.values(sp.s.dirs)[0]);
   if (!q?.length) return;
@@ -851,36 +1636,55 @@ function avatar(t) {
   const e = Math.max(1, Math.floor(Math.min(cv.width / f.w, cv.height / f.h)));
   ctx.drawImage(img, f.x, f.y, f.w, f.h, Math.round((cv.width - f.w * e) / 2), Math.round((cv.height - f.h * e) / 2), f.w * e, f.h * e);
 }
+
 function quadro(t) {
   requestAnimationFrame(quadro);
   avatar(t); desenharBosses(t);
   const cv = $('cena'), s = ultimoEstado; if (!cv || !s) return;
   const dpr = window.devicePixelRatio || 1, W = cv.clientWidth, H = cv.clientHeight;
-  if (!W || !H) return; // seção escondida
+  if (!W || !H) return;
   if (cv.width !== Math.round(W * dpr) || cv.height !== Math.round(H * dpr)) { cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); }
   const ctx = cv.getContext('2d'); ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.imageSmoothingEnabled = false;
   ctx.clearRect(0, 0, W, H);
-  ctx.strokeStyle = cor('line'); ctx.globalAlpha = estilo === 'pkm' ? 0 : 0.55; ctx.lineWidth = 1;
-  for (let y = H * 0.45; y < H; y += 22) { ctx.beginPath(); ctx.moveTo(0, Math.round(y) + 0.5); ctx.lineTo(W, Math.round(y) + 0.5); ctx.stroke(); }
-  ctx.globalAlpha = 1;
-  if (s.noCentro) { ctx.fillStyle = cor('sub'); ctx.font = '14px system-ui'; ctx.textAlign = 'center'; ctx.fillText('No Centro Pokemon, curando', W / 2, H / 2); return; }
+
+  if (estiloCena !== 'pkm') {
+    // linha sutil de chão na arena escura
+    ctx.strokeStyle = 'rgba(255,255,255,0.06)'; ctx.lineWidth = 1;
+    const hy = Math.round(H * 0.56) + 0.5;
+    ctx.beginPath(); ctx.moveTo(0, hy); ctx.lineTo(W, hy); ctx.stroke();
+  }
+
+  if (s.noCentro) {
+    ctx.fillStyle = cor('sub'); ctx.font = '500 13.5px Inter, system-ui'; ctx.textAlign = 'center';
+    ctx.fillText('No Centro Pokémon, curando a equipe…', W / 2, H / 2);
+    return;
+  }
   const eu = s.equipe.find((p) => p.ativo);
-  if (eu) desenhar(ctx, eu, 2, Math.max(70, W * 0.18), H * (estilo === 'pkm' ? 0.66 : 0.78), H < 250 ? 2.3 : 3, t, { treme: levouDano('eu', eu.hp) });
+  const escEu = H < 250 ? 2.2 : 2.9;
+  if (eu) desenhar(ctx, eu, 2, Math.max(76, W * 0.19), H * 0.68, escEu, t, { treme: levouDano('eu', eu.hp) });
+
   const todos = [...s.campo].sort((a, b) => (a.morto - b.morto) || (b.shiny - a.shiny) || (a.slot ?? 0) - (b.slot ?? 0));
-  const baixo = H < 200, mobs = todos.slice(0, baixo ? (W < 420 ? 2 : 3) : 6).sort((a, b) => (a.slot ?? 0) - (b.slot ?? 0));
-  const area = { x: W * 0.4, w: W * 0.56 }, cols = baixo ? Math.max(1, mobs.length) : Math.min(4, Math.max(1, Math.ceil(mobs.length / 2))), linhas = Math.ceil(mobs.length / cols) || 1;
+  const baixo = H < 210, mobs = todos.slice(0, baixo ? (W < 420 ? 2 : 3) : 6).sort((a, b) => (a.slot ?? 0) - (b.slot ?? 0));
+  const area = { x: W * 0.42, w: W * 0.54 }, cols = baixo ? Math.max(1, mobs.length) : Math.min(3, Math.max(1, Math.ceil(mobs.length / 2))), linhas = Math.ceil(mobs.length / cols) || 1;
   mobs.forEach((m, i) => {
     const col = i % cols, l = Math.floor(i / cols);
-    const cx = area.x + (col + 0.5) * area.w / cols + (l % 2 ? area.w / cols / 4 : 0);
-    const chao = estilo === 'pkm' ? (linhas > 1 ? H * 0.1 + (l + 1) * (H * 0.77 / linhas) - 24 : H * 0.66) : H * 0.3 + (l + 1) * (H * 0.66 / linhas) - 6;
-    desenhar(ctx, m, 4, cx, chao, H < 270 ? 1.8 : 2.4, t, { compacto: linhas > 1 || baixo, morto: m.morto, treme: !m.morto && levouDano('m' + m.slot, m.hp), fase: i });
+    const cx = area.x + (col + 0.5) * area.w / cols + (l % 2 ? area.w / cols / 5 : 0);
+    const chao = linhas > 1 ? H * 0.14 + (l + 1) * (H * 0.72 / linhas) - 18 : H * 0.68;
+    desenhar(ctx, m, 4, cx, chao, H < 260 ? 1.8 : 2.3, t, { compacto: linhas > 1 || baixo, morto: m.morto, treme: !m.morto && levouDano('m' + m.slot, m.hp), fase: i });
   });
-  if (todos.length > mobs.length) { ctx.fillStyle = '#12361a'; ctx.font = '600 11px system-ui'; ctx.textAlign = 'right'; ctx.fillText(`+ ${todos.length - mobs.length} no campo`, W - 10, 16); }
-  if (!mobs.length) { ctx.fillStyle = cor('fraco'); ctx.font = '13px system-ui'; ctx.textAlign = 'center'; ctx.fillText('esperando selvagens…', W * 0.68, H * 0.6); }
+  if (todos.length > mobs.length) {
+    ctx.fillStyle = estiloCena === 'pkm' ? '#12361a' : cor('sub');
+    ctx.font = '600 11px Inter, system-ui'; ctx.textAlign = 'right';
+    ctx.fillText(`+ ${todos.length - mobs.length} no campo`, W - 12, 18);
+  }
+  if (!mobs.length) {
+    ctx.fillStyle = cor('fraco'); ctx.font = '500 13px Inter, system-ui'; ctx.textAlign = 'center';
+    ctx.fillText('aguardando selvagens…', W * 0.68, H * 0.6);
+  }
 }
 requestAnimationFrame(quadro);
 
-// ---- shiny: faixa, som, título piscando ----
+// ---- alertas de shiny ----
 let vistoAte = 0; try { vistoAte = Number(localStorage.getItem('shinyVistoAte')) || 0; } catch {}
 let ultimoAlerta = null, piscador = null;
 function bip() {
@@ -891,7 +1695,7 @@ function bip() {
 }
 function mostrarAlertas(alertas) {
   const reais = alertas ?? [];
-  tabela($('shinies'), reais.slice(0, 10).map((a) => `<tr><td class="shiny">${a.tipo === 'capturado' ? 'capturado' : a.tipo === 'campo' ? 'no campo' : a.tipo === 'escapou' ? 'escapou' : 'teste'} · ${esc(a.nome ?? '')} Nv${n(a.level)}${a.deOutro ? ' <span class="fraco">(de outro jogador)</span>' : ''}</td><td class="num">${hora(a.em)}</td></tr>`), 'nenhum nesta sessão');
+  tabela($('shinies'), reais.slice(0, 10).map((a) => `<tr><td class="shiny">${a.tipo === 'capturado' ? 'capturado' : a.tipo === 'campo' ? 'no campo' : a.tipo === 'escapou' ? 'escapou' : 'teste'} · ${esc(a.nome ?? '')} Nv ${n(a.level)}${a.deOutro ? ' <span class="fraco">(de outro jogador)</span>' : ''}</td><td>${hora(a.em)}</td></tr>`), 'nenhum nesta sessão');
   const novo = reais.find((a) => a.em > vistoAte);
   const el = $('alerta');
   if (!novo) { el.hidden = true; document.title = 'PokeIdle bot'; clearInterval(piscador); piscador = null; return; }
@@ -904,13 +1708,28 @@ function mostrarAlertas(alertas) {
 }
 $('alerta-ok').onclick = () => { vistoAte = Date.now(); try { localStorage.setItem('shinyVistoAte', String(vistoAte)); } catch {} $('alerta').hidden = true; clearInterval(piscador); piscador = null; document.title = 'PokeIdle bot'; };
 
+// ---- log SSE com filtro ----
+const logLinhas = [];
+const pre = $('logtxt'), filtroEl = $('log-filtro');
+function renderLog(irAoFim) {
+  const q = filtroEl.value.trim().toLowerCase();
+  const vis = q ? logLinhas.filter((l) => l.toLowerCase().includes(q)) : logLinhas;
+  pre.textContent = vis.join('\n') + (vis.length ? '\n' : '');
+  if (irAoFim) pre.scrollTop = pre.scrollHeight;
+}
+filtroEl.addEventListener('input', () => renderLog(false));
+$('log-fim').onclick = () => { pre.scrollTop = pre.scrollHeight; };
+const es = new EventSource('/eventos');
+es.onmessage = (e) => {
+  const fim = pre.scrollTop + pre.clientHeight >= pre.scrollHeight - 24;
+  logLinhas.push(JSON.parse(e.data));
+  if (logLinhas.length > 500) logLinhas.splice(0, logLinhas.length - 400);
+  renderLog(fim);
+};
+
 addEventListener('resize', () => desenharGrafico());
 aplicarTema(temaAtual);
 setInterval(atualizar, 2000); atualizar();
-
-const pre = $('logtxt');
-const es = new EventSource('/eventos');
-es.onmessage = (e) => { const fim = pre.scrollTop + pre.clientHeight >= pre.scrollHeight - 20; pre.textContent += JSON.parse(e.data) + '\n'; if (pre.textContent.length > 60000) pre.textContent = pre.textContent.slice(-40000); if (fim) pre.scrollTop = pre.scrollHeight; };
 </script>
 </body>
 </html>
