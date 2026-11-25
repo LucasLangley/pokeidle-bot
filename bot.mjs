@@ -1255,7 +1255,10 @@ function aoRevendaEvento(ev) {
   if (ev.k === 'marketCriado' && SNR.pedido) {
     const r = lista[SNR.pedido.idx]; if (r && r.estado === 'anunciando' && (casa(r) || !ev.descricao)) { r.estado = 'anunciado'; r.anuncioEm = Date.now(); SNR.pedido = null; log(`revenda: anúncio criado — ${ev.descricao ?? r.nome}`); }
   } else if (ev.k === 'marketVendido' && ev.moeda === 'orb') {
-    const r = lista.find((x) => x.estado === 'anunciado' && casa(x)); if (!r) return;
+    // casa pelo nome E pelo preço da venda: três Larvitar Nv20 à venda ao mesmo tempo confundiam (25/11 17:16)
+    const cands = lista.filter((x) => x.estado === 'anunciado' && casa(x));
+    const r = cands.find((x) => ev.bruto != null && x.preco === Number(ev.bruto)) ?? (cands.length === 1 ? cands[0] : null);
+    if (!r) { if (cands.length) log(`revenda: vendeu ${ev.descricao} por ${ev.bruto ?? '?'}, mas não sei qual dos ${cands.length} anúncios era; confiro na próxima lista "meus"`); SNR.meusEm = 0; return; }
     r.estado = 'vendido'; r.recebido = ev.valor ?? snLiquido(r.preco); r.lucro = r.recebido - r.custo; r.vendidoEm = Date.now();
     snEvento('vendeu', `${r.nome} Nv${r.nivel}`, { preco: r.preco, ref: r.media, ganho: r.lucro, pct: Math.round(r.lucro / r.custo * 100), motivo: `pagou ${r.custo}, recebeu ${r.recebido}` });
     avisarShiny('mercado', `💸 Revenda: vendeu ${r.nome} Nv${r.nivel}`, `Pagou ${r.custo} Gemas, recebeu ${r.recebido}. Lucro ${r.lucro} Gemas.`);
