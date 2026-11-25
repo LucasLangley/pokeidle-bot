@@ -372,29 +372,42 @@ function linhaHp({ nome, extra, hp, mhp, classes = '', direita }) {
 function lista(el, html, vazio) { el.innerHTML = html.length ? html.join('') : `<li class="vazio" style="display:block">${vazio}</li>`; }
 function tabela(el, html, vazio) { el.innerHTML = html.length ? html.join('') : `<tr><td class="vazio" colspan="2">${vazio}</td></tr>`; }
 
-// ---- histórico de XP/h (amostra a cada 30 s, guarda 1 h no navegador) ----
+// ---- histórico de XP/h (guarda o XP total a cada 30 s por 1 h no navegador; o ritmo é o XP ganho nos últimos 5 min) ----
 let amostras = [];
-try { amostras = (JSON.parse(localStorage.getItem('pk-xph')) ?? []).filter((p) => Date.now() - p[0] < 3600_000); } catch {}
+try { amostras = (JSON.parse(localStorage.getItem('pk-xp2')) ?? []).filter((p) => Date.now() - p[0] < 3600_000 + 300_000); } catch {}
 let ultimaAmostra = 0;
 function amostrar(s) {
-  if (!s.conectado || s.minutos < 5 || !s.xph || Date.now() - ultimaAmostra < 30_000) return;
-  ultimaAmostra = Date.now(); amostras.push([Date.now(), s.xph]);
-  amostras = amostras.filter((p) => Date.now() - p[0] < 3600_000);
-  try { localStorage.setItem('pk-xph', JSON.stringify(amostras)); } catch {}
+  if (!s.conectado || s.xp == null || Date.now() - ultimaAmostra < 30_000) return;
+  ultimaAmostra = Date.now(); amostras.push([Date.now(), s.xp]);
+  amostras = amostras.filter((p) => Date.now() - p[0] < 3600_000 + 300_000);
+  try { localStorage.setItem('pk-xp2', JSON.stringify(amostras)); } catch {}
   desenharGrafico();
+}
+// ritmo em cada ponto: XP ganho / tempo, contra a amostra de 5 min antes (ou a mais antiga, se já passou de 2 min)
+function ritmos() {
+  const out = [];
+  for (let i = 0; i < amostras.length; i++) {
+    const [t, xp] = amostras[i]; let j = -1;
+    for (let k = i - 1; k >= 0; k--) if (t - amostras[k][0] >= 300_000) { j = k; break; }
+    if (j < 0 && i > 0 && t - amostras[0][0] >= 120_000) j = 0;
+    if (j >= 0 && Date.now() - t <= 3600_000) out.push([t, Math.max(0, (xp - amostras[j][1]) / ((t - amostras[j][0]) / 3600_000))]);
+  }
+  return out;
 }
 function desenharGrafico() {
   const el = $('grafico'); if (!el) return;
-  const W = 600, H = 190, pad = 20;
+  const W = 600, H = 190, pad = 20, rs = ritmos();
   let html = [20, 70, 120, 170].map((y) => `<line class="g" x1="0" y1="${y}" x2="${W}" y2="${y}" stroke-width="1"/>`).join('');
-  if (amostras.length < 2) { el.innerHTML = html + `<text x="${W / 2}" y="${H / 2}" text-anchor="middle" fill="${cor('sub')}" font-size="14">coletando os primeiros pontos…</text>`; $('g-chip').textContent = 'coletando…'; return; }
-  const t1 = Date.now(), t0 = t1 - 3600_000, vs = amostras.map((p) => p[1]);
+  if (rs.length < 2) { el.innerHTML = html + `<text x="${W / 2}" y="${H / 2}" text-anchor="middle" fill="${cor('sub')}" font-size="14">coletando os primeiros pontos…</text>`; $('g-chip').textContent = 'coletando…'; return; }
+  const t1 = Date.now(), t0 = t1 - 3600_000, vs = rs.map((p) => p[1]);
   let lo = Math.min(...vs), hi = Math.max(...vs); const folga = Math.max((hi - lo) * 0.15, hi * 0.02, 1); lo -= folga; hi += folga;
-  const pts = amostras.map(([t, v]) => [Math.round((t - t0) / (t1 - t0) * W), Math.round(H - pad - (v - lo) / (hi - lo) * (H - 2 * pad))]);
+  const pts = rs.map(([t, v]) => [Math.round((t - t0) / (t1 - t0) * W), Math.round(H - pad - (v - lo) / (hi - lo) * (H - 2 * pad))]);
   const linha = pts.map((p) => p.join(',')).join(' ');
   const ult = pts[pts.length - 1];
   el.innerHTML = html + `<polygon class="ar" points="${pts[0][0]},${H - pad} ${linha} ${ult[0]},${H - pad}"/><polyline class="l" points="${linha}" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/><circle class="pt" cx="${ult[0]}" cy="${ult[1]}" r="5" stroke-width="3"/>`;
-  $('g-chip').innerHTML = `pico <b>${c(Math.max(...vs))}</b> · média <b>${c(vs.reduce((a, b) => a + b, 0) / vs.length)}</b>`;
+  const prim = amostras.find((p) => t1 - p[0] <= 3600_000) ?? amostras[0], ultA = amostras[amostras.length - 1], dt = (ultA[0] - prim[0]) / 3600_000;
+  const media = dt > 0.03 ? (ultA[1] - prim[1]) / dt : vs[vs.length - 1];
+  $('g-chip').innerHTML = `pico <b>${c(Math.max(...vs))}</b> · média <b>${c(media)}</b> · agora <b>${c(vs[vs.length - 1])}</b>`;
 }
 
 // ---- estado ----
@@ -420,7 +433,7 @@ async function atualizar() {
   const falta = s.xpProximo != null && s.xp != null ? Math.max(0, s.xpProximo - s.xp) : null, minEta = falta != null && s.xph > 0 && !cedo ? falta / s.xph * 60 : null;
   $('k-eta').textContent = minEta == null ? '—' : minEta < 1 ? 'menos de 1 min' : '≈ ' + (minEta < 60 ? `${Math.round(minEta)} min` : `${Math.floor(minEta / 60)} h ${Math.round(minEta % 60)} min`);
   $('k-falta').textContent = falta != null ? `faltam ${c(falta)} XP` : '';
-  $('k-ouro').textContent = c(s.ouro); $('k-gemas').textContent = n(s.diamantes ?? 0);
+  $('k-ouro').textContent = c(s.ouro); $('k-gemas').textContent = n(s.orbs ?? 0);
   const eq = s.equipado ?? {};
   if (eq.pocao) trocarIcone('i-pocao', ICON.itens[eq.pocao]);
   if (eq.bola) trocarIcone('i-bola', ICON.bolas[eq.bola]);
@@ -441,7 +454,7 @@ async function atualizar() {
   $('m-des').textContent = n(s.stats.desmaios); $('m-des-s').textContent = s.stats.desmaios ? 'nesta sessão' : 'nenhum nesta sessão';
   $('m-des-s').style.color = s.stats.desmaios ? cor('bad') : cor('ok');
   $('m-cap').textContent = n(s.stats.capturas); $('m-cap-s').textContent = `${n(s.stats.bolasServidor ?? 0)} bolas confirmadas`;
-  $('m-sh').textContent = n(ac.shinyCapturados ?? 0); $('m-sh-s').textContent = `${n(ac.shinyNoCampo ?? 0)} vistos no campo`;
+  $('m-sh').textContent = n(ac.shinyCapturados ?? 0); $('m-sh-s').textContent = `em ${n(ac.capturas ?? 0)} capturas`;
 
   lista($('equipe'), s.equipe.map((p) => linhaHp({
     nome: `${p.shiny ? '✨ ' : ''}${esc(p.nome)} Nv${n(p.nv)}`, extra: `P${p.p} · Q${p.q} · N${p.nota ?? '—'}`,
@@ -456,7 +469,6 @@ async function atualizar() {
 
   $('shinyacum').innerHTML = [
     `<span class="chip ${ac.shinyCapturados ? 'shiny' : ''}">capturados <b>${n(ac.shinyCapturados ?? 0)}</b></span>`,
-    `<span class="chip">vistos no campo <b>${n(ac.shinyNoCampo ?? 0)}</b></span>`,
     `<span class="chip">bolas confirmadas <b>${n(ac.bolasConfirmadas ?? 0)}</b></span>`,
     `<span class="chip">capturas <b>${n(ac.capturas ?? 0)}</b></span>`,
   ].join('');
@@ -551,7 +563,7 @@ function mostrarExtras(s) {
     ${kv('Derrotas', n(p.derrotas))}${kv('Sequência atual', (p.sequencia > 0 ? '+' : '') + n(p.sequencia), p.sequencia < 0 ? 'color:var(--bad)' : p.sequencia > 0 ? 'color:var(--ok)' : '')}${kv('Pico de pontos', n(p.pico))}${kv('Divisão', esc(cap(p.tier ?? '—')))}` : '<span class="fraco">sem dados de PvP</span>';
   // moedas e passe
   $('moedas').innerHTML = `<div class="tiles2"><div class="tile"><span class="ico">${SVG_COROA}</span><div><small>Coroas</small><strong class="num">${c(x.coroas)}</strong></div></div><div class="tile"><span class="ico">${SVG_MEDALHA}</span><div><small>Medalhas</small><strong class="num">${c(x.medalhas)}</strong></div></div></div>
-    <div style="margin-top:10px">${kv('Passe de batalha', x.passeDegrau != null ? 'degrau ' + n(x.passeDegrau) : '—')}${x.topCatch ? kv('Top Catch de hoje', `${n(x.topCatch.n)} / ${n(x.topCatch.m)}${x.topCatch.n >= x.topCatch.m ? ' ✓' : ''}`, x.topCatch.n >= x.topCatch.m ? 'color:var(--ok)' : '') : ''}</div>`;
+    <div style="margin-top:10px">${kv('Diamantes', n(s.diamantes ?? 0))}${kv('Passe de batalha', x.passeDegrau != null ? 'degrau ' + n(x.passeDegrau) : '—')}${x.topCatch ? kv('Top Catch de hoje', `${n(x.topCatch.n)} / ${n(x.topCatch.m)}${x.topCatch.n >= x.topCatch.m ? ' ✓' : ''}`, x.topCatch.n >= x.topCatch.m ? 'color:var(--ok)' : '') : ''}</div>`;
   // hoje no jogo
   const d = x.diaSazonal;
   $('hoje').innerHTML = (d ? `<div class="tile"><div><small>Dia do tipo</small><strong class="disp">${esc(tipoPt(d.tipo))}</strong></div><span class="chip" style="margin-left:auto">termina em <b>${d.fim > agora ? dur(Math.max(1, Math.round((d.fim - agora) / 60000))) : '—'}</b></span></div>
@@ -560,15 +572,15 @@ function mostrarExtras(s) {
   // Pokédex
   const dx = x.pokedex;
   $('dex').innerHTML = dx ? `<div style="display:flex;align-items:baseline;gap:8px"><span class="big">${n(dx.capturadas)}</span><span class="mini">espécies capturadas</span></div>
-    <div class="bar" style="margin:12px 0"><i style="width:${dx.vistas ? 100 * dx.capturadas / dx.vistas : 0}%"></i></div>${kv('Espécies vistas', n(dx.vistas))}${kv('Pokémon derrotados (total)', n(dx.abates))}` : '<span class="fraco">sem dados</span>';
+    <div class="bar" style="margin:12px 0"><i style="width:${dx.total ? Math.min(100, 100 * dx.capturadas / dx.total) : 0}%"></i></div>${dx.total ? kv('Total de espécies', n(dx.total)) : ''}${kv('Espécies vistas', n(dx.vistas))}${kv('Pokémon derrotados (total)', n(dx.abates))}` : '<span class="fraco">sem dados</span>';
   // saúde do bot
   $('saude').innerHTML = kv('Conexão', s.conectado ? 'estável' : 'reconectando', `color:${s.conectado ? 'var(--ok)' : 'var(--bad)'}`) + kv('Sessão', fmtMin(s.minutos)) + kv('Tentativas de reconexão', n(x.tentativas ?? 0)) + kv('Modo', s.somenteLer ? 'só leitura' : 'farm automático') +
     '<div class="mini" style="margin-top:10px">Abrir o jogo no navegador derruba o bot e ele fica pausado por 2 h.</div>';
   // XP/h por hunt medida
-  const med = Object.entries(s.acumulado?.medicoes ?? {}).filter(([, m]) => m.seg > 30 && m.xp > 0).map(([k, m]) => { const [r, lv] = k.split(':'); return { r, lv: Number(lv), xph: m.xp / m.seg * 3600 }; }).sort((a, b) => b.xph - a.xph).slice(0, 6);
+  const med = Object.entries(s.acumulado?.medicoes ?? {}).filter(([, m]) => m.seg > 30 && m.xp > 0 && s.nivel - (m.lv ?? 0) <= 20).map(([k, m]) => { const [r, lv] = k.split(':'); return { r, lv: Number(lv), xph: m.xp / m.seg * 3600, em: m.lv }; }).sort((a, b) => b.xph - a.xph).slice(0, 6);
   const topo = med[0]?.xph || 1, area = s.hunt?.area;
   $('hunts').innerHTML = med.length ? med.map((m) => { const atual = m.lv === s.hunt?.nivel && (m.r === 'outland') === (area === 'outland');
-    return `<div class="hb"><span class="t">${m.r === 'outland' ? 'Outland · nível ' : 'Nível '}${m.lv}</span><div class="bar"><i class="${atual ? 'ok' : ''}" style="width:${100 * m.xph / topo}%"></i></div><span class="v" style="width:90px">${c(m.xph)}/h</span></div>`; }).join('') : '<span class="fraco">ainda sem medições</span>';
+    return `<div class="hb"><span class="t" title="medido quando você estava no Nv ${m.em}">${m.r === 'outland' ? 'Outland · nível ' : 'Nível '}${m.lv}<small class="fraco"> · Nv ${m.em}</small></span><div class="bar"><i class="${atual ? 'ok' : ''}" style="width:${100 * m.xph / topo}%"></i></div><span class="v" style="width:90px">${c(m.xph)}/h</span></div>`; }).join('') : '<span class="fraco">sem medições recentes (últimos 20 níveis)</span>';
 }
 
 // ---- bônus ativos ----

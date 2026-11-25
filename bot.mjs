@@ -889,7 +889,7 @@ function garantirAutomacoes() {
 function resumo() {
   const e = S.eu;
   if (!e) return;
-  const horas = Math.max(1 / 60, (Date.now() - S.stats.inicio) / 3600_000);
+  const horas = Math.max(1 / 60, onlineMs() / 3600_000);
   const xpAgora = xpAtualDe(e);
   const dxp = xpAgora - (S.stats.xp0 ?? xpAgora);
   const douro = (e.gold ?? 0) - (S.stats.ouro0 ?? 0) - (S.stats.ouroExtra ?? 0);
@@ -1058,6 +1058,7 @@ function aoMensagem(m) {
   switch (m.t) {
     case 'welcome':
       S.welcome = true;
+      S.stats.offMs = (S.stats.offMs ?? 0) + (Date.now() - (S.offDesde ?? S.stats.inicio)); S.offDesde = null;
       S.conectadoEm = Date.now();
       if (!S.restaurado) { S.restaurado = true; S.mortes = (ACUM.mortesRecentes ?? []).filter((t) => Date.now() - t < 10 * 60_000); S.desistiDegrau = { ...(ACUM.desistiDegrau ?? {}) }; S.mataPk = { ...(ACUM.mataPk ?? {}) }; }
       S.tentativas = 0;
@@ -1136,6 +1137,7 @@ function conectar() {
   ws.onerror = (e) => log('erro de socket:', e?.message ?? '');
   ws.onclose = (ev) => {
     clearInterval(ping); clearInterval(watchdog); clearInterval(loop); clearInterval(rel); clearInterval(capt);
+    S.offDesde ??= Date.now();
     log(`desconectado (código ${ev.code}${ev.reason ? `, ${ev.reason}` : ''})`);
     if (ev.code === 4001) {
       log(`sessão tomada por outra conexão (o jogo foi aberto em outro lugar). Pausando por ${CFG.pausaHoras} h — apague o arquivo PAUSADO para voltar antes.`);
@@ -1697,8 +1699,11 @@ function salvarToken(token) {
 
 // ---------- painel ao vivo (só em 127.0.0.1) ----------
 // tempo e abates desde que entrou na hunt atual (zera quando a hunt muda)
+// tempo conectado desde que o bot ligou (sem as quedas)
+function onlineMs() { return Math.max(0, Date.now() - S.stats.inicio - (S.stats.offMs ?? 0) - (S.offDesde ? Date.now() - S.offDesde : 0)); }
 function huntSessao() {
   const slug = S.eu?.huntSlug ?? null;
+  if (slug == null && S.huntSessao) return S.huntSessao; // ir ao Centro não zera "nesta hunt"
   if (!S.huntSessao || S.huntSessao.slug !== slug) S.huntSessao = { slug, desde: Date.now(), abates: 0 };
   return S.huntSessao;
 }
@@ -1715,7 +1720,7 @@ function equipados(e) {
 function instantaneo() {
   const e = S.eu ?? {};
   const hs = huntSessao();
-  const horas = Math.max(1 / 60, (Date.now() - S.stats.inicio) / 3600_000);
+  const horas = Math.max(1 / 60, onlineMs() / 3600_000);
   const xpAgora = e.level ? xpAtualDe(e) : 0;
   const hunt = S.hunts.find((h) => h.slug === e.huntSlug);
   return {
@@ -1723,7 +1728,7 @@ function instantaneo() {
     nick: CFG.nick, nivel: e.level, xpNivel: e.xpNivel, xpProximo: e.xpProximo, xp: e.xp, progresso: progressoNivel(e), ouro: e.gold, diamantes: e.diamonds, orbs: e.orbs,
     hunt: hunt ? { nome: hunt.nome, nivel: hunt.nivel, area: hunt.area } : null, noCentro: !!e.noCentro, outlandTier: e.outlandTier,
     xph: Math.round((xpAgora - (S.stats.xp0 ?? xpAgora)) / horas), ouroh: Math.round(((e.gold ?? 0) - (S.stats.ouro0 ?? 0) - (S.stats.ouroExtra ?? 0)) / horas), ouroExtra: S.stats.ouroExtra ?? 0,
-    stats: S.stats, minutos: Math.round((Date.now() - S.stats.inicio) / 60000),
+    stats: S.stats, minutos: Math.round(onlineMs() / 60000),
     equipe: equipe().sort((a, b) => a.slot - b.slot).map((p) => ({ nome: p.nome, nv: p.level, hp: p.hp, mhp: p.maxHp, shiny: p.shiny, q: p.quality, p: p.potencia, nota: p.nota, ativo: p.id === e.activeId, lt: (p.shiny && p.lookShiny) || ESPECIES.get(p.speciesId)?.looktype || LOOK_POR_NOME.get(p.nome) || null })),
     bonus: (() => {
       const l = e.loja ?? {}; const agora = Date.now(); const min = (ate) => Math.max(0, Math.round(((Number(ate) || 0) - agora) / 60000));
@@ -1773,7 +1778,7 @@ function extrasPainel(e) {
     chocadeira: e.chocadeira ? { total: e.chocadeira.total ?? 0, ovos: (e.chocadeira.ovos ?? []).length } : null,
     casa: e.casa ? { emUso: (e.casa.lista ?? []).length, max: e.casa.maxEmUso ?? 0 } : null,
     bicicleta: !!e.bicicleta?.equipada,
-    pokedex: { capturadas: dex.filter((d) => d.c > 0).length, vistas: dex.length, abates: dex.reduce((t, d) => t + (d.k ?? 0), 0) },
+    pokedex: { capturadas: dex.filter((d) => d.c > 0).length, vistas: dex.length, total: [...ESPECIES.keys()].filter((id) => id <= 1025).length || null, abates: dex.reduce((t, d) => t + (d.k ?? 0), 0) },
     tentativas: S.tentativas ?? 0,
     patrimonio: (() => { try { return patrimonio(e); } catch { return null; } })(),
   };
