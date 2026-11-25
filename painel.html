@@ -564,7 +564,10 @@ function mostrarSniper(sp, saldo) {
   document.querySelectorAll('[data-sn-modo]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.snModo === sp.modo)));
   $('sn-modo-t').textContent = sp.modo === '1' ? 'Compra sozinho com as suas Gemas, dentro dos limites abaixo.' : sp.modo === 'observar' ? 'Só registra o que compraria. Não gasta nada.' : 'Não olha o Mercado.';
   const h = sp.hoje ?? {};
-  $('sn-hoje').innerHTML = kv('Gasto hoje', `${n(h.gasto ?? 0)} de ${n(sp.dia)} Gemas`) + kv('Compras hoje', `${n(h.compras ?? 0)} de ${n(sp.qtdDia)}`) + (h.pendente ? kv('Esperando o sorteio', `${n(h.pendente)} Gemas`) : '') + kv('Seu saldo', `${n(saldo ?? 0)} Gemas`) + kv('Vendas para comparar', n(sp.comparaveis ?? 0));
+  const rg = sp.regua ?? {}, ul = rg.ultimo;
+  const linhaRegua = kv('Desconto de segurança da régua', `${fx(rg.desconto ?? 0.9, 3)}${ul ? ` · calibrado ${new Date(ul.em).toLocaleDateString('pt-BR')}` : ' · calibra 1× por dia'}`)
+    + (ul ? kv('Última calibração', `${n(ul.medidas)} de ${n(ul.decisoes)} decisões conferidas${ul.erro != null ? ` · erro do lucro ${n(ul.erro)}%` : ''}`) : '');
+  $('sn-hoje').innerHTML = linhaRegua + kv('Gasto hoje', `${n(h.gasto ?? 0)} de ${n(sp.dia)} Gemas`) + kv('Compras hoje', `${n(h.compras ?? 0)} de ${n(sp.qtdDia)}`) + (h.pendente ? kv('Esperando o sorteio', `${n(h.pendente)} Gemas`) : '') + kv('Seu saldo', `${n(saldo ?? 0)} Gemas`) + kv('Vendas para comparar', n(sp.comparaveis ?? 0));
   $('sn-visto').textContent = sp.modo === '0' ? '' : `${n(sp.vistos ?? 0)} anúncios avaliados${sp.ultimaResposta ? ' · última olhada ' + hora(sp.ultimaResposta) : ''}`;
   tabela($('sn-eventos'), (sp.eventos ?? []).map((e) => {
     const [rot, corA] = SN_ACAO[e.acao] ?? [e.acao, 'var(--sub)'];
