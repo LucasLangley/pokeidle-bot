@@ -860,6 +860,9 @@ function snPainel() {
     hoje: { gasto: g.gasto, compras: g.compras, pendente: g.pendente }, comparaveis: SN.vendas.size, olhadas: SN.olhadas, vistos: SN.vistos, ultimaResposta: SN.ultimaResposta || null, eventos: SN.eventos };
 }
 const SEQ_SNIPER = 900_000;
+// taxa de pokemon em Gemas é por faixa, como imposto de renda (shared/taxa-mercado.mjs FAIXAS_ORB; i18n aviso.v21Faixa1):
+// 13% sobre os primeiros 500, 10% sobre o trecho até 5.000 e 7,5% sobre o que passa disso
+function snLiquido(p) { const taxa = 0.13 * Math.min(p, 500) + 0.10 * Math.max(0, Math.min(p, 5000) - 500) + 0.075 * Math.max(0, p - 5000); return Math.floor(p - taxa); }
 function snVendaOk(l) { return l?.tipo === 'pokemon' && l.moeda === 'orb' && l.ficha && l.bruto > 0; }
 function snCarregarVendas() {
   if (SN.carregado) return; SN.carregado = true;
@@ -871,14 +874,19 @@ function snCarregarVendas() {
     log(`sniper de pokemon: ${SN.vendas.size} vendas de pokemon em Gemas para comparar (14 dias)`);
   } catch (e) { log('sniper de pokemon: sem coletas do Mercado ainda:', e.message); }
 }
-function snReferencia(f) {
+// A nota pesa muito no preço do shiny (25/11, vendas reais: correlação nota × log(preço) de 0,8 em Larvitar, Numel e
+// Snover; Numel nota 4,28 saiu por 380 e nota 5,6+ por 1.700–2.600). Então a referência é a mediana só das vendas
+// de nota próxima (±SN_NOTA), e a espécie precisa ter SNIPER_PK_VENDAS vendas no total (liquidez).
+const SN_NOTA = 0.3;
+function snReferencia(f, { minPerto = 3, faixaNota = SN_NOTA } = {}) {
   const lim = Date.now() - 14 * 86400_000; const nv = f.level ?? 0; const folga = Math.max(20, nv * 0.25);
-  const precos = [...SN.vendas.values()].filter((l) => l.em >= lim && l.ficha.nome === f.nome && !!l.ficha.shiny === !!f.shiny && (l.ficha.potencia ?? 1) === (f.potencia ?? 1)
-    && !!l.ficha.tmAoe === !!f.tmAoe && Math.abs((l.ficha.level ?? 0) - nv) <= folga).map((l) => l.bruto);
-  if (precos.length < CFG.sniperPkVendas) return { ref: null, n: precos.length };
-  let ref = mediana(precos); let base = `mediana de ${precos.length} vendas parecidas`;
-  if (f.shiny) { const r = precoShiny(f.nome); if (r.mediana14d && r.vendas14d >= 10 && r.mediana14d < ref) { ref = r.mediana14d; base += ` (Radar ${r.mediana14d}, mais baixo, vale ele)`; } }
-  return { ref, n: precos.length, base };
+  const grupo = [...SN.vendas.values()].filter((l) => l.em >= lim && l.ficha.nome === f.nome && !!l.ficha.shiny === !!f.shiny && (l.ficha.potencia ?? 1) === (f.potencia ?? 1)
+    && !!l.ficha.tmAoe === !!f.tmAoe && Math.abs((l.ficha.level ?? 0) - nv) <= folga);
+  if (grupo.length < CFG.sniperPkVendas) return { ref: null, n: grupo.length, base: `só ${grupo.length} vendas da espécie` };
+  const nota = Number(f.nota);
+  const perto = Number.isFinite(nota) ? grupo.filter((l) => Math.abs((l.ficha.nota ?? 0) - nota) <= faixaNota).map((l) => l.bruto) : [];
+  if (perto.length < minPerto) return { ref: null, n: perto.length, base: `só ${perto.length} vendas com nota parecida` };
+  return { ref: mediana(perto), n: perto.length, base: `mediana de ${perto.length} vendas com nota ±${faixaNota} (de ${grupo.length} da espécie)` };
 }
 function snDia() {
   const dia = chaveDia();
@@ -909,29 +917,42 @@ function aoSniperPk(m) {
     const { ref, n, base } = snReferencia(f);
     if (!ref || a.preco > CFG.sniperPkMax) continue;
     if (a.preco < ref * 0.1) continue; // isca: preço de fachada, costuma ser cancelado na retenção
-    const liquido = Math.floor(ref * (1 - taxaGemasPokemon(ref)));
+    const liquido = snLiquido(ref);
     const ganho = liquido - a.preco;
     if (ganho < a.preco * CFG.sniperPkLucro / 100) continue;
     const desc = `${f.shiny ? 'shiny ' : ''}${f.nome} Nv${f.level} P${f.potencia ?? 1}${f.tmAoe ? ' AoE' : ''} nota ${f.nota}`;
     const motivo = `${fmt(a.preco)} Gemas; referência ${fmt(ref)} (${base}); revenda sem taxa ~${fmt(liquido)}, ganho ~${fmt(ganho)} (${Math.round(ganho / a.preco * 100)}%)`;
     const G = snDia(); const saldo = Number(S.eu.orbs) || 0;
-    const barra = G.compras >= CFG.sniperPkQtdDia ? `já fez ${G.compras} compras hoje`
+    // conta também as compras esperando o sorteio: dois anúncios liberando juntos furavam o limite (25/11: 4 compras com limite 3)
+    const barra = G.compras + (G.pendQtd ?? 0) >= CFG.sniperPkQtdDia ? `já fez ${G.compras} compras hoje${G.pendQtd ? ` (+${G.pendQtd} no sorteio)` : ''}`
       : G.gasto + G.pendente + a.preco > CFG.sniperPkDia ? `passaria do orçamento do dia (${fmt(G.gasto + G.pendente)}/${fmt(CFG.sniperPkDia)})`
       : saldo - G.pendente - a.preco < CFG.sniperPkReserva ? `deixaria menos de ${fmt(CFG.sniperPkReserva)} Gemas (saldo ${fmt(saldo)})` : null;
     const info = { preco: a.preco, ref, ganho, pct: Math.round(ganho / a.preco * 100), motivo };
     if (CFG.sniperPk === 'observar' || barra) { log(`sniper de pokemon: ${CFG.sniperPk === 'observar' ? 'compraria' : 'não compro (' + barra + ')'} ${desc} — ${motivo}`); snEvento(CFG.sniperPk === 'observar' ? 'compraria' : 'barrado', desc, { ...info, barra }); continue; }
-    G.pendente += a.preco;
+    G.pendente += a.preco; G.pendQtd = (G.pendQtd ?? 0) + 1;
+    const solta = () => { const g = snDia(); g.pendente = Math.max(0, g.pendente - a.preco); g.pendQtd = Math.max(0, (g.pendQtd ?? 0) - 1); };
     const espera = Math.max(0, (a.compravelEm ?? 0) - Date.now() + 300); // pede logo depois de liberar, dentro dos 3 s do sorteio
     log(`sniper de pokemon: vou pedir ${desc} em ${Math.round(espera / 1000)} s — ${motivo}`);
     snEvento('pedindo', desc, { ...info, libera: a.compravelEm ?? null });
     setTimeout(() => {
       const saldoAntes = Number(S.eu?.orbs) || 0;
+      // confere o saldo de novo na hora de pedir: em 2 min de retenção ele pode ter mudado (outra compra, saque)
+      const outros = snDia().pendente - a.preco;
+      if (saldoAntes - Math.max(0, outros) - a.preco < CFG.sniperPkReserva) {
+        solta();
+        log(`sniper de pokemon: desisti de ${desc} — saldo ${fmt(saldoAntes)} Gemas não cobre ${fmt(a.preco)} (reserva ${fmt(CFG.sniperPkReserva)})`);
+        snEvento('barrado', desc, { ...info, barra: `saldo ${fmt(saldoAntes)} não cobre` });
+        return;
+      }
       S.depurarAte = Date.now() + 20_000;
+      const espero = { nome: f.nome, nivel: f.level, preco: a.preco, ok: false };
+      SN.aguardando = [...(SN.aguardando ?? []), espero];
       enviar({ t: 'market.comprar', id: a.id, qtd: 1, preco: a.preco, moeda: 'orb', sorteioUi: 1 }, { urgente: true });
-      // confirma pelo saldo: no sorteio quem perde não paga, e o anúncio pode ter sido cancelado na retenção
+      // confirma pelo aviso do jogo (marketComprado, um por compra): no sorteio quem perde não paga, e o anúncio
+      // pode ter sido cancelado na retenção. O saldo não serve: duas compras juntas confundem a conta.
       setTimeout(() => {
-        const g = snDia(); g.pendente = Math.max(0, g.pendente - a.preco);
-        const pagou = saldoAntes - (Number(S.eu?.orbs) || 0) >= a.preco * 0.99;
+        solta(); SN.aguardando = (SN.aguardando ?? []).filter((x) => x !== espero);
+        const g = snDia(); const pagou = espero.ok;
         if (pagou) { g.gasto += a.preco; g.compras += 1; snEvento('comprou', desc, info);
           (ACUM.snCompras ??= []).push({ pokemonId: a.pokemonId ?? f.id ?? null, nome: f.nome, nivel: f.level, potencia: f.potencia ?? 1, shiny: !!f.shiny, aoe: !!f.tmAoe, nota: f.nota, custo: a.preco, ref, em: Date.now(), estado: 'comprado', tentativas: 0 }); avisarShiny('mercado', `🛒 Sniper comprou ${desc}`, `${motivo}. Anunciar para revender é com você.`); }
         else { log(`sniper de pokemon: não levei ${desc} (sorteio perdido, cancelado ou preço mudou)`); snEvento('perdeu', desc, info); }
@@ -944,13 +965,11 @@ function aoSniperPk(m) {
 // Preço: SNIPER_PK_ABAIXO Gemas abaixo do menor entre a média das vendas parecidas e o anúncio parecido mais barato,
 // sem descer do piso (o que pagou + SNIPER_PK_MARGEM%, já descontada a taxa do Mercado: 13% até 500, 10% até 5.000).
 // Só mexe em pokemon que o próprio sniper comprou (ACUM.snCompras).
-const SN_FAIXAS = [[1, 500, 0.13], [501, 5000, 0.10], [5001, Infinity, 0.075]];
 function snPiso(custo) {
   const alvo = Math.ceil(custo * (1 + CFG.sniperPkMargem / 100));
-  for (const [lo, hi, t] of SN_FAIXAS) { const p = Math.max(lo, Math.ceil(alvo / (1 - t))); if (p <= hi) return p; }
-  return Math.ceil(alvo / 0.925);
+  let p = Math.max(1, alvo); while (snLiquido(p) < alvo) p++;
+  return p;
 }
-const snLiquido = (p) => Math.floor(p * (1 - (SN_FAIXAS.find(([lo, hi]) => p >= lo && p <= hi)?.[2] ?? 0.075)));
 function snAcharPk(r) {
   if (r.pokemonId && S.pokemons.has(r.pokemonId)) return S.pokemons.get(r.pokemonId);
   const p = [...S.pokemons.values()].find((x) => x.nome === r.nome && !!x.shiny === r.shiny && x.level === r.nivel && (r.nota == null || Math.abs((x.nota ?? 0) - r.nota) < 0.002));
@@ -981,13 +1000,16 @@ function aoRevendaVitrine(m) {
   const fmt = (n) => Math.round(n).toLocaleString('pt-BR');
   const folga = Math.max(20, r.nivel * 0.25);
   const conc = (m.linhas ?? []).filter((a) => a.tipo === 'pokemon' && a.moeda === 'orb' && a.estado === 'aberto' && a.ficha && a.vendedorId !== S.eu.id && a.ficha.nome === r.nome
-    && !!a.ficha.shiny === r.shiny && (a.ficha.potencia ?? 1) === r.potencia && !!a.ficha.tmAoe === r.aoe && Math.abs((a.ficha.level ?? 0) - r.nivel) <= folga).map((a) => a.preco);
+    && !!a.ficha.shiny === r.shiny && (a.ficha.potencia ?? 1) === r.potencia && !!a.ficha.tmAoe === r.aoe && Math.abs((a.ficha.level ?? 0) - r.nivel) <= folga
+    // concorrente é quem tem nota parecida ou melhor; um de nota bem pior mais barato não disputa o mesmo comprador
+    && (r.nota == null || (a.ficha.nota ?? 0) >= r.nota - SN_NOTA)).map((a) => a.preco);
   const menor = conc.length ? Math.min(...conc) : null;
-  const media = snReferencia({ nome: r.nome, shiny: r.shiny, potencia: r.potencia, tmAoe: r.aoe, level: r.nivel }).ref ?? r.ref;
+  const fichaR = { nome: r.nome, shiny: r.shiny, potencia: r.potencia, tmAoe: r.aoe, level: r.nivel, nota: r.nota };
+  const media = snReferencia(fichaR, { minPerto: 2 }).ref ?? snReferencia(fichaR, { minPerto: 2, faixaNota: 0.5 }).ref ?? null;
   const base = Math.min(media ?? Infinity, menor ?? Infinity);
   const piso = snPiso(r.custo);
-  if (!Number.isFinite(base)) { r.estado = 'comprado'; r.tentativas = (r.tentativas ?? 0) + 1; r.obs = 'sem média nem anúncio para comparar'; SNR.pedido = null; return true; }
-  const preco = Math.max(piso, Math.round(base - CFG.sniperPkAbaixo));
+  // sem média nem concorrente: anuncia no piso (melhor girar o pokemon do que deixar parado)
+  const preco = Number.isFinite(base) ? Math.max(piso, Math.round(base - CFG.sniperPkAbaixo)) : piso;
   const pensao = 100_000 * CFG.sniperPkRevDias;
   if ((S.eu.gold ?? 0) < pensao * 2) { r.estado = 'comprado'; r.obs = `ouro curto para a pensão (${fmt(pensao)})`; SNR.pedido = null; return true; }
   r.estado = 'anunciando'; r.preco = preco; r.media = media; r.menor = menor; r.piso = piso; r.obs = null; SNR.pedido.em = Date.now();
@@ -999,6 +1021,10 @@ function aoRevendaVitrine(m) {
   return true;
 }
 function aoRevendaEvento(ev) {
+  if (ev.k === 'marketComprado' && typeof ev.descricao === 'string') {
+    const x = (SN.aguardando ?? []).find((y) => !y.ok && ev.descricao.startsWith(`${y.nome} Nv ${y.nivel}`) && (ev.total == null || Number(ev.total) === y.preco));
+    if (x) x.ok = true;
+  }
   const lista = ACUM.snCompras ?? []; if (!lista.length) return;
   const casa = (r) => typeof ev.descricao === 'string' && ev.descricao.startsWith(`${r.nome} Nv ${r.nivel}`);
   if (ev.k === 'marketCriado' && SNR.pedido) {
@@ -1798,7 +1824,7 @@ function precoShiny(nome) {
   const base = out.mediana14d ?? out.menorAnuncio;
   if (base) {
     out.sugerido = out.menorAnuncio && out.mediana14d ? Math.max(Math.round(out.mediana14d * 0.8), Math.min(out.mediana14d, out.menorAnuncio - 1)) : base;
-    out.liquido = Math.floor(out.sugerido * (1 - taxaGemasPokemon(out.sugerido)));
+    out.liquido = snLiquido(out.sugerido);
     out.usd = (out.liquido * 0.009).toFixed(2);
     out.base = out.mediana14d ? `mediana de ${out.vendas14d} vendas recentes ${out.mediana14d.toLocaleString('pt-BR')}${out.menorAnuncio ? `, anúncio mais barato ${out.menorAnuncio.toLocaleString('pt-BR')}` : ''}` : `anúncio mais barato ${out.menorAnuncio.toLocaleString('pt-BR')}`;
   }
