@@ -1195,7 +1195,7 @@ function cuidarDosDrops() {
     const alvoDe = (base) => (base == null || base < piso ? Math.max(piso, Math.round(md.media * 0.95)) : Math.max(piso, base - CFG.vdAbaixo));
     if (meu) {
       if (agora >= (meu.editavelEm ?? 0) && agora - (meu.editadoEm ?? 0) > 30 * 60_000) {
-        const base = outros != null && outros < meu.preco ? outros : null; // alguém abaixo de nós
+        const base = outros != null && outros < meu.preco && outros >= piso ? outros : null; // alguém (de verdade, não isca) abaixo de nós
         const novo = base != null ? alvoDe(base) : alvoDe(null);
         // desce se alguém (de verdade) está mais barato; sobe se ficamos baratos demais sem ninguém abaixo
         const muda = base != null ? novo < meu.preco : novo > meu.preco * 1.05;
