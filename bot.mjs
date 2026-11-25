@@ -955,7 +955,7 @@ function snVendasShiny() {
   return SN.cacheShiny.v;
 }
 // versão da régua: ao trocar regua-sniper.mjs, a calibração salva recomeça do desconto da versão nova
-const REGUA_VERSAO = 'v2';
+const REGUA_VERSAO = 'v3';
 function snCal() {
   if (ACUM.reguaCal && ACUM.reguaCal.versao !== REGUA_VERSAO) { log(`régua: versão ${REGUA_VERSAO}; desconto recomeça em ${REGUA.CFG_PADRAO.desconto} (era ${ACUM.reguaCal.desconto})`); ACUM.reguaCal = { versao: REGUA_VERSAO, desconto: REGUA.CFG_PADRAO.desconto, historico: ACUM.reguaCal.historico ?? [] }; }
   return (ACUM.reguaCal ??= { versao: REGUA_VERSAO, desconto: REGUA.CFG_PADRAO.desconto, historico: [] });
