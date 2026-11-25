@@ -120,6 +120,8 @@ const CFG = {
   // degrau de baixo que perdeu por esta folga (1,3 = 30%) não é medido de novo a cada 5 níveis:
   // em 24/11 ir ao nível 80 só para remedir tomou 80 de 248 min, a ~4,4 mi XP/h contra ~11,5 mi no nível 100
   medirFolga: num('MEDIR_FOLGA', 1.3),
+  huntHisterese: num('HUNT_HISTERESE', 1.1),
+  huntPermanenciaMin: num('HUNT_PERMANENCIA_MIN', 15),
   medirPerdedorNiveis: num('MEDIR_PERDEDOR_NIVEIS', 30), // depois de tantos níveis, o perdedor é medido de novo
 };
 
@@ -321,7 +323,8 @@ function degrauMedido(candsIn, lv, regioes) {
     if (largar.length) {
       cands = cands.filter((n) => !largar.some(([x]) => x === n));
       const txt = largar.map(([n, o]) => `nível ${n} perdeu para o ${o} por ${(taxa(o) / taxa(n)).toFixed(1)}×`).join(', ');
-      if (S.ultimoPulo !== txt) { S.ultimoPulo = txt; log(`degrau medido: não meço de novo (${txt}; volto a medir em ${CFG.medirPerdedorNiveis} níveis)`); }
+      const chPulo = largar.map(([n, o]) => `${n}>${o}`).join(','); // a razão oscila 1.5/1.6 e repetia o log a cada 3 s
+      if (S.ultimoPulo !== chPulo) { S.ultimoPulo = chPulo; log(`degrau medido: não meço de novo (${txt}; volto a medir em ${CFG.medirPerdedorNiveis} níveis)`); }
     }
     if (cands.length < 2) return cands[0] ?? null;
   }
@@ -329,7 +332,15 @@ function degrauMedido(candsIn, lv, regioes) {
   const sem = cands.find((n) => !valida(n));
   if (sem != null) return sem; // explora (o mais alto primeiro, pela ordem)
   const metrica = (n) => { const m = M[`${area}:${n}`]; return eco ? m.ouro / m.ouroSeg : m.xp / m.seg; };
-  const melhor = [...cands].sort((a, b) => metrica(b) - metrica(a))[0];
+  let melhor = [...cands].sort((a, b) => metrica(b) - metrica(a))[0];
+  // histerese: medições quase iguais (25/11: 1,86 bi × 1,86 bi XP/h) faziam trocar 850 ↔ 1000 a cada 2 min;
+  // só sai do degrau atual se o outro render HUNT_HISTERESE a mais e depois de HUNT_PERMANENCIA_MIN nele
+  const nAtual = S.hunts.find((h) => h.slug === S.eu?.huntSlug)?.nivel;
+  if (nAtual != null && nAtual !== melhor && cands.includes(nAtual)) {
+    const cedo = Date.now() - (S.degrauDesde ?? 0) < CFG.huntPermanenciaMin * 60_000;
+    if (cedo || metrica(melhor) < metrica(nAtual) * CFG.huntHisterese) melhor = nAtual;
+  }
+  if (S.degrauEscolhido !== melhor) { S.degrauEscolhido = melhor; S.degrauDesde = Date.now(); }
   const resumo = cands.map((n) => { const m = M[`${area}:${n}`]; return `nível ${n}: ${Math.round(m.xp / m.seg * 3600).toLocaleString('pt-BR')} XP/h${m.ouroSeg ? `, ${Math.round(m.ouro / m.ouroSeg * 3600).toLocaleString('pt-BR')} ouro/h` : ''}`; }).join(' · ');
   const chaveLog = `${eco ? 'eco' : 'xp'}:${melhor}`;
   if (S.ultimoDegrauMed !== chaveLog) { S.ultimoDegrauMed = chaveLog; log(`degrau medido${eco ? ' (economia, pelo ouro)' : ''} → nível ${melhor} (${resumo})`); }
