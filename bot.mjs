@@ -113,6 +113,12 @@ const CFG = {
   sniperPkLucro: num('SNIPER_PK_LUCRO', 45),              // só compra se a revenda, já sem a taxa, render pelo menos X% sobre o preço (régua v2: 45% deu mais lucro por Gema)
   sniperPkVendas: num('SNIPER_PK_VENDAS', 5),             // vendas parecidas mínimas para confiar no preço de referência
   sniperPkSoShiny: bool('SNIPER_PK_SO_SHINY', '1'),       // pokemon sem shiny quase não vende (25/11: Charizard P5 Nv80 saiu por 55 Gemas)
+  // Venda dos drops (pedras): ANUNCIA SOZINHO no Mercado, em Gemas, aos poucos. Desligada por padrão
+  venderDrops: bool('VENDER_DROPS', '0'),
+  vdReserva: num('VD_RESERVA', 2),          // guarda tantas de cada pedra (o bot usa pedra para evoluir a equipe)
+  vdFatia: num('VD_FATIA', 5),              // cada anúncio tem no máximo X% do que o Mercado vende em Gemas por semana
+  vdPiso: num('VD_PISO', 70),               // nunca anuncia abaixo de X% da média de 7 dias em Gemas
+  vdAbaixo: num('VD_ABAIXO', 1),            // Gemas abaixo do anúncio mais barato de outro jogador
   // Revenda do que o sniper comprou: ANUNCIA SOZINHO no Mercado. Desligada por padrão
   sniperPkRevender: bool('SNIPER_PK_REVENDER', '0'),
   sniperPkAbaixo: num('SNIPER_PK_ABAIXO', 10),            // anuncia tantas Gemas abaixo do menor entre a média e o anúncio mais barato
@@ -836,6 +842,11 @@ const SN_CAMPOS = {
   vendas: ['sniperPkVendas', 'SNIPER_PK_VENDAS', (v) => (Number.isInteger(Number(v)) && Number(v) >= 3 && Number(v) <= 100 ? Number(v) : null)],
   soShiny: ['sniperPkSoShiny', 'SNIPER_PK_SO_SHINY', (v) => (typeof v === 'boolean' ? v : null)],
   revender: ['sniperPkRevender', 'SNIPER_PK_REVENDER', (v) => (typeof v === 'boolean' ? v : null)],
+  venderDrops: ['venderDrops', 'VENDER_DROPS', (v) => (typeof v === 'boolean' ? v : null)],
+  vdReserva: ['vdReserva', 'VD_RESERVA', (v) => (Number.isInteger(Number(v)) && Number(v) >= 0 && Number(v) <= 1000 ? Number(v) : null)],
+  vdFatia: ['vdFatia', 'VD_FATIA', (v) => (Number(v) >= 1 && Number(v) <= 50 ? Number(v) : null)],
+  vdPiso: ['vdPiso', 'VD_PISO', (v) => (Number(v) >= 10 && Number(v) <= 150 ? Number(v) : null)],
+  vdAbaixo: ['vdAbaixo', 'VD_ABAIXO', (v) => (Number.isInteger(Number(v)) && Number(v) >= 0 && Number(v) <= 1000 ? Number(v) : null)],
   abaixo: ['sniperPkAbaixo', 'SNIPER_PK_ABAIXO', (v) => (Number.isInteger(Number(v)) && Number(v) >= 0 && Number(v) <= 10000 ? Number(v) : null)],
   // negativa = aceita vender abaixo do que pagou (para liberar as Gemas de uma compra ruim)
   margem: ['sniperPkMargem', 'SNIPER_PK_MARGEM', (v) => (Number(v) >= -50 && Number(v) <= 500 ? Number(v) : null)],
@@ -864,6 +875,8 @@ function snPainel() {
   const g = snDia();
   return { modo: CFG.sniperPk, seg: CFG.sniperPkSeg, max: CFG.sniperPkMax, dia: CFG.sniperPkDia, qtdDia: CFG.sniperPkQtdDia, reserva: CFG.sniperPkReserva, lucro: CFG.sniperPkLucro, vendas: CFG.sniperPkVendas, soShiny: CFG.sniperPkSoShiny,
     regua: { desconto: ACUM.reguaCal?.desconto ?? REGUA.CFG_PADRAO.desconto, ultimo: ACUM.reguaCal?.ultimo ?? null },
+    drops: { ligado: CFG.venderDrops, vdReserva: CFG.vdReserva, vdFatia: CFG.vdFatia, vdPiso: CFG.vdPiso, vdAbaixo: CFG.vdAbaixo, hoje: ACUM.vdVendas?.[chaveDia()] ?? 0,
+      total: Object.values(ACUM.vdVendas ?? {}).reduce((t, x) => t + x, 0), anuncios: VD.meus.filter((a) => a.moeda === 'orb').map((a) => ({ nome: [...ITEM_POR_NOME].find(([, i]) => i === Number(a.itemId))?.[0] ?? `item ${a.itemId}`, qtd: a.qtd, preco: a.preco })) },
     revender: CFG.sniperPkRevender, abaixo: CFG.sniperPkAbaixo, margem: CFG.sniperPkMargem, revDias: CFG.sniperPkRevDias, compras: (ACUM.snCompras ?? []).slice(-20).reverse(),
     hoje: { gasto: g.gasto, compras: g.compras, pendente: g.pendente }, comparaveis: SN.vendas.size, olhadas: SN.olhadas, vistos: SN.vistos, ultimaResposta: SN.ultimaResposta || null, eventos: SN.eventos };
 }
@@ -1134,6 +1147,67 @@ function aoBaratos(m) {
   const x = BAR.ativo; BAR.ativo = null;
   try { x.cb(m.linhas ?? []); } catch (e) { logErro('consulta de baratos', e); }
   bombearBaratos();
+}
+
+// ---------- Venda dos drops (VENDER_DROPS=1) ----------
+// Anuncia as pedras que caem na hunt, em Gemas, um anúncio por pedra de cada vez:
+// - quantidade: o que está livre (menos as compradas, que o jogo prende, e menos VD_RESERVA para evoluir), limitada a
+//   VD_FATIA% do que o Mercado inteiro vende daquela pedra em Gemas por semana, para não derrubar o preço;
+// - preço: VD_ABAIXO abaixo do anúncio mais barato (resumo do market.itens), nunca abaixo de VD_PISO% da média de 7 dias;
+// - a cada 30 min (o jogo só deixa editar nesse ritmo) acompanha quem anunciar mais barato.
+// Item não paga pensão de vitrine; a taxa da venda em Gemas é 15% (shared/taxa-mercado.mjs TAXA_ORB_PLANA).
+const VD = { resumo: null, medias: null, em: 0, meus: [], meusEm: 0, ultimo: 0, pendente: null };
+function vdPedras() { return [...ITEM_POR_NOME].filter(([n]) => / Stone$/.test(n) && !/^Mega /.test(n)).map(([n, id]) => ({ nome: n, id })); }
+function cuidarDosDrops() {
+  if (!CFG.venderDrops || !S.eu || CFG.somenteLer || COLETA) return;
+  const agora = Date.now();
+  if (agora - VD.em > 10 * 60_000) { VD.em = agora; VD.pedindoItens = agora; enviar({ t: 'market.itens', elementos: [], categoria: '' }); return; }
+  if (agora - VD.meusEm > 10 * 60_000) { VD.meusEm = agora; enviar({ t: 'market.meus' }); return; }
+  if (!VD.resumo || !VD.medias || agora - VD.ultimo < 20_000) return;
+  if (VD.pendente && agora - VD.pendente.em < 30_000) return;
+  VD.pendente = null;
+  const presos = S.eu.automation?.itensPresos ?? {};
+  for (const { nome, id } of vdPedras()) {
+    const tenho = Number(S.eu.items?.[id] ?? 0); const r = VD.resumo[id]; const md = VD.medias[id]?.orb;
+    if (!md?.media || (md.unidades ?? 0) < 10) continue; // sem mercado em Gemas para essa pedra
+    const piso = Math.max(2, Math.ceil(md.media * CFG.vdPiso / 100));
+    const meu = VD.meus.find((a) => a.tipo === 'item' && Number(a.itemId) === id && a.moeda === 'orb' && a.estado !== 'vendido');
+    const outros = r?.minOrb; // o resumo inclui o nosso anúncio: se o mais barato é o nosso, não há ninguém abaixo
+    // alvo: 1 abaixo do mais barato; mas um "mais barato" abaixo do piso é isca ou lote mínimo (25/11: Heart Stone a 2
+    // com média 110), e aí o alvo é logo abaixo da média de 7 dias
+    const alvoDe = (base) => (base == null || base < piso ? Math.max(piso, Math.round(md.media * 0.95)) : Math.max(piso, base - CFG.vdAbaixo));
+    if (meu) {
+      if (agora >= (meu.editavelEm ?? 0) && agora - (meu.editadoEm ?? 0) > 30 * 60_000) {
+        const base = outros != null && outros < meu.preco ? outros : null; // alguém abaixo de nós
+        const novo = base != null ? alvoDe(base) : alvoDe(null);
+        // desce se alguém (de verdade) está mais barato; sobe se ficamos baratos demais sem ninguém abaixo
+        const muda = base != null ? novo < meu.preco : novo > meu.preco * 1.05;
+        if (muda) { meu.editadoEm = agora; VD.ultimo = agora; log(`drops: ${nome} de ${meu.preco} para ${novo} Gemas (mais barato ${outros ?? '—'}, média ${Math.round(md.media)}, piso ${piso})`); return enviar({ t: 'market.editar', id: meu.id, preco: novo, moeda: 'orb' }); }
+      }
+      continue;
+    }
+    const livre = tenho - Number(presos[id] ?? 0) - CFG.vdReserva;
+    const fatia = Math.max(1, Math.ceil((md.unidades ?? 0) * CFG.vdFatia / 100));
+    const qtd = Math.min(livre, fatia);
+    if (qtd < 1) continue;
+    const preco = alvoDe(outros);
+    VD.ultimo = agora; VD.pendente = { id, em: agora };
+    log(`drops: anunciando ${qtd}× ${nome} a ${preco} Gemas cada (mais barato ${outros ?? '—'}, média 7 dias ${Math.round(md.media)}, piso ${piso}; recebe ~${Math.floor(preco * 0.85)} cada; tenho ${tenho}, guardo ${CFG.vdReserva})`);
+    S.depurarAte = Date.now() + 20_000;
+    return enviar({ t: 'market.criar', tipo: 'item', itemId: id, pokemonId: null, casaId: null, bicicletaId: null, qtd, preco, moeda: 'orb', dias: null });
+  }
+}
+function aoDropsMercado(m) {
+  if (m.aba === 'itens' && m.resumo) { VD.resumo = m.resumo; if (m.medias) VD.medias = m.medias; }
+  if (m.aba === 'medias' && m.medias) VD.medias = m.medias;
+  if (m.aba === 'meus') { VD.meus = (m.linhas ?? []).filter((a) => a.tipo === 'item').map((a) => ({ id: a.id, tipo: a.tipo, itemId: a.itemId, preco: a.preco, qtd: a.qtd, moeda: a.moeda, estado: a.estado, editavelEm: a.editavelEm ?? 0, editadoEm: VD.meus.find((x) => x.id === a.id)?.editadoEm ?? 0 })); }
+}
+function aoDropsEvento(ev) {
+  if (ev.k === 'marketCriado' && VD.pendente) { VD.pendente = null; VD.meusEm = 0; }
+  if (ev.k === 'marketVendido' && ev.moeda === 'orb' && / Stone/.test(ev.descricao ?? '')) {
+    const d = (ACUM.vdVendas ??= {}); const dia = chaveDia(); d[dia] = (d[dia] ?? 0) + (Number(ev.valor) || 0);
+    log(`drops: vendeu ${ev.descricao} — recebeu ${ev.valor} Gemas (hoje ${d[dia]})`); VD.meusEm = 0;
+  }
 }
 
 // ---------- Revenda do que o sniper comprou (SNIPER_PK_REVENDER=1) ----------
@@ -1447,6 +1521,7 @@ function tique() {
   rodar('mercado ao vivo', cuidarDoMercadoVivo);
   rodar('sniper de pokemon', cuidarDoSniperPk);
   rodar('revenda', cuidarDaRevenda);
+  rodar('venda dos drops', cuidarDosDrops);
   rodar('histórico de vendas', cuidarDoHistorico);
   if (Date.now() - (HV.ultimaFoto ?? 0) > 10 * 60_000) { HV.ultimaFoto = Date.now(); fotografarRadar(); }
   if (['1', 'observar'].includes(CFG.sniperPk) && Date.now() - S.conectadoEm > 5 * 60_000) rodar('calibração da régua', () => calibrarRegua());
@@ -1473,7 +1548,7 @@ function vistaBatalha(ev) {
 function aoEvento(ev) {
   vistaBatalha(ev);
   if (Date.now() < (S.depurarAte ?? 0) && !['dano','golpe','abate','bola','xp','spawn','cura','pocao','morteSelvagem','ataque'].includes(ev.k)) log('[depurar ev]', JSON.stringify(ev).slice(0, 300));
-  if (/^market/.test(ev.k ?? '')) { try { aoRevendaEvento(ev); } catch (e) { logErro('revenda', e); } }
+  if (/^market/.test(ev.k ?? '')) { try { aoRevendaEvento(ev); } catch (e) { logErro('revenda', e); } try { aoDropsEvento(ev); } catch (e) { logErro('venda dos drops', e); } }
   if (ev.k === 'marketComprado') log(`Mercado: comprado ${ev.descricao ?? '?'} por ${ev.total ?? '?'} ${ev.moeda === 'orb' ? 'Gemas' : ev.moeda ?? ''}`);
   if (ev.k === 'preyRoletou' || ev.k === 'preyEscolheu') { S.preyCartela = { dia: diaDoPrey(), c: ev.c }; if (ev.k === 'preyEscolheu') log(`Prey: escolhido ${ESPECIES.get(Number(ev.c?.pk))?.nome ?? ev.c?.pk} · bônus ${ev.c?.bonus} ${ev.c?.est}★`); }
   switch (ev.k) {
@@ -1564,6 +1639,8 @@ function aoMensagem(m) {
   if (m.t === 'market' && m.aba === 'medias' && m.medias) S.precos = { em: Date.now(), medias: m.medias, dias: m.dias ?? null };
   if (m.t === 'market' && (m.aba === 'medias' || m.aba === 'itens')) aoMercadoVivo(m);
   if (m.t === 'market' && m.aba === 'vitrine' && m.ordem === 'baratos') { try { aoBaratos(m); } catch (e) { logErro('consulta de baratos', e); } }
+  if (m.t === 'market' && ['itens', 'medias', 'meus'].includes(m.aba)) { try { aoDropsMercado(m); } catch (e) { logErro('venda dos drops', e); } }
+  if (m.t === 'erro' && VD.pendente && /market|mercado|anunci|item/i.test(JSON.stringify(m))) { log('drops: o Mercado recusou o anúncio —', JSON.stringify(m).slice(0, 200)); VD.pendente = null; VD.ultimo = Date.now() + 10 * 60_000; }
   if (m.t === 'market' && m.aba === 'historicoGlobal') { try { aoHistorico(m); } catch (e) { logErro('histórico de vendas', e); } }
   if (m.t === 'market' && m.aba === 'meus') { try { aoRevendaMeus(m); } catch (e) { logErro('revenda', e); } }
   if (m.t === 'market' && (m.aba === 'vitrine' || m.aba === 'historicoGlobal')) { try { aoSniperPk(m); } catch (e) { logErro('sniper de pokemon', e); } }

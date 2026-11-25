@@ -947,12 +947,26 @@
                 <label><span class="lbl-row"><span>Abaixo do mercado</span><span class="fraco">Gemas</span></span><input type="number" name="abaixo" min="0" max="10000" step="1"></label>
                 <label><span class="lbl-row"><span>Margem mínima</span><span class="fraco">% líq. (negativo aceita perda)</span></span><input type="number" name="margem" min="-50" max="500" step="1"></label>
                 <label><span class="lbl-row"><span>Dias na vitrine</span><span class="fraco">100k/dia</span></span><input type="number" name="revDias" min="1" max="30" step="1"></label>
+                <div class="sn-sub">Venda dos drops</div>
+                <label><span class="lbl-row"><span>Guardar de cada pedra</span><span class="fraco">p/ evoluir</span></span><input type="number" name="vdReserva" min="0" max="1000" step="1"></label>
+                <label><span class="lbl-row"><span>Tamanho do anúncio</span><span class="fraco">% da venda semanal</span></span><input type="number" name="vdFatia" min="1" max="50" step="1"></label>
+                <label><span class="lbl-row"><span>Preço mínimo</span><span class="fraco">% da média 7 d</span></span><input type="number" name="vdPiso" min="10" max="150" step="1"></label>
+                <label><span class="lbl-row"><span>Abaixo do mais barato</span><span class="fraco">Gemas</span></span><input type="number" name="vdAbaixo" min="0" max="1000" step="1"></label>
                 <div class="sn-acoes"><button type="submit" class="btn pri">Salvar limites</button><span class="mini" id="sn-form-r"></span></div>
               </form>
             </section>
           </div>
 
           <div class="col">
+            <section class="card">
+              <h2>Venda dos drops <span class="meta" id="vd-hoje"></span></h2>
+              <div class="sn-modos" role="group" aria-label="Venda automática dos drops">
+                <button type="button" class="btn" data-vd="0">Desligada</button>
+                <button type="button" class="btn" data-vd="1">Vender sozinho</button>
+              </div>
+              <div class="mini" id="vd-t"></div>
+              <div class="scroll" style="max-height:160px"><table class="lt" id="vd-anuncios"></table></div>
+            </section>
             <section class="card">
               <h2>Compras e revendas <span class="meta" id="sn-lucro"></span></h2>
               <div class="scroll" style="max-height:280px"><table class="lt" id="sn-compras"></table></div>
@@ -1445,9 +1459,15 @@ function mostrarSniper(sp, saldo) {
     const det = `pagou ${n(x.custo)}${x.preco ? ' · anunciado ' + n(x.preco) : ''}${x.estado === 'vendido' ? ' · recebeu ' + n(x.recebido) + ' (' + (x.lucro >= 0 ? '+' : '') + n(x.lucro) + ')' : ''}${x.obs ? ' · ' + esc(x.obs) : ''}`;
     return `<tr><td class="sn-acao" style="color:${corE}">${rot}</td><td>${x.shiny ? '✨ ' : ''}${esc(x.nome)} Nv ${n(x.nivel)}<div class="fraco">${det}</div></td><td>${hora(x.em)}</td></tr>`;
   }), 'nenhuma compra ainda');
+  const dr = sp.drops ?? {};
+  document.querySelectorAll('[data-vd]').forEach((b) => b.setAttribute('aria-pressed', String((b.dataset.vd === '1') === !!dr.ligado)));
+  $('vd-t').textContent = dr.ligado ? `Anuncia as pedras em Gemas, ${n(dr.vdAbaixo)} abaixo do mais barato, nunca abaixo de ${n(dr.vdPiso)}% da média, guardando ${n(dr.vdReserva)} de cada.` : 'As pedras ficam na mochila; anunciar é com você.';
+  $('vd-hoje').textContent = dr.total ? `hoje +${n(dr.hoje)} · total +${n(dr.total)} Gemas` : '';
+  tabela($('vd-anuncios'), (dr.anuncios ?? []).map((a) => `<tr><td>${esc(a.nome)}</td><td class="num">${n(a.qtd)} × ${n(a.preco)}</td></tr>`), dr.ligado ? 'nenhum anúncio de pedra agora' : '—');
   if (!snEditando) {
     const f = $('sn-form');
     for (const k of ['max', 'dia', 'qtdDia', 'reserva', 'lucro', 'vendas', 'seg', 'abaixo', 'margem', 'revDias']) if (document.activeElement !== f.elements[k]) f.elements[k].value = sp[k];
+    for (const k of ['vdReserva', 'vdFatia', 'vdPiso', 'vdAbaixo']) if (document.activeElement !== f.elements[k]) f.elements[k].value = dr[k] ?? '';
     if (document.activeElement !== f.elements.soShiny) f.elements.soShiny.checked = !!sp.soShiny;
   }
 }
@@ -1458,6 +1478,12 @@ async function mandarSniper(corpo) {
   if (ultimoEstado) mostrarSniper(j.sniperPk, ultimoEstado.orbs);
   return j;
 }
+document.addEventListener('click', async (e) => {
+  const b = e.target.closest('[data-vd]'); if (!b) return;
+  const liga = b.dataset.vd === '1';
+  if (liga && !confirm('Ligar a venda automática dos drops?\n\nO bot vai anunciar sozinho no Mercado, em Gemas, as pedras que caem na hunt (guardando uma reserva de cada para evoluir a equipe).')) return;
+  try { await mandarSniper({ venderDrops: liga }); } catch (err) { $('sn-form-r').textContent = err.message; }
+});
 document.addEventListener('click', async (e) => {
   const b = e.target.closest('[data-sn-rev]'); if (!b) return;
   const liga = b.dataset.snRev === '1';
@@ -1477,7 +1503,7 @@ $('sn-form').addEventListener('input', () => { snEditando = true; $('sn-form-r')
 $('sn-form').addEventListener('submit', async (e) => {
   e.preventDefault();
   const f = e.target; const corpo = { soShiny: f.elements.soShiny.checked };
-  for (const k of ['max', 'dia', 'qtdDia', 'reserva', 'lucro', 'vendas', 'seg', 'abaixo', 'margem', 'revDias']) corpo[k] = Number(f.elements[k].value);
+  for (const k of ['max', 'dia', 'qtdDia', 'reserva', 'lucro', 'vendas', 'seg', 'abaixo', 'margem', 'revDias', 'vdReserva', 'vdFatia', 'vdPiso', 'vdAbaixo']) corpo[k] = Number(f.elements[k].value);
   try { const j = await mandarSniper(corpo); snEditando = false; $('sn-form-r').textContent = j.mudou?.length ? 'salvo ✓' : 'nada mudou'; }
   catch (err) { $('sn-form-r').textContent = err.message; }
 });
