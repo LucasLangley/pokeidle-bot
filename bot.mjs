@@ -1580,10 +1580,14 @@ function venderNoDepot(alvo, motivo) {
   return alvo.map((p) => `${p.nome} Nv${p.level}`);
 }
 function podeUsar(p) { const lv = S.eu?.level ?? 0; return p.starter || (p.level ?? 0) <= lv + 5; }
+// comprado pelo sniper: nunca vai ao NPC (custou Gemas)
+function doSniper(p) { return (ACUM.snCompras ?? []).some((r) => r.pokemonId === p.id || (r.nome === p.nome && r.nivel === p.level && !!r.shiny === !!p.shiny)); }
+// capturado por esta conta: pokemon comprado ou recebido de outro jogador não é vendido
+function capturadoPorMim(p) { return p.caughtBy === true || (typeof p.caughtBy === 'string' && p.caughtBy.toLowerCase() === String(CFG.nick).toLowerCase()); }
 // TIME_FORTE: o ativo e, nas outras vagas, o pokemon de maior poder de cada espécie (nunca duas da mesma)
 function timeDesejado() {
   const max = S.maxEquipe ?? 5;
-  const ordenados = [...S.pokemons.values()].filter((p) => !S.vendendo?.has(p.id) && podeUsar(p) && !p.shiny).sort((a, b) => (b.poder ?? 0) - (a.poder ?? 0) || (a.slot == null) - (b.slot == null));
+  const ordenados = [...S.pokemons.values()].filter((p) => !S.vendendo?.has(p.id) && podeUsar(p) && !p.shiny && !(CFG.sniperPkRevender && doSniper(p))).sort((a, b) => (b.poder ?? 0) - (a.poder ?? 0) || (a.slot == null) - (b.slot == null));
   const ativo = S.pokemons.get(S.eu?.activeId), time = ativo ? [ativo] : [], especies = new Set(time.map((p) => p.speciesId));
   for (const p of ordenados) { if (time.length >= max) break; if (!especies.has(p.speciesId)) { time.push(p); especies.add(p.speciesId); } }
   return time.sort((a, b) => (b.poder ?? 0) - (a.poder ?? 0));
@@ -1594,6 +1598,7 @@ function vendaveisTimeForte() {
   const fica = new Set(timeDesejado().map((p) => p.id)), colecao = new Set(S.eu.automation?.pokemonTravado ?? []);
   return [...S.pokemons.values()].filter((p) => p.slot == null && p.id !== S.eu.activeId && !fica.has(p.id) && !colecao.has(p.id)
     && !p.starter && !p.shiny && !p.legendary && !p.mega && !p.heldItemId && !p.skin && !p.casa
+    && capturadoPorMim(p) && !doSniper(p)
     && !(p.potencia >= 4) && !((p.level ?? 0) > 100) && !(Number(p.refinoTotal) > 0) && !p.tmElemental && !p.tmAoe
     && !(CFG.colecaoNota && Number(p.nota) >= CFG.colecaoNotaMin)
     && !RARIDADE_PROTEGIDA.has(ESPECIES.get(p.speciesId)?.rarity ?? 'SEM_CATALOGO'));
@@ -1612,6 +1617,7 @@ function cuidarDaVenda() {
     if (!vendidos.length) { S.vendaSoNoCentro = true; log('venda dos fracos: o servidor não vendeu fora do Centro; passo a vender em lotes no Depot'); }
     S.vendaDireta = null; return;
   }
+  for (const p of S.pokemons.values()) if (p.slot == null && !capturadoPorMim(p) && !(S.avisadoDono ??= new Set()).has(p.id)) { S.avisadoDono.add(p.id); log(`venda dos fracos: não vendo ${p.nome} Nv${p.level}: não consta como capturado por você (${JSON.stringify(p.caughtBy ?? null)})`); }
   const alvo = vendaveisTimeForte().slice(0, 20);
   if (!alvo.length) return;
   if (!S.vendaSoNoCentro) {
