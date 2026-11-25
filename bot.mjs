@@ -22,6 +22,7 @@ import { dirname, join } from 'node:path';
 import { timingSafeEqual } from 'node:crypto';
 import { networkInterfaces } from 'node:os';
 import * as REGUA from './regua-sniper.mjs';
+import { gzipSync } from 'node:zlib';
 
 const AQUI = dirname(fileURLToPath(import.meta.url));
 
@@ -878,8 +879,67 @@ function snCarregarVendas() {
     for (const f of readdirSync(dir).filter((f) => f.startsWith('coleta-')).sort().slice(-200)) {
       try { for (const l of JSON.parse(readFileSync(join(dir, f), 'utf8')).respostas.filter((r) => r.aba === 'historicoGlobal').flatMap((r) => r.linhas ?? [])) if (snVendaOk(l) && l.em >= lim) SN.vendas.set(l.id, l); } catch {}
     }
+    hvCarregar(); for (const l of HV.porId.values()) if (l.em >= lim) SN.vendas.set(l.id, l);
     log(`sniper de pokemon: ${SN.vendas.size} vendas de pokemon em Gemas para comparar (14 dias)`);
   } catch (e) { log('sniper de pokemon: sem coletas do Mercado ainda:', e.message); }
+}
+
+// ---------- histórico de vendas de shiny (para a régua) ----------
+// O jogo devolve o histórico global em páginas de 30 (market.historicoGlobal, só leitura). O bot desce até o fim dele
+// uma vez (uma página a cada HIST_FUNDO_SEG), depois só renova as 4 primeiras a cada 10 min. Tudo vai para
+// mercado/vendas-shiny.jsonl, sem limite de idade, que é a base de pesquisa da régua (pokeidle-pesquisa).
+const HV = { porId: new Map(), carregado: false };
+const SEQ_FUNDO = 800_000;
+const ARQ_HV = () => join(AQUI, 'mercado', 'vendas-shiny.jsonl');
+function hvCarregar() {
+  if (HV.carregado) return; HV.carregado = true;
+  try { for (const s of readFileSync(ARQ_HV(), 'utf8').split('\n')) { if (!s) continue; try { const l = JSON.parse(s); HV.porId.set(l.id, l); } catch {} } } catch {}
+}
+function hvGuardar(linhas) {
+  hvCarregar(); let novas = 0; const lim = Date.now() - 14 * 86400_000; let txt = '';
+  for (const l of linhas ?? []) {
+    if (!snVendaOk(l) || !l.ficha.shiny || HV.porId.has(l.id)) continue;
+    HV.porId.set(l.id, l); txt += JSON.stringify(l) + '\n'; novas++;
+    if (l.em >= lim) SN.vendas.set(l.id, l);
+  }
+  if (txt) { try { mkdirSync(join(AQUI, 'mercado'), { recursive: true }); appendFileSync(ARQ_HV(), txt); } catch {} }
+  return novas;
+}
+function cuidarDoHistorico() {
+  if (!S.eu || COLETA || S.ws?.readyState !== 1) return;
+  const agora = Date.now(); const F = (ACUM.histFundo ??= { pagina: 0, fim: false });
+  if (!F.fim) {
+    if (agora - (HV.ultimoFundo ?? 0) < 5_000 || (HV.esperando && agora - HV.esperando < 30_000)) return;
+    HV.ultimoFundo = agora; HV.esperando = agora;
+    enviar({ t: 'market.historicoGlobal', pagina: F.pagina, seq: SEQ_FUNDO + (F.pagina % 100_000), tipo: 'pokemon', moeda: 'orb', soShiny: 1 });
+    return;
+  }
+  if (agora - (HV.ultimoTopo ?? 0) > 10 * 60_000) { HV.ultimoTopo = agora; for (let p = 0; p < 4; p++) enviar({ t: 'market.historicoGlobal', pagina: p, seq: SEQ_FUNDO - 10 + p, tipo: 'pokemon', moeda: 'orb', soShiny: 1 }); }
+}
+function aoHistorico(m) {
+  const novas = hvGuardar(m.linhas);
+  const F = ACUM.histFundo; if (!F || F.fim || m.seq == null || m.seq < SEQ_FUNDO || m.seq >= SEQ_FUNDO + 100_000) return;
+  HV.esperando = 0;
+  const velha = Math.min(...(m.linhas ?? []).map((l) => l.em).filter(Number.isFinite));
+  F.pagina = (m.pagina ?? F.pagina) + 1; if (Number.isFinite(velha)) F.maisVelha = velha;
+  if (!m.temMais || !(m.linhas ?? []).length) {
+    F.fim = true;
+    log(`histórico de vendas: cheguei ao fim do que o jogo guarda — ${F.pagina} páginas, ${HV.porId.size} vendas de shiny em Gemas desde ${F.maisVelha ? new Date(F.maisVelha).toLocaleDateString('pt-BR') : '?'}`);
+  } else if (F.pagina % 20 === 0) log(`histórico de vendas: página ${F.pagina}, ${HV.porId.size} vendas de shiny guardadas, a mais velha de ${F.maisVelha ? new Date(F.maisVelha).toLocaleString('pt-BR') : '?'}${novas ? '' : ' (página sem nada novo)'}`);
+}
+
+// ---------- fotos do Radar para medir quanto tempo um anúncio leva para vender ----------
+// radar-pokeidle.github.io (público) refaz o mercado.json a cada ~10 min e o GitHub só guarda 24 h. O bot salva os
+// anúncios shiny de cada foto, compactados, em mercado/radar/ (~5 MB por dia).
+async function fotografarRadar() {
+  try {
+    const r = await fetch('https://radar-pokeidle.github.io/dados/mercado.json'); if (!r.ok) throw new Error('HTTP ' + r.status);
+    const j = await r.json(); const gerado = j.geradoEm ?? new Date().toISOString();
+    if (HV.ultimaFotoGerada === gerado) return; HV.ultimaFotoGerada = gerado;
+    const an = (j.mercado?.anuncios ?? []).filter((a) => a.shiny);
+    const dir = join(AQUI, 'mercado', 'radar'); mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, `anuncios-${gerado.replace(/[:.]/g, '-')}.json.gz`), gzipSync(JSON.stringify({ geradoEm: gerado, anuncios: an })));
+  } catch (e) { if (Date.now() - (HV.erroFoto ?? 0) > 3600_000) { HV.erroFoto = Date.now(); log('foto do Radar falhou:', e.message); } }
 }
 // A nota pesa muito no preço do shiny (25/11, vendas reais: correlação nota × log(preço) de 0,8 em Larvitar, Numel e
 // Snover; Numel nota 4,28 saiu por 380 e nota 5,6+ por 1.700–2.600). Então a referência é a mediana só das vendas
@@ -1327,6 +1387,8 @@ function tique() {
   rodar('mercado ao vivo', cuidarDoMercadoVivo);
   rodar('sniper de pokemon', cuidarDoSniperPk);
   rodar('revenda', cuidarDaRevenda);
+  rodar('histórico de vendas', cuidarDoHistorico);
+  if (Date.now() - (HV.ultimaFoto ?? 0) > 10 * 60_000) { HV.ultimaFoto = Date.now(); fotografarRadar(); }
   if (['1', 'observar'].includes(CFG.sniperPk) && Date.now() - S.conectadoEm > 5 * 60_000) rodar('calibração da régua', () => calibrarRegua());
   rodar('preços do patrimônio', cuidarDosPrecos);
   rodar('top catch', cuidarDoTopCatch);
@@ -1442,6 +1504,7 @@ function aoMensagem(m) {
   if (m.t === 'market' && m.aba === 'medias' && m.medias) S.precos = { em: Date.now(), medias: m.medias, dias: m.dias ?? null };
   if (m.t === 'market' && (m.aba === 'medias' || m.aba === 'itens')) aoMercadoVivo(m);
   if (m.t === 'market' && m.aba === 'vitrine') { try { aoRevendaVitrine(m); } catch (e) { logErro('revenda', e); } }
+  if (m.t === 'market' && m.aba === 'historicoGlobal') { try { aoHistorico(m); } catch (e) { logErro('histórico de vendas', e); } }
   if (m.t === 'market' && m.aba === 'meus') { try { aoRevendaMeus(m); } catch (e) { logErro('revenda', e); } }
   if (m.t === 'market' && (m.aba === 'vitrine' || m.aba === 'historicoGlobal')) { try { aoSniperPk(m); } catch (e) { logErro('sniper de pokemon', e); } }
   if (m.t === 'erro' && /market|mercado|anunci|pokemon/i.test(JSON.stringify(m))) { try { aoRevendaErro(m); } catch (e) { logErro('revenda', e); } }
