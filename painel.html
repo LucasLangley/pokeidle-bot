@@ -4,8 +4,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>PokeIdle bot</title>
-<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
 <style>
   /* Tema por variáveis CSS: a cor do painel é escolhida no cabeçalho e fica salva no navegador. */
   :root {
@@ -129,51 +127,17 @@
   button.chip { font-family:inherit; cursor:pointer; }
 
 
-  /* estilo Pokémon (padrão); "Moderno" remove a classe pkm do body */
-  .ball { display:none; width:38px; height:38px; border-radius:50%; border:3px solid #0b0b12; background:linear-gradient(180deg,#e53935 0 46%,#0b0b12 46% 54%,#fafafa 54%); position:relative; flex:none; box-shadow:0 0 18px var(--glow); }
-  .ball i { position:absolute; left:50%; top:50%; width:13px; height:13px; margin:-6.5px 0 0 -6.5px; border-radius:50%; background:#fafafa; border:3px solid #0b0b12; }
   .bar i.mid { background:#f8c83c; }
-  .estilo { display:flex; align-items:center; gap:8px; font-size:12px; color:var(--sub); }
-  .estilo .tabs { padding:3px; } .estilo .tab { padding:6px 12px; font-size:13px; }
-  body.pkm { --pix:'Press Start 2P', ui-monospace, monospace; }
-  .pkm .logo { display:none; } .pkm .ball { display:block; }
-  .pkm .topo { background:linear-gradient(180deg, var(--a), color-mix(in srgb, var(--a) 62%, #000)); border-bottom:4px solid #0b0b12; }
-  .pkm .topo .marca .s, .pkm .topo .cores, .pkm .topo .estilo { color:#fff; opacity:.9; }
-  .pkm .topo .t { color:#fff; font-size:13px; }
-  .pkm .topo .sw { border:2px solid #0b0b12; }
-  .pkm .tabs { background:rgba(0,0,0,.32); border:2px solid #0b0b12; border-radius:8px; padding:4px; }
-  .pkm .tab { font-family:var(--pix); font-size:9px; border-radius:5px; color:#ffffffcc; padding:9px 12px; }
-  .pkm .tab[aria-selected=true] { background:#fafafa; color:#0b0b12; } .pkm .tab[aria-selected=true]::before { content:'▶ '; }
-  .pkm .pill { font-family:var(--pix); font-size:8px; border-radius:4px; background:#0b0b12; }
-  .pkm .faixa-ev { border-bottom:3px solid #0b0b12; }
-  .pkm .card { border-radius:12px; border:3px solid #0b0b12; box-shadow:inset 0 0 0 2px var(--a), inset 0 0 0 4px var(--card), 5px 5px 0 rgba(0,0,0,.4); }
-  .pkm .card h2 { font-family:var(--pix); font-size:11px; line-height:1.7; letter-spacing:0; }
-  .pkm .tile { border-radius:10px; border:2px solid var(--line); }
-  .pkm .tile strong { font-family:var(--pix); font-size:13px; line-height:1.5; white-space:normal; overflow-wrap:break-word; }
-  .pkm .kpis .tile { flex-direction:column; align-items:flex-start; gap:8px; }
-  .pkm .kpis .tile > div { width:100%; }
-  .pkm .kpis strong { font-size:14px; white-space:nowrap; }
-  .pkm .tile .sb, .pkm .tile small { overflow-wrap:break-word; }
-  .pkm .kpis strong { font-size:15px; }
-  .pkm .big, .pkm .disp { font-family:var(--pix); } .pkm .big { font-size:24px; }
-  .pkm .heroi .nome { font-size:16px; line-height:1.4; }
-  .pkm .chip { border-radius:6px; border:2px solid var(--line); font-size:11px; }
-  .pkm .kv b, .pkm .hb .v { font-family:var(--pix); font-size:10px; }
-  .pkm .bar { height:12px; border:2px solid #0b0b12; border-radius:8px; background:#46465a; }
-  .pkm .bar i { border-radius:5px; background:#4aa3ff; }
-  .pkm .bar i.ok { background:#48d868; } .pkm .bar i.low { background:#f05a5a; } .pkm .bar i.mid { background:#f8c83c; }
-  .pkm .heroi canvas { border:3px solid #0b0b12; border-radius:14px; box-shadow:inset 0 0 0 2px #ffffff55; }
-  .pkm #cena { border:3px solid #0b0b12; border-radius:12px; background:linear-gradient(180deg,#7ec8ff 0,#bfe6ff 52%,#4cb157 52%,#4cb157 100%); }
-  .pkm .shiny-faixa { border-width:3px; border-radius:10px; }
+  .tile strong { white-space:normal; overflow-wrap:break-word; }
+  /* a cena "No jogo agora" tem o visual de jogo: céu, gramado e placas */
+  #cena { border:3px solid #0b0b12; border-radius:12px; background:linear-gradient(180deg,#7ec8ff 0,#bfe6ff 52%,#4cb157 52%,#4cb157 100%); }
 
   .pt-grade { display:grid; grid-template-columns:minmax(240px, 1fr) minmax(0, 2fr); gap:24px; }
   .pt-total { flex-direction:column; align-items:flex-start; gap:6px; padding:18px; }
   .pt-total strong { font-size:28px; white-space:normal; }
   .pt-usd { color:var(--ok); font-weight:700; font-size:15px; }
-  .pkm .pt-total strong { font-size:17px; }
   @media (max-width:900px) { .pt-grade { grid-template-columns:minmax(0, 1fr); } }
   @media (max-width:700px) {
-    .estilo span { display:none; }
     main { padding:16px 16px 0; } .topo > div { padding:12px 16px; }
     .lista li { grid-template-columns:minmax(0, 1fr) 40px 100px; gap:8px; } .lista .v { font-size:12px; }
     .cores span { display:none; }
@@ -183,14 +147,12 @@
 <body>
 <header class="topo"><div>
   <div class="marca">
-    <div class="ball" aria-hidden="true"><i></i></div>
     <div class="logo" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h6M15 12h6"/><circle cx="12" cy="12" r="2.4"/></svg></div>
     <div><div class="t disp">PokeIdle bot</div><div class="s" id="con">conectando…</div></div>
   </div>
   <span class="pill off" id="pilula"><i></i><span id="pilula-t">DESCONECTADO</span></span>
   <div class="tabs" id="abas" role="tablist" aria-label="Seções do painel"></div>
   <div class="esp"></div>
-  <div class="estilo"><span>Estilo</span><div class="tabs" id="estilos" role="group" aria-label="Escolher estilo"></div></div>
   <div class="cores"><span>Cor do painel</span><div id="temas" role="group" aria-label="Escolher cor do painel"></div></div>
 </div></header>
 
@@ -397,16 +359,7 @@ function aplicarTema(k) {
   desenharGrafico();
 }
 $('temas').addEventListener('click', (e) => { const b = e.target.closest('button[data-t]'); if (b) aplicarTema(b.dataset.t); });
-let estilo = 'pkm';
-try { const e = localStorage.getItem('pk-estilo'); if (e === 'pkm' || e === 'moderno') estilo = e; } catch {}
-function aplicarEstilo(k) {
-  estilo = k; document.body.classList.toggle('pkm', k === 'pkm');
-  try { localStorage.setItem('pk-estilo', k); } catch {}
-  $('estilos').innerHTML = [['pkm', 'Pokémon'], ['moderno', 'Moderno']].map(([id, nome]) =>
-    `<button class="tab" type="button" data-e="${id}" aria-selected="${id === k}">${nome}</button>`).join('');
-}
-$('estilos').addEventListener('click', (e) => { const b = e.target.closest('button[data-e]'); if (b) aplicarEstilo(b.dataset.e); });
-aplicarEstilo(estilo);
+const estilo = 'pkm'; // visual de jogo só na cena (céu, gramado, placas de nome)
 const cor = (nome) => getComputedStyle(document.documentElement).getPropertyValue('--' + nome).trim();
 
 // ---- listas ----
