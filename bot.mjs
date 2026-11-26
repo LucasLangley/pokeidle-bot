@@ -119,6 +119,7 @@ const CFG = {
   vdFatia: num('VD_FATIA', 5),              // cada anúncio tem no máximo X% do que o Mercado vende em Gemas por semana
   vdPiso: num('VD_PISO', 70),               // nunca anuncia abaixo de X% da média de 7 dias em Gemas
   vdAbaixo: num('VD_ABAIXO', 1),            // Gemas abaixo do anúncio mais barato de outro jogador
+  vdMinimo: bool('VD_MINIMO', '0'),         // anuncia toda pedra a 2 Gemas, o mínimo do Mercado (25/11: milhares de unidades a 2)
   // Revenda do que o sniper comprou: ANUNCIA SOZINHO no Mercado. Desligada por padrão
   sniperPkRevender: bool('SNIPER_PK_REVENDER', '0'),
   sniperPkAbaixo: num('SNIPER_PK_ABAIXO', 10),            // anuncia tantas Gemas abaixo do menor entre a média e o anúncio mais barato
@@ -851,6 +852,7 @@ const SN_CAMPOS = {
   vdReserva: ['vdReserva', 'VD_RESERVA', (v) => (Number.isInteger(Number(v)) && Number(v) >= 0 && Number(v) <= 1000 ? Number(v) : null)],
   vdFatia: ['vdFatia', 'VD_FATIA', (v) => (Number(v) >= 1 && Number(v) <= 50 ? Number(v) : null)],
   vdPiso: ['vdPiso', 'VD_PISO', (v) => (Number(v) >= 10 && Number(v) <= 150 ? Number(v) : null)],
+  vdMinimo: ['vdMinimo', 'VD_MINIMO', (v) => (typeof v === 'boolean' ? v : null)],
   vdAbaixo: ['vdAbaixo', 'VD_ABAIXO', (v) => (Number.isInteger(Number(v)) && Number(v) >= 0 && Number(v) <= 1000 ? Number(v) : null)],
   abaixo: ['sniperPkAbaixo', 'SNIPER_PK_ABAIXO', (v) => (Number.isInteger(Number(v)) && Number(v) >= 0 && Number(v) <= 10000 ? Number(v) : null)],
   // negativa = aceita vender abaixo do que pagou (para liberar as Gemas de uma compra ruim)
@@ -884,7 +886,7 @@ function snPainel() {
   const g = snDia();
   return { modo: CFG.sniperPk, seg: CFG.sniperPkSeg, max: CFG.sniperPkMax, dia: CFG.sniperPkDia, qtdDia: CFG.sniperPkQtdDia, reserva: CFG.sniperPkReserva, lucro: CFG.sniperPkLucro, vendas: CFG.sniperPkVendas, soShiny: CFG.sniperPkSoShiny,
     regua: { desconto: ACUM.reguaCal?.desconto ?? REGUA.CFG_PADRAO.desconto, ultimo: ACUM.reguaCal?.ultimo ?? null },
-    drops: { ligado: CFG.venderDrops, vdReserva: CFG.vdReserva, vdFatia: CFG.vdFatia, vdPiso: CFG.vdPiso, vdAbaixo: CFG.vdAbaixo, hoje: ACUM.vdVendas?.[chaveDia()] ?? 0,
+    drops: { ligado: CFG.venderDrops, vdReserva: CFG.vdReserva, vdFatia: CFG.vdFatia, vdPiso: CFG.vdPiso, vdAbaixo: CFG.vdAbaixo, vdMinimo: CFG.vdMinimo, hoje: ACUM.vdVendas?.[chaveDia()] ?? 0,
       total: Object.values(ACUM.vdVendas ?? {}).reduce((t, x) => t + x, 0), vendas: (ACUM.vdLog ?? []).slice(0, 12), anuncios: VD.meus.filter((a) => a.moeda === 'orb').map((a) => ({ itemId: Number(a.itemId), nome: [...ITEM_POR_NOME].find(([, i]) => i === Number(a.itemId))?.[0] ?? `item ${a.itemId}`, qtd: a.qtd, preco: a.preco })) },
     revender: CFG.sniperPkRevender, abaixo: CFG.sniperPkAbaixo, margem: CFG.sniperPkMargem, revDias: CFG.sniperPkRevDias,
     // sprite de cada compra (livro de negócios do painel): o da própria ficha, ou o shiny da espécie visto nas vendas
@@ -1246,7 +1248,7 @@ function aoBaratos(m) {
 // - preço: VD_ABAIXO abaixo do anúncio mais barato (resumo do market.itens), nunca abaixo de VD_PISO% da média de 7 dias;
 // - a cada 30 min (o jogo só deixa editar nesse ritmo) acompanha quem anunciar mais barato.
 // Item não paga pensão de vitrine; a taxa da venda em Gemas é 15% (shared/taxa-mercado.mjs TAXA_ORB_PLANA).
-const VD = { resumo: null, medias: null, em: 0, meus: [], meusEm: 0, ultimo: 0, pendente: null };
+const VD = { resumo: null, medias: null, em: 0, meus: [], meusEm: 0, ultimo: 0, pendente: null, linhas: {} }; // linhas: anúncios em Gemas por pedra (market.item)
 function vdPedras() { return [...ITEM_POR_NOME].filter(([n]) => / Stone$/.test(n) && !/^Mega /.test(n)).map(([n, id]) => ({ nome: n, id })); }
 function cuidarDosDrops() {
   if (!CFG.venderDrops || !S.eu || CFG.somenteLer || COLETA) return;
@@ -1263,27 +1265,37 @@ function cuidarDosDrops() {
     if (!md?.media || (md.unidades ?? 0) < 10) continue; // sem mercado em Gemas para essa pedra
     const piso = Math.max(2, Math.ceil(md.media * CFG.vdPiso / 100));
     const meu = VD.meus.find((a) => a.tipo === 'item' && Number(a.itemId) === id && a.moeda === 'orb' && a.estado !== 'vendido');
-    const outros = r?.minOrb; // o resumo inclui o nosso anúncio: se o mais barato é o nosso, não há ninguém abaixo
-    // alvo: 1 abaixo do mais barato; mas um "mais barato" abaixo do piso é isca ou lote mínimo (25/11: Heart Stone a 2
-    // com média 110), e aí o alvo é logo abaixo da média de 7 dias
-    const alvoDe = (base) => (base == null || base < piso ? Math.max(piso, Math.round(md.media * 0.95)) : Math.max(piso, base - CFG.vdAbaixo));
+    const livre = tenho - Number(presos[id] ?? 0) - CFG.vdReserva;
+    if (!meu && livre < 1) continue; // nada para vender nem anúncio para cuidar
+    // lista completa de anúncios da pedra (market.item, a mesma da tela do item no jogo), renovada a cada 10 min
+    const L = VD.linhas[id];
+    if (!L?.linhas || agora - L.em > 10 * 60_000) {
+      if (agora - (L?.pedidoEm ?? 0) > 60_000) { VD.linhas[id] = { ...(L ?? { linhas: null, em: 0 }), pedidoEm: agora }; VD.ultimo = agora; return enviar({ t: 'market.item', itemId: id, moeda: 'orb' }); }
+      if (!L?.linhas) continue;
+    }
+    // o mais barato de verdade: fora os nossos anúncios e as iscas abaixo do piso (25/11: Heart Stone a 2 com média 110)
+    const nossos = new Set(VD.meus.map((a) => a.id));
+    const deles = L.linhas.filter((a) => !nossos.has(a.id)).map((a) => Number(a.preco)).filter((p) => p > 0);
+    const reais = deles.filter((p) => p >= piso); const iscas = deles.length - reais.length;
+    const realMin = reais.length ? Math.min(...reais) : null;
+    // alvo: 1 abaixo do mais barato de verdade; sem ninguém acima do piso, logo abaixo da média de 7 dias
+    const alvo = CFG.vdMinimo ? 2 : realMin != null ? Math.max(piso, realMin - CFG.vdAbaixo) : Math.max(piso, Math.round(md.media * 0.95));
+    const baratos = L.linhas.filter((a) => !nossos.has(a.id)).sort((x, y) => x.preco - y.preco).slice(0, 5).map((a) => `${a.qtd}×${a.preco}`).join(' ');
+    const quem = `mais barato de verdade ${realMin ?? '—'}${iscas ? `, ${iscas} anúncio(s) abaixo do piso ignorado(s)` : ''}, média ${Math.round(md.media)}, piso ${piso}; os 5 mais baratos: ${baratos || '—'}`;
     if (meu) {
       if (agora >= (meu.editavelEm ?? 0) && agora - (meu.editadoEm ?? 0) > 30 * 60_000) {
-        const base = outros != null && outros < meu.preco && outros >= piso ? outros : null; // alguém (de verdade, não isca) abaixo de nós
-        const novo = base != null ? alvoDe(base) : alvoDe(null);
-        // desce se alguém (de verdade) está mais barato; sobe se ficamos baratos demais sem ninguém abaixo
-        const muda = base != null ? novo < meu.preco : novo > meu.preco * 1.05;
-        if (muda) { meu.editadoEm = agora; VD.ultimo = agora; log(`drops: ${nome} de ${meu.preco} para ${novo} Gemas (mais barato ${outros ?? '—'}, média ${Math.round(md.media)}, piso ${piso})`); return enviar({ t: 'market.editar', id: meu.id, preco: novo, moeda: 'orb' }); }
+        // desce se alguém de verdade está mais barato; sobe se ficamos baratos demais (mais de 5% abaixo do alvo)
+        const muda = alvo < meu.preco || (!CFG.vdMinimo && alvo > meu.preco * 1.05);
+        if (muda) { meu.editadoEm = agora; VD.ultimo = agora; log(`drops: ${nome} de ${meu.preco} para ${alvo} Gemas (${quem})`); return enviar({ t: 'market.editar', id: meu.id, preco: alvo, moeda: 'orb' }); }
       }
       continue;
     }
-    const livre = tenho - Number(presos[id] ?? 0) - CFG.vdReserva;
     const fatia = Math.max(1, Math.ceil((md.unidades ?? 0) * CFG.vdFatia / 100));
     const qtd = Math.min(livre, fatia);
     if (qtd < 1) continue;
-    const preco = alvoDe(outros);
+    const preco = alvo;
     VD.ultimo = agora; VD.pendente = { id, em: agora };
-    log(`drops: anunciando ${qtd}× ${nome} a ${preco} Gemas cada (mais barato ${outros ?? '—'}, média 7 dias ${Math.round(md.media)}, piso ${piso}; recebe ~${Math.floor(preco * 0.85)} cada; tenho ${tenho}, guardo ${CFG.vdReserva})`);
+    log(`drops: anunciando ${qtd}× ${nome} a ${preco} Gemas cada (${quem}; recebe ~${Math.floor(preco * 0.85)} cada; tenho ${tenho}, guardo ${CFG.vdReserva})`);
     S.depurarAte = Date.now() + 20_000;
     return enviar({ t: 'market.criar', tipo: 'item', itemId: id, pokemonId: null, casaId: null, bicicletaId: null, qtd, preco, moeda: 'orb', dias: null });
   }
@@ -1291,6 +1303,7 @@ function cuidarDosDrops() {
 function aoDropsMercado(m) {
   if (m.aba === 'itens' && m.resumo) { VD.resumo = m.resumo; if (m.medias) VD.medias = m.medias; }
   if (m.aba === 'medias' && m.medias) VD.medias = m.medias;
+  if (m.aba === 'item' && m.moeda === 'orb' && m.itemId != null) VD.linhas[Number(m.itemId)] = { linhas: m.linhas ?? [], em: Date.now(), pedidoEm: 0 };
   if (m.aba === 'meus') { VD.meus = (m.linhas ?? []).filter((a) => a.tipo === 'item').map((a) => ({ id: a.id, tipo: a.tipo, itemId: a.itemId, preco: a.preco, qtd: a.qtd, moeda: a.moeda, estado: a.estado, editavelEm: a.editavelEm ?? 0, editadoEm: VD.meus.find((x) => x.id === a.id)?.editadoEm ?? 0 })); }
 }
 function vdAvisar() {
@@ -1743,7 +1756,7 @@ function aoMensagem(m) {
   if (m.t === 'market' && m.aba === 'medias' && m.medias) S.precos = { em: Date.now(), medias: m.medias, dias: m.dias ?? null };
   if (m.t === 'market' && (m.aba === 'medias' || m.aba === 'itens')) aoMercadoVivo(m);
   if (m.t === 'market' && m.aba === 'vitrine' && m.ordem === 'baratos') { try { aoBaratos(m); } catch (e) { logErro('consulta de baratos', e); } }
-  if (m.t === 'market' && ['itens', 'medias', 'meus'].includes(m.aba)) { try { aoDropsMercado(m); } catch (e) { logErro('venda dos drops', e); } }
+  if (m.t === 'market' && ['itens', 'medias', 'meus', 'item'].includes(m.aba)) { try { aoDropsMercado(m); } catch (e) { logErro('venda dos drops', e); } }
   if (m.t === 'erro' && VD.pendente && /market|mercado|anunci|item/i.test(JSON.stringify(m))) { log('drops: o Mercado recusou o anúncio —', JSON.stringify(m).slice(0, 200)); VD.pendente = null; VD.ultimo = Date.now() + 10 * 60_000; }
   if (m.t === 'market' && m.aba === 'historicoGlobal') { try { aoHistorico(m); } catch (e) { logErro('histórico de vendas', e); } }
   if (m.t === 'market' && m.aba === 'meus') { try { aoRevendaMeus(m); } catch (e) { logErro('revenda', e); } }

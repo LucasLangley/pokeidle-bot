@@ -1125,6 +1125,7 @@
               <label><span>Tamanho do anúncio <i>% da venda semanal</i></span><input type="number" name="vdFatia" min="1" max="50" step="1"></label>
               <label><span>Preço mínimo <i>% da média de 7 dias</i></span><input type="number" name="vdPiso" min="10" max="150" step="1"></label>
               <label><span>Abaixo do mais barato <i>Gemas</i></span><input type="number" name="vdAbaixo" min="0" max="1000" step="1"></label>
+              <label class="sn-check"><input type="checkbox" name="vdMinimo"> <span>Vender a 2 Gemas <i>o mínimo do Mercado; ignora piso e média</i></span></label>
             </fieldset>
             <div class="sn-acoes"><button type="submit" class="btn pri">Salvar ajustes</button><span class="mini" id="sn-form-r"></span></div>
           </form>
@@ -1687,7 +1688,7 @@ function mostrarSniper(sp, saldo) {
   }).join('') : `<li class="vazio">${sp.modo === '0' ? 'Desligado.' : 'Nada que valha a pena ainda.'}</li>`);
   // pedras
   document.querySelectorAll('[data-vd]').forEach((b) => b.setAttribute('aria-pressed', String((b.dataset.vd === '1') === !!dr.ligado)));
-  $('vd-t').textContent = dr.ligado ? `${n(dr.vdAbaixo)} Gema abaixo do mais barato, nunca abaixo de ${n(dr.vdPiso)}% da média de 7 dias; guarda ${n(dr.vdReserva)} de cada para evoluir a equipe.` : 'As pedras ficam na mochila; anunciar é com você.';
+  $('vd-t').textContent = dr.ligado && dr.vdMinimo ? `Anuncia toda pedra a 2 Gemas, o mínimo do Mercado; guarda ${n(dr.vdReserva)} de cada para evoluir a equipe.` : dr.ligado ? `${n(dr.vdAbaixo)} Gema abaixo do mais barato, nunca abaixo de ${n(dr.vdPiso)}% da média de 7 dias; guarda ${n(dr.vdReserva)} de cada para evoluir a equipe.` : 'As pedras ficam na mochila; anunciar é com você.';
   $('vd-hoje').textContent = dr.total ? `vendido hoje ${n(dr.hoje)} · no total ${n(dr.total)} Gemas` : '';
   trocarHtml($('vd-anuncios'), (dr.anuncios ?? []).length ? dr.anuncios.map((a) => `<li>${imgIc(ICON.itens?.[a.itemId])}<span>${esc(a.nome.replace(/ Stone$/, ''))}</span><b>${n(a.qtd)} × ${gemas(a.preco)}</b></li>`).join('') : `<li class="vazio">${dr.ligado ? 'Nenhuma pedra anunciada agora.' : 'Desligada.'}</li>`);
   // últimas vendas de pedra: hora, o que saiu (com o ícone), e quanto entrou já sem a taxa
@@ -1703,6 +1704,7 @@ function mostrarSniper(sp, saldo) {
     for (const k of ['max', 'dia', 'qtdDia', 'reserva', 'lucro', 'vendas', 'seg', 'abaixo', 'margem', 'revDias']) if (document.activeElement !== f.elements[k]) f.elements[k].value = sp[k];
     for (const k of ['vdReserva', 'vdFatia', 'vdPiso', 'vdAbaixo']) if (document.activeElement !== f.elements[k]) f.elements[k].value = dr[k] ?? '';
     if (document.activeElement !== f.elements.soShiny) f.elements.soShiny.checked = !!sp.soShiny;
+    if (document.activeElement !== f.elements.vdMinimo) f.elements.vdMinimo.checked = !!dr.vdMinimo;
   }
 }
 async function mandarSniper(corpo) {
@@ -1736,7 +1738,7 @@ document.addEventListener('click', async (e) => {
 $('sn-form').addEventListener('input', () => { snEditando = true; $('sn-form-r').textContent = 'alterações não salvas'; });
 $('sn-form').addEventListener('submit', async (e) => {
   e.preventDefault();
-  const f = e.target; const corpo = { soShiny: f.elements.soShiny.checked };
+  const f = e.target; const corpo = { soShiny: f.elements.soShiny.checked, vdMinimo: f.elements.vdMinimo.checked };
   for (const k of ['max', 'dia', 'qtdDia', 'reserva', 'lucro', 'vendas', 'seg', 'abaixo', 'margem', 'revDias', 'vdReserva', 'vdFatia', 'vdPiso', 'vdAbaixo']) corpo[k] = Number(f.elements[k].value);
   try { const j = await mandarSniper(corpo); snEditando = false; $('sn-form-r').textContent = j.mudou?.length ? 'salvo ✓' : 'nada mudou'; }
   catch (err) { $('sn-form-r').textContent = err.message; }
