@@ -303,6 +303,8 @@
   .pill i { width:7px; height:7px; border-radius:50%; background:var(--ok); display:block; }
   .pill.off { background:var(--bad-soft); color:var(--bad); }
   .pill.off i { background:var(--bad); box-shadow:none; }
+  .pill.pausado { background:var(--warn-soft); color:var(--warn); }
+  .pill.pausado i { background:var(--warn); box-shadow:none; }
 
   .btn {
     display:inline-flex; align-items:center; justify-content:center; gap:6px;
@@ -314,8 +316,13 @@
     transition:background .15s, border-color .15s, opacity .15s;
   }
   .btn:hover { background:var(--tile-hover); border-color:var(--a-ring); }
+  .btn:disabled { opacity:.55; cursor:wait; }
   .btn.pri { background:var(--a); border-color:transparent; color:var(--on-a); font-weight:600; }
   .btn.pri:hover { filter:brightness(1.08); }
+  .btn.ok { background:var(--ok); border-color:transparent; color:#07140d; font-weight:600; }
+  .btn.ok:hover { filter:brightness(1.06); }
+  .btn.pausa { background:var(--warn-soft); border-color:transparent; color:var(--warn); font-weight:600; }
+  .btn.pausa:hover { filter:brightness(1.12); }
   .btn.ghost { background:transparent; border-color:transparent; color:var(--sub); }
   .btn.ghost:hover { background:var(--tile); color:var(--txt); }
   .btn.sm { min-height:28px; padding:0 10px; font-size:12px; border-radius:7px; }
@@ -723,6 +730,11 @@
       <span class="disp top-nick" id="h-nick">—</span>
       <span class="chip accent" id="h-vip" hidden></span>
       <span class="esp"></span>
+      <span class="mini" id="h-pausa-msg" hidden></span>
+      <button type="button" class="btn sm pausa" id="btn-bot-pausa" title="Pausar o bot e liberar a sessão para abrir o jogo">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg>
+        <span>Pausar bot</span>
+      </button>
       <button type="button" class="btn sm" data-ir="ajustes" data-sub="config" id="h-avisos">Avisos</button>
     </header>
 
@@ -1247,6 +1259,7 @@ function aplicarTema(k) {
     scene1: t.s1, scene2: t.s2,
     ok: t.ok, 'ok-soft': L ? 'rgba(21,128,61,.11)' : 'rgba(74,222,128,.12)',
     bad: t.bad, 'bad-soft': L ? 'rgba(220,38,38,.1)' : 'rgba(248,113,113,.12)',
+    warn: L ? '#b45309' : '#fbbf24', 'warn-soft': L ? 'rgba(180,83,9,.12)' : 'rgba(251,191,36,.12)',
     shiny: L ? '#b45309' : '#f3cf6b',
     'shiny-fundo': L ? '#fef9e7' : '#252010',
     'twitch-soft': L ? 'rgba(124,58,237,.12)' : 'rgba(145,70,255,.16)',
@@ -1442,6 +1455,41 @@ document.addEventListener('click', (e) => {
 });
 mostrarAba(abaAtual);
 
+// ---- ligar / pausar bot ----
+const SVG_PAUSE = '<svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg>';
+const SVG_PLAY = '<svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 4.5v15l12-7.5z"/></svg>';
+function atualizarBotaoPausa(pausado) {
+  const b = $('btn-bot-pausa'); if (!b) return;
+  b.className = 'btn sm ' + (pausado ? 'ok' : 'pausa');
+  b.innerHTML = pausado ? `${SVG_PLAY}<span>Ligar bot</span>` : `${SVG_PAUSE}<span>Pausar bot</span>`;
+  b.title = pausado ? 'Retomar a conexão e o farm automático do bot' : 'Pausar o bot e liberar a sessão para abrir o jogo no navegador';
+  b.setAttribute('aria-pressed', String(!!pausado));
+}
+let pausaMsgTimer = null;
+function avisarPausaMsg(txt) {
+  const el = $('h-pausa-msg'); if (!el) return;
+  el.textContent = txt; el.hidden = !txt;
+  clearTimeout(pausaMsgTimer);
+  if (txt) pausaMsgTimer = setTimeout(() => { el.hidden = true; }, 4500);
+}
+$('btn-bot-pausa').onclick = async () => {
+  const b = $('btn-bot-pausa');
+  const querPausar = !ultimoEstado?.pausado;
+  b.disabled = true;
+  try {
+    const r = await fetch('/bot/pausa', { method: 'POST', headers: { 'content-type': 'application/json', 'x-painel': '1' }, body: JSON.stringify({ pausar: querPausar }) });
+    const j = await r.json().catch(() => null);
+    if (!r.ok) throw new Error(r.status === 403 ? 'só dá para controlar neste PC' : 'HTTP ' + r.status);
+    atualizarBotaoPausa(!!j?.pausado);
+    avisarPausaMsg(j?.pausado ? 'Bot pausado · sessão liberada' : 'Reconectando…');
+    atualizar();
+  } catch (err) {
+    avisarPausaMsg(err.message || 'falha ao alternar');
+  } finally {
+    b.disabled = false;
+  }
+};
+
 // ---- estado ----
 let ultimoEstado = null;
 async function atualizar() {
@@ -1455,8 +1503,15 @@ async function atualizar() {
   }
   ultimoEstado = s;
   const tempo = s.minutos < 60 ? `${s.minutos} min` : `${(s.minutos / 60).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} h`;
-  $('pilula').className = 'pill' + (s.conectado ? '' : ' off');
-  $('pilula-t').textContent = `${s.somenteLer ? 'Só leitura · ' : ''}${s.conectado ? 'Online' : 'Reconectando'} · ${tempo}`;
+  if (s.pausado) {
+    const pm = s.pausadoEm ? Math.max(0, Math.round((s.agora - s.pausadoEm) / 60000)) : 0;
+    $('pilula').className = 'pill pausado';
+    $('pilula-t').textContent = pm > 0 ? `Pausado há ${fmtMin(pm)}` : 'Pausado';
+  } else {
+    $('pilula').className = 'pill' + (s.conectado ? '' : ' off');
+    $('pilula-t').textContent = `${s.somenteLer ? 'Só leitura · ' : ''}${s.conectado ? 'Online' : 'Reconectando'} · ${tempo}`;
+  }
+  atualizarBotaoPausa(!!s.pausado);
   $('side-tempo').textContent = tempo;
   $('h-nick').textContent = s.nick ?? '—';
   $('h-vip').hidden = !s.bonus?.vip;
@@ -1734,8 +1789,8 @@ function mostrarExtras(s) {
   $('dex').innerHTML = dx ? `<div style="display:flex;align-items:baseline;gap:8px"><span class="big">${n(dx.capturadas)}</span><span class="mini">capturadas${dx.total ? ' de ' + n(dx.total) : ''}</span></div>
     <div class="bar" style="margin:10px 0 6px"><i style="width:${dx.total ? Math.min(100, 100 * dx.capturadas / dx.total) : 0}%"></i></div>${kv('Espécies vistas', n(dx.vistas))}${kv('Pokémon derrotados', n(dx.abates))}` : '<span class="vazio">sem dados</span>';
 
-  $('saude').innerHTML = kv('Conexão', s.conectado ? 'estável' : 'reconectando', `color:${s.conectado ? 'var(--ok)' : 'var(--bad)'}`) + kv('Tempo de sessão', fmtMin(s.minutos)) + kv('Reconexões', n(x.tentativas ?? 0)) + kv('Modo', s.somenteLer ? 'só leitura' : 'farm automático') +
-    '<div class="mini" style="margin-top:10px">Abrir o jogo no navegador derruba o bot e o pausa por 2 h.</div>';
+  $('saude').innerHTML = kv('Conexão', s.pausado ? 'pausado pelo painel' : s.conectado ? 'estável' : 'reconectando', `color:${s.pausado ? 'var(--warn)' : s.conectado ? 'var(--ok)' : 'var(--bad)'}`) + kv('Tempo de sessão', fmtMin(s.minutos)) + kv('Reconexões', n(x.tentativas ?? 0)) + kv('Modo', s.somenteLer ? 'só leitura' : 'farm automático') +
+    '<div class="mini" style="margin-top:10px">Use o botão Pausar bot no topo antes de abrir o jogo no navegador para liberar a sessão sem derrubar o painel.</div>';
 
   const med = Object.entries(s.acumulado?.medicoes ?? {}).filter(([, m]) => m.seg > 30 && m.xp > 0 && s.nivel - (m.lv ?? 0) <= 20).map(([k, m]) => { const [r, lv] = k.split(':'); return { r, lv: Number(lv), xph: m.xp / m.seg * 3600, em: m.lv }; }).sort((a, b) => b.xph - a.xph).slice(0, 6);
   const topo = med[0]?.xph || 1, area = s.hunt?.area;
@@ -1821,7 +1876,7 @@ function mostrarBosses(s) {
   trocarHtml(el, `<div class="g-3">${cards}</div>${eqCard}`);
 }
 
-const COR_AVISO = { caiu: 'var(--bad)', voltou: 'var(--ok)', capturado: 'var(--shiny)', campo: 'var(--shiny)', escapou: 'var(--shiny)' };
+const COR_AVISO = { caiu: 'var(--bad)', pausa: 'var(--warn)', voltou: 'var(--ok)', capturado: 'var(--shiny)', campo: 'var(--shiny)', escapou: 'var(--shiny)' };
 function mostrarAvisos(s) {
   const l = s.extras?.avisos ?? [];
   const quando = (t) => chaveDia(t) === chaveDia(s.agora) ? hora(t) : new Date(t).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) + ' ' + hora(t);
@@ -2020,6 +2075,13 @@ function quadro(t) {
     ctx.beginPath(); ctx.moveTo(0, hy); ctx.lineTo(W, hy); ctx.stroke();
   }
 
+  if (s.pausado) {
+    ctx.fillStyle = cor('warn'); ctx.font = '600 14px Inter, system-ui'; ctx.textAlign = 'center';
+    ctx.fillText('Bot pausado — sessão liberada', W / 2, H / 2 - 8);
+    ctx.fillStyle = cor('sub'); ctx.font = '500 12.5px Inter, system-ui';
+    ctx.fillText('Clique em "Ligar bot" no topo para retomar o farm', W / 2, H / 2 + 14);
+    return;
+  }
   if (s.noCentro) {
     ctx.fillStyle = cor('sub'); ctx.font = '500 13.5px Inter, system-ui'; ctx.textAlign = 'center';
     ctx.fillText('No Centro Pokémon, curando a equipe…', W / 2, H / 2);

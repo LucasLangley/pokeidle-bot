@@ -1728,8 +1728,38 @@ function aoMensagem(m) {
 }
 
 // ---------- conexão ----------
+function pausarBot(pausar) {
+  const quer = pausar == null ? !S.pausado : !!pausar;
+  if (quer) {
+    if (S.pausado) return { ok: true, pausado: true, pausadoEm: S.pausadoEm ?? null };
+    S.pausado = true;
+    S.pausadoEm = Date.now();
+    clearTimeout(S.reconectarTimer); S.reconectarTimer = null;
+    clearTimeout(S.alarmeQueda); S.alarmeQueda = null; S.avisouQueda = false;
+    fila.length = 0;
+    S.welcome = false;
+    S.offDesde ??= Date.now();
+    if (S.ws && (S.ws.readyState === 0 || S.ws.readyState === 1)) {
+      try { S.ws.close(1000, 'pausado pelo painel'); } catch {}
+    }
+    log('bot pausado pelo painel (sessão liberada)');
+    aviso('pausa', 'Bot pausado pelo painel', 'Você pode abrir o jogo no navegador normalmente.');
+    return { ok: true, pausado: true, pausadoEm: S.pausadoEm };
+  }
+  S.pausado = false;
+  S.pausadoEm = null;
+  S.tentativas = 0;
+  clearTimeout(S.reconectarTimer); S.reconectarTimer = null;
+  try { if (existsSync(ARQ_PAUSA)) unlinkSync(ARQ_PAUSA); } catch {}
+  log('bot ligado pelo painel; conectando…');
+  aviso('voltou', 'Bot ligado pelo painel');
+  conectar();
+  return { ok: true, pausado: false, pausadoEm: null };
+}
+
 function conectar() {
-  if (S.parar) return;
+  if (S.parar || S.pausado) return;
+  if (S.ws && (S.ws.readyState === 0 || S.ws.readyState === 1)) return;
   const url = `wss://${CFG.host}`;
   let ws;
   try {
@@ -1743,6 +1773,7 @@ function conectar() {
   let ping, watchdog, loop, rel, capt;
 
   ws.onopen = () => {
+    if (S.pausado || S.parar) { try { ws.close(1000); } catch {} return; }
     log('conectado; enviando hello');
     ws.send(JSON.stringify({ t: 'hello', nick: CFG.nick, token: CFG.token, delta: 1, dispositivo: CFG.dispositivo }));
     ping = setInterval(() => ws.readyState === 1 && ws.send('{"t":"ping"}'), 25_000);
@@ -1759,8 +1790,10 @@ function conectar() {
   ws.onerror = (e) => log('erro de socket:', e?.message ?? '');
   ws.onclose = async (ev) => {
     clearInterval(ping); clearInterval(watchdog); clearInterval(loop); clearInterval(rel); clearInterval(capt);
+    S.welcome = false;
     S.offDesde ??= Date.now();
     log(`desconectado (código ${ev.code}${ev.reason ? `, ${ev.reason}` : ''})`);
+    if (S.pausado || S.parar) return;
     if (ev.code === 4001) {
       log(`sessão tomada por outra conexão (o jogo foi aberto em outro lugar). Pausando por ${CFG.pausaHoras} h — apague o arquivo PAUSADO para voltar antes.`);
       try { writeFileSync(ARQ_PAUSA, new Date().toISOString()); } catch {}
@@ -1774,7 +1807,8 @@ function conectar() {
     S.tentativas++;
     const espera = Math.min(30_000, 1000 * 2 ** Math.min(S.tentativas, 5)) + Math.random() * 1000;
     log(`reconectando em ${Math.round(espera / 1000)} s`);
-    setTimeout(conectar, espera);
+    clearTimeout(S.reconectarTimer);
+    S.reconectarTimer = setTimeout(() => { S.reconectarTimer = null; conectar(); }, espera);
   };
 }
 
@@ -2429,7 +2463,7 @@ function instantaneo() {
   const xpAgora = e.level ? xpAtualDe(e) : 0;
   const hunt = S.hunts.find((h) => h.slug === e.huntSlug);
   return {
-    agora: Date.now(), conectado: S.ws?.readyState === 1, somenteLer: CFG.somenteLer,
+    agora: Date.now(), conectado: S.ws?.readyState === 1, pausado: !!S.pausado, pausadoEm: S.pausadoEm ?? null, somenteLer: CFG.somenteLer,
     nick: CFG.nick, nivel: e.level, xpNivel: e.xpNivel, xpProximo: e.xpProximo, xp: e.xp, progresso: progressoNivel(e), ouro: e.gold, diamantes: e.diamonds, orbs: e.orbs,
     hunt: hunt ? { nome: hunt.nome, nivel: hunt.nivel, area: hunt.area } : null, noCentro: !!e.noCentro, outlandTier: e.outlandTier,
     xph: Math.round((xpAgora - (S.stats.xp0 ?? xpAgora)) / horas), ouroh: Math.round(((e.gold ?? 0) - (S.stats.ouro0 ?? 0) - (S.stats.ouroExtra ?? 0)) / horas), ouroExtra: S.stats.ouroExtra ?? 0,
@@ -2554,6 +2588,13 @@ async function iniciarPainel() {
     if ((req.url ?? '').startsWith('/resgatar/') && req.method === 'POST') { const codigo = req.url.slice(10).toUpperCase(); if (!/^[A-Z0-9]{4,20}$/.test(codigo)) { res.writeHead(400); return res.end('codigo invalido'); } S.depurarAte = Date.now() + 20_000; log(`resgatar: enviando código de vínculo (${codigo.length} caracteres)`); enviar({ t: 'convite.resgatar', codigo }); res.writeHead(202, { 'content-type': 'text/plain; charset=utf-8' }); return res.end('enviado; veja o log'); }
     // ajustes do sniper (gasta Gemas): só deste PC, só pelo próprio painel. O cabeçalho próprio força o navegador a
     // pedir licença (CORS) antes, e a origem tem de ser o painel; assim outro site aberto no navegador não muda nada.
+    if (req.url === '/bot/pausa' && req.method === 'POST') {
+      const org = req.headers.origin; const okOrg = !org || /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(org);
+      if (!daqui(ip) || req.headers['x-painel'] !== '1' || !okOrg || !/json/.test(req.headers['content-type'] ?? '')) { res.writeHead(403); return res.end('só pelo painel deste PC'); }
+      let corpo = ''; req.on('data', (d) => { corpo += d; if (corpo.length > 1000) req.destroy(); });
+      req.on('end', () => { let body = {}; try { body = corpo ? JSON.parse(corpo) : {}; } catch {} const r = pausarBot(body.pausar); res.writeHead(200, { 'content-type': 'application/json; charset=utf-8' }); res.end(JSON.stringify(r)); });
+      return;
+    }
     if (req.url === '/sniper' && req.method === 'POST') {
       const org = req.headers.origin; const okOrg = !org || /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(org);
       if (!daqui(ip) || req.headers['x-painel'] !== '1' || !okOrg || !/json/.test(req.headers['content-type'] ?? '')) { res.writeHead(403); return res.end('só pelo painel deste PC'); }
