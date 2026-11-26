@@ -463,10 +463,15 @@ function huntAlvo() {
   if (S.ultimasRegioes !== chaveReg) { if (S.ultimasRegioes != null) log(`regiões de hunt: ${chaveReg}`); S.ultimasRegioes = chaveReg; }
   const niveis = [...new Set(S.hunts.filter((h) => regioes.includes(h.area) && h.nivel <= teto).map((h) => h.nivel))].sort((a, b) => b - a);
   if (!niveis.length) return null;
-  let nivel = niveis[Math.min(recuos, niveis.length - 1)];
+  // filtra degraus de castigo antes de escolher os candidatos: se o topo (ex.: 410) mata, compara os 2 seguintes (380 × 350)
+  const largados = S.desistiDegrau ?? {}, mataPk = S.mataPk ?? {}, pkLv = pkAtivo?.level ?? 0;
+  const elegiveis = niveis.filter((n) => !(largados[n] != null && largados[n] >= lv) && !(mataPk[n] != null && pkLv < mataPk[n]));
+  const base = elegiveis.length ? elegiveis : niveis;
+  const idx = Math.min(recuos, base.length - 1);
+  let nivel = base[idx];
   // em economia compara 4 degraus (os de baixo apanham menos e gastam menos poção); normal, os 2 de cima
   const nCands = modoEconomia() ? 4 : 2;
-  if (CFG.huntMedir && !CFG.huntFixa) nivel = degrauMedido(niveis.slice(Math.min(recuos, niveis.length - 1), Math.min(recuos, niveis.length - 1) + nCands), lv, regioes) ?? nivel;
+  if (CFG.huntMedir && !CFG.huntFixa) nivel = degrauMedido(base.slice(idx, idx + nCands), lv, regioes) ?? nivel;
   const opcoes = S.hunts.filter((h) => h.nivel === nivel && regioes.includes(h.area));
   // fica na hunt atual se ela já é desse degrau; senão, a de mais spawns (empate: a primeira)
   const atual = opcoes.find((h) => h.slug === S.eu?.huntSlug);
