@@ -86,6 +86,7 @@ const CFG = {
   ntfyTopico: env('NTFY_TOPICO', ''),            // canal do app ntfy no celular; vazio = desligado
   colecaoNota: bool('COLECAO_NOTA', '1'),        // guardar capturas com nota alta em vez de vender
   colecaoNotaMin: num('COLECAO_NOTA_MIN', 3.5),  // 3,5 = mínimo do Sacrifício e do Mercado
+  colecaoQualMin: num('COLECAO_QUAL_MIN', 1.6),  // guarda qualidade >= X (o jogo aceita 1.1, 1.3, 1.5 ou 1.6; 0 desliga). 26/11: um Cherubi Q1.8 foi vendido ao NPC
   // rota semanal por espécies novas. Desligada: leva o treinador para hunts de nível 1 (~43 mil XP/h contra ~12 mi)
   // e em 10 h chega só ao marco de 100 (Lure de 30 min). Medido em 24/11.
   topCatch: bool('TOP_CATCH', '0'),
@@ -1537,10 +1538,12 @@ function garantirAutomacoes() {
   if ((CFG.colecaoNota || CFG.timeForte) && Date.now() - (S.ultimaColecao ?? 0) > (CFG.timeForte && !colecaoProtege() ? 30_000 : 300_000)) {
     const atual = a.autoColecao ?? {};
     const min = notaDaColecao();
-    if (atual.nota?.on !== true || Number(atual.nota?.min) !== min || (CFG.timeForte && !colecaoProtege())) {
+    const qMin = [1.1, 1.3, 1.5, 1.6].includes(CFG.colecaoQualMin) ? CFG.colecaoQualMin : null;
+    const qualErrada = qMin ? (atual.qual?.on !== true || Number(atual.qual?.min) !== qMin) : false;
+    if (atual.nota?.on !== true || Number(atual.nota?.min) !== min || qualErrada || (CFG.timeForte && !colecaoProtege())) {
       S.ultimaColecao = Date.now();
-      const regra = { ...atual, nota: { on: true, min }, ...(CFG.timeForte ? { shiny: { on: true }, lendario: { on: true }, potencial: { on: true } } : {}) };
-      log(`Auto Coleção: guardar capturas com nota >= ${min}${CFG.timeForte ? ' (também quem alcança isso evoluindo)' : ''}, além de lendário, shiny e P4+`);
+      const regra = { ...atual, nota: { on: true, min }, ...(qMin ? { qual: { on: true, min: qMin } } : {}), ...(CFG.timeForte ? { shiny: { on: true }, lendario: { on: true }, potencial: { on: true } } : {}) };
+      log(`Auto Coleção: guardar capturas com nota >= ${min}${qMin ? ` ou qualidade >= ${qMin}` : ''}${CFG.timeForte ? ' (também quem alcança isso evoluindo)' : ''}, além de lendário, shiny e P4+`);
       enviar({ t: 'shop.autoColecao', regra });
       return;
     }
