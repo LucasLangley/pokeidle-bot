@@ -940,7 +940,7 @@
                   <span class="chip shiny" id="evento" hidden><span id="ev-t"></span> <b id="ev-fim"></b></span>
                   <span class="chip accent" id="h-xp" hidden>XP <b id="ev-x"></b></span>
                   <span class="chips" id="k-chips"></span>
-                  <div class="seg" id="cena-modo" role="group" aria-label="Visual da cena"><button type="button" data-m="mapa" title="O mapa da hunt, como o jogo mostra">Mapa</button><button type="button" data-m="batalha" title="Tela de batalha clássica">Batalha</button></div>
+                  <button type="button" class="btn sm ghost" id="btn-cena-estilo" title="Alternar visual da arena"></button>
                 </div>
               </div>
               <div class="palco" id="palco-wrap"><canvas id="cena" aria-label="Seu pokemon ativo e os selvagens do campo"></canvas></div>
@@ -1376,7 +1376,7 @@ let temaAtual = 'feira';
 // o roxo era o padrão antigo: quem nunca escolheu outro tema passa para a Feira uma vez
 try { const t = localStorage.getItem('pk-tema'); if (TEMAS[t] && !(t === 'roxo' && !localStorage.getItem('pk-tema-v2'))) temaAtual = t; localStorage.setItem('pk-tema-v2', '1'); } catch {}
 // o Clássico vira o padrão: quem ainda não passou por esta versão entra nele uma vez (e na arena clássica)
-try { if (!localStorage.getItem('pk-tema-v3')) { temaAtual = 'classico'; localStorage.setItem('pk-tema-v3', '1'); } } catch {}
+try { if (!localStorage.getItem('pk-tema-v3')) { temaAtual = 'classico'; localStorage.setItem('pk-cena', 'pkm'); localStorage.setItem('pk-tema-v3', '1'); } } catch {}
 function luminancia(hex) {
   const c = [1, 3, 5].map((i) => { const x = parseInt(hex.slice(i, i + 2), 16) / 255; return x <= 0.03928 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4; });
   return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
@@ -1420,32 +1420,28 @@ function aplicarTema(k) {
   $('temas').innerHTML = Object.entries(TEMAS).map(([id, x]) =>
     `<button class="sw-btn" type="button" data-t="${id}" aria-pressed="${id === temaAtual}"><span class="sw-dot" style="background:${x.a}"></span>${x.nome}</button>`).join('');
   desenharGrafico();
-  atualizarEstiloCena();
 }
 $('temas').addEventListener('click', (e) => { const b = e.target.closest('button[data-t]'); if (b) aplicarTema(b.dataset.t); });
 const cor = (nome) => getComputedStyle(document.documentElement).getPropertyValue('--' + nome).trim();
 
-// ---- cena: modo Mapa (a hunt como o jogo mostra) ou Batalha (tela de luta clássica) ----
-// No Mapa, as etiquetas seguem o tema: claras ('pkm') nos temas claros, escuras nos demais.
+// ---- estilo da cena: integrado (padrão) ou clássico ----
 let estiloCena = 'dark';
-let modoCena = 'mapa';
-try { if (localStorage.getItem('pk-cena-modo') === 'batalha') modoCena = 'batalha'; } catch {}
+try { if (localStorage.getItem('pk-cena') === 'pkm') estiloCena = 'pkm'; } catch {}
 function atualizarEstiloCena() {
-  estiloCena = TEMAS[temaAtual]?.light ? 'pkm' : 'dark';
   $('palco-wrap').classList.toggle('classico', estiloCena === 'pkm');
-  for (const b of $('cena-modo').querySelectorAll('button')) b.setAttribute('aria-pressed', String(b.dataset.m === modoCena));
+  $('btn-cena-estilo').textContent = estiloCena === 'pkm' ? 'Arena escura' : 'Arena clássica';
 }
-$('cena-modo').addEventListener('click', (e) => {
-  const b = e.target.closest('button[data-m]'); if (!b) return;
-  modoCena = b.dataset.m;
-  try { localStorage.setItem('pk-cena-modo', modoCena); } catch {}
-  atualizarEstiloCena();
-});
 $('btn-avisos').onclick = () => {
   const f = $('faixa'), aberto = f.classList.toggle('aberto');
   $('btn-avisos').setAttribute('aria-expanded', String(aberto));
   $('btn-avisos').textContent = aberto ? 'Recolher' : 'Ver todos';
 };
+$('btn-cena-estilo').onclick = () => {
+  estiloCena = estiloCena === 'pkm' ? 'dark' : 'pkm';
+  try { localStorage.setItem('pk-cena', estiloCena); } catch {}
+  atualizarEstiloCena();
+};
+atualizarEstiloCena();
 
 // ---- listas & utilitários ----
 function linhaHp({ nome, extra, hp, mhp, classes = '', direita }) {
@@ -2257,156 +2253,6 @@ function fundoMapa(ctx, W, H) {
   return true;
 }
 
-// ---- modo Batalha: tela de luta clássica (selvagem no alto, o seu de costas embaixo, caixas de HP e de texto) ----
-const PX = '"Pixelify Sans", monospace', PX2 = '"Press Start 2P", "Pixelify Sans", monospace';
-try { document.fonts?.load('16px "Pixelify Sans"'); document.fonts?.load('10px "Press Start 2P"'); } catch {}
-function quadroSprite(alvo, dirs, t, fase = 0) {
-  const sp = sprite(alvo?.lt); if (!sp) return null;
-  let q = null; for (const d of dirs) if (sp.s.dirs[d]?.length) { q = sp.s.dirs[d]; break; }
-  q ??= Object.values(sp.s.dirs)[0]; if (!q?.length) return null;
-  const f = q[Math.floor(t / 170 + fase) % q.length], img = sp.imgs[f.p];
-  return img?.complete && img.naturalWidth ? { f, img } : null;
-}
-function spriteBatalha(ctx, alvo, dirs, cx, chao, esc, t, o = {}) {
-  if (o.pisca && Math.floor(t / 70) % 2) return; // pisca ao levar dano, como nos jogos
-  const r = quadroSprite(alvo, dirs, t, o.fase);
-  if (!r) {
-    ctx.fillStyle = 'rgba(56,56,72,.25)'; ctx.beginPath(); ctx.arc(cx, chao - 14 * esc, 12 * esc, 0, 7); ctx.fill();
-    return;
-  }
-  const e = r.f.h > 32 ? esc * 0.72 : esc, w = r.f.w * e, h = r.f.h * e;
-  ctx.drawImage(r.img, r.f.x, r.f.y, r.f.w, r.f.h, Math.round(cx - w / 2), Math.round(chao - h), w, h);
-}
-function caixaDialogo(ctx, x, y, w, h, fundo = '#f8f8e8') {
-  ctx.fillStyle = 'rgba(56,56,72,.25)'; roundRect(ctx, x + 3, y + 3, w, h, 8); ctx.fill();
-  ctx.fillStyle = fundo; ctx.strokeStyle = '#383848'; ctx.lineWidth = 3;
-  roundRect(ctx, x, y, w, h, 8); ctx.fill(); ctx.stroke();
-  ctx.strokeStyle = '#6890c8'; ctx.lineWidth = 2;
-  roundRect(ctx, x + 4, y + 4, w - 8, h - 8, 5); ctx.stroke();
-}
-function barraHp(ctx, x, y, w, pct, shiny) {
-  ctx.fillStyle = '#383848'; roundRect(ctx, x, y, w + 30, 11, 4); ctx.fill();
-  ctx.fillStyle = '#f8b030'; ctx.font = '8px ' + PX2; ctx.textAlign = 'left'; ctx.fillText('HP', x + 5, y + 9);
-  ctx.fillStyle = '#506858'; ctx.fillRect(x + 26, y + 3, w, 5);
-  ctx.fillStyle = shiny ? '#f0c040' : pct < 0.2 ? '#f05838' : pct < 0.5 ? '#f8c030' : '#58d080';
-  if (pct > 0) ctx.fillRect(x + 26, y + 3, Math.max(2, Math.round(w * pct)), 5);
-}
-function infoBatalha(ctx, x, y, w, p, o = {}) {
-  const h = o.numeros ? 62 : 50;
-  caixaDialogo(ctx, x, y, w, h);
-  ctx.textBaseline = 'alphabetic';
-  ctx.fillStyle = p.shiny ? '#a07810' : '#383848'; ctx.font = '10px ' + PX2; ctx.textAlign = 'left';
-  let nome = `${p.shiny ? '★' : ''}${(p.nome ?? '?').toUpperCase()}`;
-  while (nome.length > 3 && ctx.measureText(nome).width > w - 86) nome = nome.slice(0, -1);
-  ctx.fillText(nome, x + 12, y + 22);
-  ctx.font = '600 14px ' + PX; ctx.textAlign = 'right'; ctx.fillStyle = '#383848';
-  ctx.fillText(`Nv${p.nv ?? '?'}`, x + w - 12, y + 22);
-  const pct = p.mhp ? Math.max(0, Math.min(1, p.hp / p.mhp)) : 0;
-  barraHp(ctx, x + w - 12 - (w - 54) - 30, y + 30, w - 54, pct, p.shiny);
-  if (o.numeros) {
-    ctx.font = '500 13px ' + PX; ctx.textAlign = 'right'; ctx.fillStyle = '#383848';
-    ctx.fillText(`${n(Math.max(0, p.hp ?? 0))} / ${n(p.mhp)}`, x + w - 12, y + 56);
-  }
-  if (o.bolas) { // selvagens no campo: bolinhas cheias (vivos) e vazias (derrotados)
-    const { vivos, total } = o.bolas, r = 4;
-    for (let i = 0; i < Math.min(total, 8); i++) {
-      const bx = x + 16 + i * 12, by = y + h + 9;
-      ctx.fillStyle = i < vivos ? '#e8483c' : '#b8b8c0'; ctx.beginPath(); ctx.arc(bx, by, r, 0, 7); ctx.fill();
-      ctx.strokeStyle = '#383848'; ctx.lineWidth = 1.5; ctx.stroke();
-    }
-  }
-}
-function cenaBatalha(ctx, W, H, t, s) {
-  // fundo: céu claro em faixas e campo de grama
-  const tb = Math.max(56, Math.round(H * 0.2)), ty = H - tb - 6; // caixa de texto embaixo
-  const peq = H < 260 || W < 520;
-  const eu = s.equipe.find((p) => p.ativo);
-  const vivos = s.campo.filter((m) => !m.morto);
-  // o selvagem em foco: shiny primeiro, depois o mais machucado (o que está apanhando)
-  const alvo = [...vivos].sort((a, b) => (b.shiny - a.shiny) || ((a.hp / (a.mhp || 1)) - (b.hp / (b.mhp || 1))))[0];
-
-  // visão lateral em 3ª pessoa: céu, nuvens, morros ao longe e um campo em perspectiva até a caixa de texto
-  const hz = Math.round(H * 0.42);
-  const ceu = ctx.createLinearGradient(0, 0, 0, hz);
-  ceu.addColorStop(0, '#88c8f8'); ceu.addColorStop(1, '#d8f0ff');
-  ctx.fillStyle = ceu; ctx.fillRect(0, 0, W, hz);
-  ctx.fillStyle = 'rgba(255,255,255,.9)';
-  for (const [bx, by, bs, vel] of [[0.12, 0.13, 1, 0.006], [0.55, 0.08, 0.8, 0.004], [0.86, 0.2, 1.15, 0.008]]) {
-    const x = ((bx * W + t * vel) % (W + 160)) - 80, y = by * H, r = 13 * bs;
-    for (const [dx, dy, k] of [[0, 0, 1], [r, -r * 0.5, 1.15], [r * 2, 0, 0.95], [r * 1, r * 0.2, 1]]) { ctx.beginPath(); ctx.arc(x + dx, y + dy, r * k, 0, 7); ctx.fill(); }
-  }
-  const morros = (cor, alt, passo, fase) => {
-    ctx.fillStyle = cor; ctx.beginPath(); ctx.moveTo(0, hz);
-    for (let x = 0; x <= W + passo; x += passo) ctx.quadraticCurveTo(x - passo / 2, hz - alt * (0.6 + 0.4 * Math.abs(Math.sin(x * 0.013 + fase))), x, hz);
-    ctx.lineTo(W, hz + 1); ctx.lineTo(0, hz + 1); ctx.fill();
-  };
-  morros('#a8d0a0', H * 0.16, 150, 0.6);
-  morros('#78b468', H * 0.09, 90, 2.1);
-  const chao = ctx.createLinearGradient(0, hz, 0, H);
-  chao.addColorStop(0, '#a8d878'); chao.addColorStop(1, '#68b048');
-  ctx.fillStyle = chao; ctx.fillRect(0, hz, W, H - hz);
-  // faixas que se abrem para perto e linhas que fogem para o horizonte: dão profundidade ao campo
-  ctx.fillStyle = 'rgba(255,255,255,.09)';
-  for (let k = 1; k < 9; k += 2) { const y0 = hz + (H - hz) * (k / 9) ** 2, y1 = hz + (H - hz) * ((k + 1) / 9) ** 2; ctx.fillRect(0, y0, W, y1 - y0); }
-  ctx.strokeStyle = 'rgba(40,90,30,.12)'; ctx.lineWidth = 1;
-  for (let k = -8; k <= 8; k++) { ctx.beginPath(); ctx.moveTo(W / 2 + k * W * 0.04, hz); ctx.lineTo(W / 2 + k * W * 0.32, H); ctx.stroke(); }
-  ctx.fillStyle = '#4f9838'; // tufos de grama fixos
-  for (let k = 0; k < 26; k++) {
-    const fx = ((k * 97) % 100) / 100, fy = ((k * 61) % 100) / 100, y = hz + 6 + (ty - hz) * fy ** 1.4, x = fx * W, e = 0.6 + 1.2 * fy;
-    ctx.fillRect(x, y, 2 * e, 4 * e); ctx.fillRect(x + 3 * e, y - 2 * e, 2 * e, 6 * e); ctx.fillRect(x + 6 * e, y, 2 * e, 4 * e);
-  }
-  const sombra = (x, y, rx) => { ctx.fillStyle = 'rgba(30,60,20,.28)'; ctx.beginPath(); ctx.ellipse(x, y, rx, rx * 0.22, 0, 0, 7); ctx.fill(); };
-
-  // os outros selvagens ao fundo, menores e um pouco apagados, virados para a luta
-  const fundo = vivos.filter((m) => m !== alvo).slice(0, peq ? 2 : 4);
-  const yFundo = hz + (ty - hz) * 0.34;
-  fundo.forEach((m, k) => {
-    const x = W * (0.58 + 0.1 * k) + (k % 2 ? 8 : -8), y = yFundo + (k % 2) * 8;
-    sombra(x, y - 2, 14);
-    ctx.globalAlpha = 0.8; spriteBatalha(ctx, m, [4, 3, 2], x, y, peq ? 1.3 : 1.7, t, { fase: k }); ctx.globalAlpha = 1;
-  });
-
-  // a luta de perfil: o seu à esquerda olhando para a direita, o selvagem à direita olhando para a esquerda
-  const golpeEu = eu && levouDano('eu', eu.hp), golpeAlvo = alvo && levouDano('m' + alvo.slot, alvo.hp);
-  const gyAlvo = ty - 8 - (ty - hz) * 0.14, gyEu = ty - 2;
-  const ex = W * 0.72 - (golpeEu ? 10 : 0), px = W * 0.27 + (golpeAlvo ? 12 : 0); // avança um pouco ao acertar
-  if (alvo) { sombra(W * 0.72, gyAlvo - 2, peq ? 30 : 40); spriteBatalha(ctx, alvo, [4, 3, 2], ex, gyAlvo + 4, peq ? 2.9 : 3.8, t, { pisca: golpeAlvo }); }
-  if (eu) { sombra(W * 0.27, gyEu - 2, peq ? 34 : 46); spriteBatalha(ctx, eu, [2, 3, 4], px, gyEu + 4, peq ? 2.9 : 3.8, t, { pisca: golpeEu }); }
-
-  // caixas de HP no alto: a sua à esquerda, a do selvagem à direita
-  const iw = Math.min(peq ? 210 : 260, W * 0.44);
-  if (eu) infoBatalha(ctx, 14, 14, iw, eu, { numeros: true });
-  if (alvo) infoBatalha(ctx, W - iw - 14, 14, iw, alvo, { bolas: { vivos: vivos.length, total: s.campo.length } });
-
-  // caixa de texto com o recado da vez, escrito letra por letra
-  const comMenu = W >= 600;
-  const mw = comMenu ? Math.min(250, W * 0.34) : 0;
-  caixaDialogo(ctx, 6, ty, W - 12 - (comMenu ? mw + 6 : 0), tb, '#fffdf6');
-  const nomeEu = eu?.nome ?? 'Seu Pokémon';
-  const msgs = !alvo ? ['Aguardando selvagens…']
-    : alvo.shiny ? [`Um ${alvo.nome} SHINY apareceu!`, `${nomeEu}, cuidado com ele!`]
-    : [`Um ${alvo.nome} selvagem apareceu!`, `O que ${nomeEu} vai fazer?`, `${n(vivos.length)} selvagem${vivos.length === 1 ? '' : 's'} no campo.`];
-  const ciclo = 4200, i = Math.floor(t / ciclo) % msgs.length, letras = Math.floor((t % ciclo) / 32);
-  ctx.fillStyle = '#383848'; ctx.font = `500 ${peq ? 15 : 18}px ${PX}`; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
-  ctx.fillText(msgs[i].slice(0, letras), 24, ty + tb / 2);
-  if (letras >= msgs[i].length && Math.floor(t / 400) % 2) { // setinha de "continuar"
-    const ax = W - 30 - (comMenu ? mw + 6 : 0), ay = ty + tb - 18;
-    ctx.fillStyle = '#e8483c'; ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(ax + 10, ay); ctx.lineTo(ax + 5, ay + 6); ctx.fill();
-  }
-  if (comMenu) { // menu de ações à direita, com o cursor em LUTAR
-    const mx = W - 6 - mw;
-    caixaDialogo(ctx, mx, ty, mw, tb, '#fffdf6');
-    const ops = ['LUTAR', 'BOLSA', 'POKéMON', 'FUGIR'];
-    ctx.font = `9px ${PX2}`; ctx.fillStyle = '#383848';
-    ops.forEach((op, k) => {
-      const cx = mx + 26 + (k % 2) * (mw / 2 - 8), cy = ty + tb * (k < 2 ? 0.34 : 0.7);
-      ctx.fillText(op, cx, cy);
-      if (!k) { ctx.fillStyle = '#e8483c'; ctx.fillText('▶', cx - 14, cy); ctx.fillStyle = '#383848'; }
-    });
-  }
-  ctx.textBaseline = 'alphabetic';
-}
-
 function quadro(t) {
   requestAnimationFrame(quadro);
   avatar(t); desenharBosses(t);
@@ -2417,8 +2263,7 @@ function quadro(t) {
   const ctx = cv.getContext('2d'); ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.imageSmoothingEnabled = false;
   ctx.clearRect(0, 0, W, H);
   pedirMapaCena(s.mapaCena);
-  if (modoCena === 'batalha' && !s.pausado && !s.noCentro) { cenaBatalha(ctx, W, H, t, s); return; }
-  const comMapa = modoCena === 'mapa' && !s.noCentro && fundoMapa(ctx, W, H);
+  const comMapa = !s.noCentro && fundoMapa(ctx, W, H);
 
   if (!comMapa && estiloCena !== 'pkm') {
     // linha sutil de chão na arena escura
