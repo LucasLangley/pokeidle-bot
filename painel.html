@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>PokeIdle bot</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&family=Pixelify+Sans:wght@400;500;600;700&family=Press+Start+2P&display=swap" rel="stylesheet">
 <style>
   /* Design system: superfícies limpas com elevação sutil, menos bordas e rolagem natural. */
   :root {
@@ -710,6 +710,135 @@
     .sn-form { grid-template-columns:minmax(0,1fr); }
     .vivo-kpis, .g-kpis { grid-template-columns:minmax(0,1fr); }
   }
+
+  /* ===== Tema Clássico: caixas de diálogo de RPG de bolso, fonte pixelada, barras de HP ===== */
+  html.t-classico {
+    --ink:#383848; --moldura:#6890c8; --creme:#f8f4e4; --papel:#fffdf6;
+    --r-card:10px; --r-tile:4px; --r-sm:4px;
+  }
+  html.t-classico body {
+    font:15px/1.45 'Pixelify Sans', 'Segoe UI', system-ui, sans-serif;
+    -webkit-font-smoothing:none;
+    background:
+      repeating-linear-gradient(0deg, rgba(56,56,72,.035) 0 2px, transparent 2px 6px),
+      linear-gradient(180deg, #e8f0f8 0, #f4ecd4 340px);
+    background-attachment:fixed;
+  }
+  html.t-classico h1, html.t-classico h2, html.t-classico .marca,
+  html.t-classico .page-head h1, html.t-classico .sn-cab h1 {
+    font-family:'Press Start 2P', 'Pixelify Sans', monospace; letter-spacing:0; line-height:1.5;
+  }
+  html.t-classico .card h2, html.t-classico .sn-corpo h2, html.t-classico .sn-pedras h2 { font-size:11px; }
+  html.t-classico .page-head h1, html.t-classico .sn-cab h1 { font-size:15px; }
+  html.t-classico .marca { font-size:11px; }
+  html.t-classico .hero-alvo { font-family:'Press Start 2P', monospace; font-size:15px; letter-spacing:0; }
+  html.t-classico .hero-alvo span { font-size:11px; }
+  html.t-classico .disp, html.t-classico .big, html.t-classico .mid, html.t-classico .kpi-v,
+  html.t-classico .sn-num strong, html.t-classico .top-nick {
+    font-family:'Pixelify Sans', monospace; letter-spacing:0;
+  }
+  html.t-classico .tab, html.t-classico .btn, html.t-classico .seg button, html.t-classico .sw-btn,
+  html.t-classico .inp, html.t-classico .sn-form input[type=number], html.t-classico .card h2 > .meta,
+  html.t-classico .card h2 > span, html.t-classico .sn-num strong {
+    font-family:'Pixelify Sans', monospace;
+  }
+  html.t-classico .tab, html.t-classico .btn { font-size:14px; }
+  html.t-classico .kpi-c .kpi-v { font-size:19px; }
+
+  /* caixa de diálogo: contorno escuro + filete azul por dentro + sombra dura */
+  html.t-classico .card, html.t-classico .kpi, html.t-classico .kpi-c {
+    background:var(--papel);
+    border:3px solid var(--ink);
+    box-shadow:inset 0 0 0 3px var(--papel), inset 0 0 0 5px var(--moldura), 4px 4px 0 rgba(56,56,72,.22);
+  }
+  html.t-classico .tile {
+    background:var(--creme); border:2px solid #ddd3b4;
+  }
+  html.t-classico .tile:hover { background:#fbf3d6; }
+  html.t-classico .tiles-moedas > .tile.moeda { padding:6px; gap:6px; }
+  html.t-classico .tiles-moedas > .tile.moeda small { font-size:11px; letter-spacing:-.03em; }
+
+  /* menu lateral como o menu Iniciar: caixa branca com cursor ▶ */
+  html.t-classico .side {
+    background:var(--papel); border-right:4px solid var(--ink);
+    box-shadow:inset -4px 0 0 var(--moldura);
+  }
+  html.t-classico .side-top { border-bottom:3px solid var(--ink); margin-bottom:6px; }
+  html.t-classico .tab { position:relative; border-radius:4px; padding-left:24px; color:#505060; }
+  html.t-classico .tab:hover { background:#eef3fb; color:var(--ink); }
+  html.t-classico .tab[aria-selected=true] { background:#e8eef8; color:var(--ink); box-shadow:inset 0 0 0 2px var(--moldura); }
+  html.t-classico .tab[aria-selected=true]::before {
+    content:"▶"; position:absolute; left:7px; font-size:10px; color:#e03c30;
+    animation:cursor-pisca 1s steps(2) infinite;
+  }
+  @keyframes cursor-pisca { 50% { opacity:.25; } }
+  html.t-classico .app.recolhida .tab { padding:0; }
+  html.t-classico .app.recolhida .tab[aria-selected=true]::before { left:3px; }
+  html.t-classico .nav-grupo { font-family:'Press Start 2P', monospace; font-size:8px; color:#8890a8; letter-spacing:0; }
+  html.t-classico .side-mini { background:var(--creme); border:2px solid #ddd3b4; }
+  html.t-classico .side-foot { border-top:3px solid var(--ink); }
+
+  /* topo: faixa vermelha estilo Pokédex */
+  html.t-classico .top {
+    background:linear-gradient(180deg, #e8483c 0 calc(100% - 6px), #b02820 calc(100% - 6px) calc(100% - 3px), var(--ink) calc(100% - 3px));
+    border-bottom:0; color:#fff;
+  }
+  html.t-classico .top .top-nick { color:#fff; text-shadow:2px 2px 0 #902018; }
+  html.t-classico .top .chip, html.t-classico .top .pill, html.t-classico .top .btn {
+    background:var(--papel); border:2px solid var(--ink); color:var(--ink);
+  }
+  html.t-classico .top .chip b { color:var(--ink); }
+  html.t-classico .top .pill i { background:#38b048; }
+
+  /* botões com relevo de cartucho */
+  html.t-classico .btn {
+    border:2px solid var(--ink); border-radius:6px; background:var(--papel); color:var(--ink);
+    box-shadow:0 3px 0 var(--ink); transform:translateY(-1px);
+    transition:transform .05s, box-shadow .05s, background .15s;
+  }
+  html.t-classico .btn:hover { background:#eef3fb; border-color:var(--ink); }
+  html.t-classico .btn:active { transform:translateY(2px); box-shadow:0 0 0 var(--ink); }
+  html.t-classico .btn.pri, html.t-classico .btn[aria-pressed=true] { background:#e8483c; color:#fff; }
+  html.t-classico .btn.ok { background:#48b858; color:#fff; }
+  html.t-classico .btn.pausa { background:#f8d030; color:var(--ink); }
+  html.t-classico .btn.ghost { box-shadow:none; transform:none; border-color:transparent; background:transparent; }
+  html.t-classico .seg { border:2px solid var(--ink); background:var(--creme); border-radius:6px; }
+  html.t-classico .seg button[aria-pressed=true], html.t-classico .seg button[aria-selected=true] {
+    background:var(--ink); color:#fff; box-shadow:none; border-radius:3px;
+  }
+
+  /* chips como etiquetas */
+  html.t-classico .chip { border:2px solid currentColor; border-radius:4px; font-size:13px; }
+  html.t-classico .chip:not(.on):not(.accent):not(.shiny):not(.bad):not(.twitch):not(.kick):not(.guild) { border-color:#ddd3b4; background:var(--creme); }
+  html.t-classico .pill { border-radius:4px; border:2px solid currentColor; }
+
+  /* barras como a barra de HP / EXP dos jogos de bolso */
+  html.t-classico .bar {
+    height:10px; border-radius:4px; background:#506858;
+    border:2px solid var(--ink); box-shadow:inset 0 2px 0 rgba(0,0,0,.25);
+  }
+  html.t-classico .bar i { border-radius:2px; background:#40a8f8; box-shadow:inset 0 -2px 0 rgba(0,0,0,.18), inset 0 2px 0 rgba(255,255,255,.35); }
+  html.t-classico .bar i.ok { background:#58d080; }
+  html.t-classico .bar i.mid { background:#f8c030; }
+  html.t-classico .bar i.low { background:#f05838; }
+
+  /* arena */
+  html.t-classico .palco {
+    border:4px solid var(--ink); border-radius:8px;
+    box-shadow:inset 0 0 0 3px #fff, 4px 4px 0 rgba(56,56,72,.22);
+  }
+  html.t-classico .heroi canvas { border:3px solid var(--ink); border-radius:50%; background:#e8f0f8; }
+  html.t-classico .lista li, html.t-classico .kv, html.t-classico .feed, html.t-classico td { border-bottom:2px dotted #d6ccb0; }
+  html.t-classico .lista li.ativo .nome::before { content:"▶ "; color:#e03c30; }
+  html.t-classico .barras i { border:2px solid var(--ink); border-bottom:0; opacity:.75; }
+  html.t-classico code { color:#b02820; background:var(--creme); }
+  html.t-classico .log { background:#f4f8f0; border:3px solid var(--ink); color:#3c4c3c; }
+  html.t-classico .shiny-faixa { background:#fff8d8; border:3px solid var(--ink); box-shadow:4px 4px 0 rgba(56,56,72,.3); }
+  html.t-classico .shiny-faixa span { color:#6a5a20; }
+  @media (prefers-reduced-motion:reduce) { html.t-classico .tab[aria-selected=true]::before { animation:none; } }
+  @media (max-width:1120px) {
+    html.t-classico .side { border-right:0; border-bottom:4px solid var(--ink); box-shadow:none; }
+  }
 </style>
 </head>
 <body>
@@ -811,7 +940,7 @@
                   <span class="chip shiny" id="evento" hidden><span id="ev-t"></span> <b id="ev-fim"></b></span>
                   <span class="chip accent" id="h-xp" hidden>XP <b id="ev-x"></b></span>
                   <span class="chips" id="k-chips"></span>
-                  <button type="button" class="btn sm ghost" id="btn-cena-estilo" title="Alternar visual da arena"></button>
+                  <div class="seg" id="cena-modo" role="group" aria-label="Visual da cena"><button type="button" data-m="mapa" title="O mapa da hunt, como o jogo mostra">Mapa</button><button type="button" data-m="batalha" title="Tela de batalha clássica">Batalha</button></div>
                 </div>
               </div>
               <div class="palco" id="palco-wrap"><canvas id="cena" aria-label="Seu pokemon ativo e os selvagens do campo"></canvas></div>
@@ -1230,6 +1359,8 @@ fetch('/icones').then((r) => r.json()).then((j) => { ICON = { ...ICON, ...j }; t
 
 // ---- temas (refinados com superfícies calmas) ----
 const TEMAS = {
+  // Clássico: papel creme, caixas de diálogo com contorno escuro e filete azul, topo vermelho, fonte pixelada.
+  classico:{ nome:'Clássico', a:'#e8483c', a2:'#b02820', bg:'#f4ecd4', side:'#fffdf6', card:'#fffdf6', hi:'#eef3fb', s1:'#dde8f4', s2:'#eef3fb', ok:'#2f9a46', bad:'#d03828', light:true, txt:'#383848', sub:'#5c5c70', fraco:'#86869a' },
   // Feira (padrão): cores das moedas do jogo — gema #F060B0/#D03080, ouro #F0C040, diamante #30D0F0 — sobre o
   // quase-preto do contorno da pixel art (#202020). Rosa só em valor em Gemas e no estado ativo.
   feira:   { nome:'Feira',   a:'#e8589f', a2:'#f39ac4', bg:'#121112', side:'#161416', card:'#1a181a', hi:'#232023', s1:'#151315', s2:'#201c20', ok:'#5ccf86', bad:'#f07171', light:false, txt:'#f1ecee', sub:'#ada3a8', fraco:'#8c8287' },
@@ -1244,6 +1375,8 @@ const TEMAS = {
 let temaAtual = 'feira';
 // o roxo era o padrão antigo: quem nunca escolheu outro tema passa para a Feira uma vez
 try { const t = localStorage.getItem('pk-tema'); if (TEMAS[t] && !(t === 'roxo' && !localStorage.getItem('pk-tema-v2'))) temaAtual = t; localStorage.setItem('pk-tema-v2', '1'); } catch {}
+// o Clássico vira o padrão: quem ainda não passou por esta versão entra nele uma vez (e na arena clássica)
+try { if (!localStorage.getItem('pk-tema-v3')) { temaAtual = 'classico'; localStorage.setItem('pk-tema-v3', '1'); } } catch {}
 function luminancia(hex) {
   const c = [1, 3, 5].map((i) => { const x = parseInt(hex.slice(i, i + 2), 16) / 255; return x <= 0.03928 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4; });
   return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
@@ -1282,32 +1415,37 @@ function aplicarTema(k) {
     shadow: L ? '0 1px 2px rgba(18,14,40,.05), 0 6px 20px rgba(18,14,40,.04)' : '0 1px 2px rgba(0,0,0,.28), 0 8px 24px rgba(0,0,0,.18)',
   };
   for (const [nome, val] of Object.entries(v)) document.documentElement.style.setProperty('--' + nome, val);
+  document.documentElement.classList.toggle('t-classico', temaAtual === 'classico');
   try { localStorage.setItem('pk-tema', temaAtual); } catch {}
   $('temas').innerHTML = Object.entries(TEMAS).map(([id, x]) =>
     `<button class="sw-btn" type="button" data-t="${id}" aria-pressed="${id === temaAtual}"><span class="sw-dot" style="background:${x.a}"></span>${x.nome}</button>`).join('');
   desenharGrafico();
+  atualizarEstiloCena();
 }
 $('temas').addEventListener('click', (e) => { const b = e.target.closest('button[data-t]'); if (b) aplicarTema(b.dataset.t); });
 const cor = (nome) => getComputedStyle(document.documentElement).getPropertyValue('--' + nome).trim();
 
-// ---- estilo da cena: integrado (padrão) ou clássico ----
+// ---- cena: modo Mapa (a hunt como o jogo mostra) ou Batalha (tela de luta clássica) ----
+// No Mapa, as etiquetas seguem o tema: claras ('pkm') nos temas claros, escuras nos demais.
 let estiloCena = 'dark';
-try { if (localStorage.getItem('pk-cena') === 'pkm') estiloCena = 'pkm'; } catch {}
+let modoCena = 'mapa';
+try { if (localStorage.getItem('pk-cena-modo') === 'batalha') modoCena = 'batalha'; } catch {}
 function atualizarEstiloCena() {
+  estiloCena = TEMAS[temaAtual]?.light ? 'pkm' : 'dark';
   $('palco-wrap').classList.toggle('classico', estiloCena === 'pkm');
-  $('btn-cena-estilo').textContent = estiloCena === 'pkm' ? 'Arena escura' : 'Arena clássica';
+  for (const b of $('cena-modo').querySelectorAll('button')) b.setAttribute('aria-pressed', String(b.dataset.m === modoCena));
 }
+$('cena-modo').addEventListener('click', (e) => {
+  const b = e.target.closest('button[data-m]'); if (!b) return;
+  modoCena = b.dataset.m;
+  try { localStorage.setItem('pk-cena-modo', modoCena); } catch {}
+  atualizarEstiloCena();
+});
 $('btn-avisos').onclick = () => {
   const f = $('faixa'), aberto = f.classList.toggle('aberto');
   $('btn-avisos').setAttribute('aria-expanded', String(aberto));
   $('btn-avisos').textContent = aberto ? 'Recolher' : 'Ver todos';
 };
-$('btn-cena-estilo').onclick = () => {
-  estiloCena = estiloCena === 'pkm' ? 'dark' : 'pkm';
-  try { localStorage.setItem('pk-cena', estiloCena); } catch {}
-  atualizarEstiloCena();
-};
-atualizarEstiloCena();
 
 // ---- listas & utilitários ----
 function linhaHp({ nome, extra, hp, mhp, classes = '', direita }) {
@@ -2119,6 +2257,156 @@ function fundoMapa(ctx, W, H) {
   return true;
 }
 
+// ---- modo Batalha: tela de luta clássica (selvagem no alto, o seu de costas embaixo, caixas de HP e de texto) ----
+const PX = '"Pixelify Sans", monospace', PX2 = '"Press Start 2P", "Pixelify Sans", monospace';
+try { document.fonts?.load('16px "Pixelify Sans"'); document.fonts?.load('10px "Press Start 2P"'); } catch {}
+function quadroSprite(alvo, dirs, t, fase = 0) {
+  const sp = sprite(alvo?.lt); if (!sp) return null;
+  let q = null; for (const d of dirs) if (sp.s.dirs[d]?.length) { q = sp.s.dirs[d]; break; }
+  q ??= Object.values(sp.s.dirs)[0]; if (!q?.length) return null;
+  const f = q[Math.floor(t / 170 + fase) % q.length], img = sp.imgs[f.p];
+  return img?.complete && img.naturalWidth ? { f, img } : null;
+}
+function spriteBatalha(ctx, alvo, dirs, cx, chao, esc, t, o = {}) {
+  if (o.pisca && Math.floor(t / 70) % 2) return; // pisca ao levar dano, como nos jogos
+  const r = quadroSprite(alvo, dirs, t, o.fase);
+  if (!r) {
+    ctx.fillStyle = 'rgba(56,56,72,.25)'; ctx.beginPath(); ctx.arc(cx, chao - 14 * esc, 12 * esc, 0, 7); ctx.fill();
+    return;
+  }
+  const e = r.f.h > 32 ? esc * 0.72 : esc, w = r.f.w * e, h = r.f.h * e;
+  ctx.drawImage(r.img, r.f.x, r.f.y, r.f.w, r.f.h, Math.round(cx - w / 2), Math.round(chao - h), w, h);
+}
+function caixaDialogo(ctx, x, y, w, h, fundo = '#f8f8e8') {
+  ctx.fillStyle = 'rgba(56,56,72,.25)'; roundRect(ctx, x + 3, y + 3, w, h, 8); ctx.fill();
+  ctx.fillStyle = fundo; ctx.strokeStyle = '#383848'; ctx.lineWidth = 3;
+  roundRect(ctx, x, y, w, h, 8); ctx.fill(); ctx.stroke();
+  ctx.strokeStyle = '#6890c8'; ctx.lineWidth = 2;
+  roundRect(ctx, x + 4, y + 4, w - 8, h - 8, 5); ctx.stroke();
+}
+function barraHp(ctx, x, y, w, pct, shiny) {
+  ctx.fillStyle = '#383848'; roundRect(ctx, x, y, w + 30, 11, 4); ctx.fill();
+  ctx.fillStyle = '#f8b030'; ctx.font = '8px ' + PX2; ctx.textAlign = 'left'; ctx.fillText('HP', x + 5, y + 9);
+  ctx.fillStyle = '#506858'; ctx.fillRect(x + 26, y + 3, w, 5);
+  ctx.fillStyle = shiny ? '#f0c040' : pct < 0.2 ? '#f05838' : pct < 0.5 ? '#f8c030' : '#58d080';
+  if (pct > 0) ctx.fillRect(x + 26, y + 3, Math.max(2, Math.round(w * pct)), 5);
+}
+function infoBatalha(ctx, x, y, w, p, o = {}) {
+  const h = o.numeros ? 62 : 50;
+  caixaDialogo(ctx, x, y, w, h);
+  ctx.textBaseline = 'alphabetic';
+  ctx.fillStyle = p.shiny ? '#a07810' : '#383848'; ctx.font = '10px ' + PX2; ctx.textAlign = 'left';
+  let nome = `${p.shiny ? '★' : ''}${(p.nome ?? '?').toUpperCase()}`;
+  while (nome.length > 3 && ctx.measureText(nome).width > w - 86) nome = nome.slice(0, -1);
+  ctx.fillText(nome, x + 12, y + 22);
+  ctx.font = '600 14px ' + PX; ctx.textAlign = 'right'; ctx.fillStyle = '#383848';
+  ctx.fillText(`Nv${p.nv ?? '?'}`, x + w - 12, y + 22);
+  const pct = p.mhp ? Math.max(0, Math.min(1, p.hp / p.mhp)) : 0;
+  barraHp(ctx, x + w - 12 - (w - 54) - 30, y + 30, w - 54, pct, p.shiny);
+  if (o.numeros) {
+    ctx.font = '500 13px ' + PX; ctx.textAlign = 'right'; ctx.fillStyle = '#383848';
+    ctx.fillText(`${n(Math.max(0, p.hp ?? 0))} / ${n(p.mhp)}`, x + w - 12, y + 56);
+  }
+  if (o.bolas) { // selvagens no campo: bolinhas cheias (vivos) e vazias (derrotados)
+    const { vivos, total } = o.bolas, r = 4;
+    for (let i = 0; i < Math.min(total, 8); i++) {
+      const bx = x + 16 + i * 12, by = y + h + 9;
+      ctx.fillStyle = i < vivos ? '#e8483c' : '#b8b8c0'; ctx.beginPath(); ctx.arc(bx, by, r, 0, 7); ctx.fill();
+      ctx.strokeStyle = '#383848'; ctx.lineWidth = 1.5; ctx.stroke();
+    }
+  }
+}
+function cenaBatalha(ctx, W, H, t, s) {
+  // fundo: céu claro em faixas e campo de grama
+  const tb = Math.max(56, Math.round(H * 0.2)), ty = H - tb - 6; // caixa de texto embaixo
+  const peq = H < 260 || W < 520;
+  const eu = s.equipe.find((p) => p.ativo);
+  const vivos = s.campo.filter((m) => !m.morto);
+  // o selvagem em foco: shiny primeiro, depois o mais machucado (o que está apanhando)
+  const alvo = [...vivos].sort((a, b) => (b.shiny - a.shiny) || ((a.hp / (a.mhp || 1)) - (b.hp / (b.mhp || 1))))[0];
+
+  // visão lateral em 3ª pessoa: céu, nuvens, morros ao longe e um campo em perspectiva até a caixa de texto
+  const hz = Math.round(H * 0.42);
+  const ceu = ctx.createLinearGradient(0, 0, 0, hz);
+  ceu.addColorStop(0, '#88c8f8'); ceu.addColorStop(1, '#d8f0ff');
+  ctx.fillStyle = ceu; ctx.fillRect(0, 0, W, hz);
+  ctx.fillStyle = 'rgba(255,255,255,.9)';
+  for (const [bx, by, bs, vel] of [[0.12, 0.13, 1, 0.006], [0.55, 0.08, 0.8, 0.004], [0.86, 0.2, 1.15, 0.008]]) {
+    const x = ((bx * W + t * vel) % (W + 160)) - 80, y = by * H, r = 13 * bs;
+    for (const [dx, dy, k] of [[0, 0, 1], [r, -r * 0.5, 1.15], [r * 2, 0, 0.95], [r * 1, r * 0.2, 1]]) { ctx.beginPath(); ctx.arc(x + dx, y + dy, r * k, 0, 7); ctx.fill(); }
+  }
+  const morros = (cor, alt, passo, fase) => {
+    ctx.fillStyle = cor; ctx.beginPath(); ctx.moveTo(0, hz);
+    for (let x = 0; x <= W + passo; x += passo) ctx.quadraticCurveTo(x - passo / 2, hz - alt * (0.6 + 0.4 * Math.abs(Math.sin(x * 0.013 + fase))), x, hz);
+    ctx.lineTo(W, hz + 1); ctx.lineTo(0, hz + 1); ctx.fill();
+  };
+  morros('#a8d0a0', H * 0.16, 150, 0.6);
+  morros('#78b468', H * 0.09, 90, 2.1);
+  const chao = ctx.createLinearGradient(0, hz, 0, H);
+  chao.addColorStop(0, '#a8d878'); chao.addColorStop(1, '#68b048');
+  ctx.fillStyle = chao; ctx.fillRect(0, hz, W, H - hz);
+  // faixas que se abrem para perto e linhas que fogem para o horizonte: dão profundidade ao campo
+  ctx.fillStyle = 'rgba(255,255,255,.09)';
+  for (let k = 1; k < 9; k += 2) { const y0 = hz + (H - hz) * (k / 9) ** 2, y1 = hz + (H - hz) * ((k + 1) / 9) ** 2; ctx.fillRect(0, y0, W, y1 - y0); }
+  ctx.strokeStyle = 'rgba(40,90,30,.12)'; ctx.lineWidth = 1;
+  for (let k = -8; k <= 8; k++) { ctx.beginPath(); ctx.moveTo(W / 2 + k * W * 0.04, hz); ctx.lineTo(W / 2 + k * W * 0.32, H); ctx.stroke(); }
+  ctx.fillStyle = '#4f9838'; // tufos de grama fixos
+  for (let k = 0; k < 26; k++) {
+    const fx = ((k * 97) % 100) / 100, fy = ((k * 61) % 100) / 100, y = hz + 6 + (ty - hz) * fy ** 1.4, x = fx * W, e = 0.6 + 1.2 * fy;
+    ctx.fillRect(x, y, 2 * e, 4 * e); ctx.fillRect(x + 3 * e, y - 2 * e, 2 * e, 6 * e); ctx.fillRect(x + 6 * e, y, 2 * e, 4 * e);
+  }
+  const sombra = (x, y, rx) => { ctx.fillStyle = 'rgba(30,60,20,.28)'; ctx.beginPath(); ctx.ellipse(x, y, rx, rx * 0.22, 0, 0, 7); ctx.fill(); };
+
+  // os outros selvagens ao fundo, menores e um pouco apagados, virados para a luta
+  const fundo = vivos.filter((m) => m !== alvo).slice(0, peq ? 2 : 4);
+  const yFundo = hz + (ty - hz) * 0.34;
+  fundo.forEach((m, k) => {
+    const x = W * (0.58 + 0.1 * k) + (k % 2 ? 8 : -8), y = yFundo + (k % 2) * 8;
+    sombra(x, y - 2, 14);
+    ctx.globalAlpha = 0.8; spriteBatalha(ctx, m, [4, 3, 2], x, y, peq ? 1.3 : 1.7, t, { fase: k }); ctx.globalAlpha = 1;
+  });
+
+  // a luta de perfil: o seu à esquerda olhando para a direita, o selvagem à direita olhando para a esquerda
+  const golpeEu = eu && levouDano('eu', eu.hp), golpeAlvo = alvo && levouDano('m' + alvo.slot, alvo.hp);
+  const gyAlvo = ty - 8 - (ty - hz) * 0.14, gyEu = ty - 2;
+  const ex = W * 0.72 - (golpeEu ? 10 : 0), px = W * 0.27 + (golpeAlvo ? 12 : 0); // avança um pouco ao acertar
+  if (alvo) { sombra(W * 0.72, gyAlvo - 2, peq ? 30 : 40); spriteBatalha(ctx, alvo, [4, 3, 2], ex, gyAlvo + 4, peq ? 2.9 : 3.8, t, { pisca: golpeAlvo }); }
+  if (eu) { sombra(W * 0.27, gyEu - 2, peq ? 34 : 46); spriteBatalha(ctx, eu, [2, 3, 4], px, gyEu + 4, peq ? 2.9 : 3.8, t, { pisca: golpeEu }); }
+
+  // caixas de HP no alto: a sua à esquerda, a do selvagem à direita
+  const iw = Math.min(peq ? 210 : 260, W * 0.44);
+  if (eu) infoBatalha(ctx, 14, 14, iw, eu, { numeros: true });
+  if (alvo) infoBatalha(ctx, W - iw - 14, 14, iw, alvo, { bolas: { vivos: vivos.length, total: s.campo.length } });
+
+  // caixa de texto com o recado da vez, escrito letra por letra
+  const comMenu = W >= 600;
+  const mw = comMenu ? Math.min(250, W * 0.34) : 0;
+  caixaDialogo(ctx, 6, ty, W - 12 - (comMenu ? mw + 6 : 0), tb, '#fffdf6');
+  const nomeEu = eu?.nome ?? 'Seu Pokémon';
+  const msgs = !alvo ? ['Aguardando selvagens…']
+    : alvo.shiny ? [`Um ${alvo.nome} SHINY apareceu!`, `${nomeEu}, cuidado com ele!`]
+    : [`Um ${alvo.nome} selvagem apareceu!`, `O que ${nomeEu} vai fazer?`, `${n(vivos.length)} selvagem${vivos.length === 1 ? '' : 's'} no campo.`];
+  const ciclo = 4200, i = Math.floor(t / ciclo) % msgs.length, letras = Math.floor((t % ciclo) / 32);
+  ctx.fillStyle = '#383848'; ctx.font = `500 ${peq ? 15 : 18}px ${PX}`; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+  ctx.fillText(msgs[i].slice(0, letras), 24, ty + tb / 2);
+  if (letras >= msgs[i].length && Math.floor(t / 400) % 2) { // setinha de "continuar"
+    const ax = W - 30 - (comMenu ? mw + 6 : 0), ay = ty + tb - 18;
+    ctx.fillStyle = '#e8483c'; ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(ax + 10, ay); ctx.lineTo(ax + 5, ay + 6); ctx.fill();
+  }
+  if (comMenu) { // menu de ações à direita, com o cursor em LUTAR
+    const mx = W - 6 - mw;
+    caixaDialogo(ctx, mx, ty, mw, tb, '#fffdf6');
+    const ops = ['LUTAR', 'BOLSA', 'POKéMON', 'FUGIR'];
+    ctx.font = `9px ${PX2}`; ctx.fillStyle = '#383848';
+    ops.forEach((op, k) => {
+      const cx = mx + 26 + (k % 2) * (mw / 2 - 8), cy = ty + tb * (k < 2 ? 0.34 : 0.7);
+      ctx.fillText(op, cx, cy);
+      if (!k) { ctx.fillStyle = '#e8483c'; ctx.fillText('▶', cx - 14, cy); ctx.fillStyle = '#383848'; }
+    });
+  }
+  ctx.textBaseline = 'alphabetic';
+}
+
 function quadro(t) {
   requestAnimationFrame(quadro);
   avatar(t); desenharBosses(t);
@@ -2129,7 +2417,8 @@ function quadro(t) {
   const ctx = cv.getContext('2d'); ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.imageSmoothingEnabled = false;
   ctx.clearRect(0, 0, W, H);
   pedirMapaCena(s.mapaCena);
-  const comMapa = !s.noCentro && fundoMapa(ctx, W, H);
+  if (modoCena === 'batalha' && !s.pausado && !s.noCentro) { cenaBatalha(ctx, W, H, t, s); return; }
+  const comMapa = modoCena === 'mapa' && !s.noCentro && fundoMapa(ctx, W, H);
 
   if (!comMapa && estiloCena !== 'pkm') {
     // linha sutil de chão na arena escura
