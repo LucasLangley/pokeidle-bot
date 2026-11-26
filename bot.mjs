@@ -1108,6 +1108,19 @@ function cuidarDoSniperPk() {
   const agora = Date.now();
   // vendas novas a cada 10 min, para a referência não envelhecer
   if (agora - SN.ultimoHist > 10 * 60_000) { SN.ultimoHist = agora; for (let p = 0; p < 2; p++) enviar({ t: 'market.historicoGlobal', pagina: p, seq: SEQ_SNIPER + p, tipo: 'pokemon', moeda: 'orb', ...(CFG.sniperPkSoShiny ? { soShiny: 1 } : {}) }); }
+  // reavalia os barrados só por limite, uma vez por minuto, se os limites ou o saldo agora deixam
+  if (CFG.sniperPk === '1' && SN.barrados?.size && agora - (SN.ultimaReav ?? 0) > 60_000) {
+    SN.ultimaReav = agora; const G = snDia(); const saldo = Number(S.eu.orbs) || 0;
+    for (const [id, b] of [...SN.barrados]) {
+      const a = b.a;
+      if ((a.expiraEm && agora > a.expiraEm) || agora - b.em > 24 * 3600_000) { SN.barrados.delete(id); continue; }
+      const cabe = G.compras + (G.pendQtd ?? 0) < CFG.sniperPkQtdDia && G.gasto + G.pendente + a.preco <= CFG.sniperPkDia && saldo - G.pendente - a.preco >= CFG.sniperPkReserva;
+      if (!cabe) continue;
+      SN.barrados.delete(id); SN.tentados.delete(id);
+      log(`sniper de pokemon: os limites ou o saldo agora deixam; reavalio ${a.ficha?.nome ?? '?'} Nv${a.ficha?.level ?? '?'} por ${a.preco}`);
+      aoSniperPk({ aba: 'vitrine', linhas: [a] }); // passa de novo pela régua, pelos concorrentes e pelo teto recente
+    }
+  }
   if (agora - SN.ultimaOlhada < CFG.sniperPkSeg * 1000) return;
   SN.ultimaOlhada = agora; SN.olhadas++;
   enviar({ t: 'market.listar', ...PEDIDO_POKEMON, moeda: 'orb', ordem: 'recentes', soShiny: CFG.sniperPkSoShiny });
@@ -1164,11 +1177,18 @@ function snSeguir(a, f, d) {
     const motivo = `${fmt(a.preco)} Gemas; referência ${fmt(ref)}, revenda esperada ${fmt(d.revenda)} (já com desconto de segurança${d.concorrente != null ? `; parecido mais barato ${fmt(d.concorrente)}` : '; nenhum parecido mais barato'}); recebe ~${fmt(liquido)}, ganho previsto ~${fmt(ganho)} (${Math.round(ganho / a.preco * 100)}%)`;
     const G = snDia(); const saldo = Number(S.eu.orbs) || 0;
     // conta também as compras esperando o sorteio: dois anúncios liberando juntos furavam o limite (25/11: 4 compras com limite 3)
-    const barra = G.compras + (G.pendQtd ?? 0) >= CFG.sniperPkQtdDia ? `já fez ${G.compras} compras hoje${G.pendQtd ? ` (+${G.pendQtd} no sorteio)` : ''}`
-      : G.gasto + G.pendente + a.preco > CFG.sniperPkDia ? `passaria do orçamento do dia (${fmt(G.gasto + G.pendente)}/${fmt(CFG.sniperPkDia)})`
-      : saldo - G.pendente - a.preco < CFG.sniperPkReserva ? `deixaria menos de ${fmt(CFG.sniperPkReserva)} Gemas (saldo ${fmt(saldo)})` : null;
+    // todos os limites que barram, não só o primeiro (25/11: aparecia "orçamento" e escondia que o saldo de 1.309 não cobria 1.500)
+    const barras = [];
+    if (G.compras + (G.pendQtd ?? 0) >= CFG.sniperPkQtdDia) barras.push(`já fez ${G.compras} de ${CFG.sniperPkQtdDia} compras hoje${G.pendQtd ? ` (+${G.pendQtd} no sorteio)` : ''}`);
+    if (G.gasto + G.pendente + a.preco > CFG.sniperPkDia) barras.push(`passaria do orçamento do dia (${fmt(G.gasto + G.pendente)} + ${fmt(a.preco)} > ${fmt(CFG.sniperPkDia)})`);
+    if (saldo - G.pendente < a.preco) barras.push(`saldo ${fmt(saldo)} não cobre ${fmt(a.preco)}`);
+    else if (saldo - G.pendente - a.preco < CFG.sniperPkReserva) barras.push(`deixaria menos de ${fmt(CFG.sniperPkReserva)} Gemas no saldo (${fmt(saldo)})`);
+    const barra = barras.length ? barras.join('; ') : null;
     const info = { preco: a.preco, ref, ganho, pct: Math.round(ganho / a.preco * 100), motivo };
-    if (CFG.sniperPk === 'observar' || barra) { log(`sniper de pokemon: ${CFG.sniperPk === 'observar' ? 'compraria' : 'não compro (' + barra + ')'} ${desc} — ${motivo}`); snEvento(CFG.sniperPk === 'observar' ? 'compraria' : 'barrado', desc, { ...info, barra }); return; }
+    // barrado só por limite: guarda para reavaliar quando os limites mudarem ou o saldo subir (enquanto o anúncio estiver aberto)
+    if (barra && CFG.sniperPk === '1') (SN.barrados ??= new Map()).set(a.id, { a, em: Date.now() });
+    if (CFG.sniperPk === 'observar' || barra) { log(`sniper de pokemon: ${CFG.sniperPk === 'observar' ? 'compraria' : 'não compro (' + barra + ')'} ${desc} — ${motivo}${barra ? ' · reavalio se os limites ou o saldo mudarem' : ''}`); snEvento(CFG.sniperPk === 'observar' ? 'compraria' : 'barrado', desc, { ...info, barra }); return; }
+    SN.barrados?.delete(a.id);
     G.pendente += a.preco; G.pendQtd = (G.pendQtd ?? 0) + 1;
     const solta = () => { const g = snDia(); g.pendente = Math.max(0, g.pendente - a.preco); g.pendQtd = Math.max(0, (g.pendQtd ?? 0) - 1); };
     const espera = Math.max(0, (a.compravelEm ?? 0) - Date.now() + 300); // pede logo depois de liberar, dentro dos 3 s do sorteio
