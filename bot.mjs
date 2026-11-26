@@ -1214,7 +1214,7 @@ function snSeguir(a, f, d) {
         solta(); SN.aguardando = (SN.aguardando ?? []).filter((x) => x !== espero);
         const g = snDia(); const pagou = espero.ok;
         if (pagou) { g.gasto += a.preco; g.compras += 1; snEvento('comprou', desc, info);
-          (ACUM.snCompras ??= []).push({ lt: (f.shiny ? f.lookShiny : f.looktype) ?? null, pokemonId: a.pokemonId ?? f.id ?? null, nome: f.nome, nivel: f.level, potencia: f.potencia ?? 1, shiny: !!f.shiny, aoe: !!f.tmAoe, nota: f.nota, custo: a.preco, ref, em: Date.now(), estado: 'comprado', tentativas: 0 }); avisarShiny('mercado', `🛒 Sniper comprou ${desc}`, `${motivo}. Anunciar para revender é com você.`); }
+          (ACUM.snCompras ??= []).push({ lt: (f.shiny ? f.lookShiny : f.looktype) ?? null, pokemonId: a.pokemonId ?? f.id ?? null, nome: f.nome, nivel: f.level, potencia: f.potencia ?? 1, shiny: !!f.shiny, aoe: !!f.tmAoe, nota: f.nota, custo: a.preco, ref, em: Date.now(), estado: 'comprado', tentativas: 0 }); avisarShiny('mercado', `🛒 Sniper comprou ${desc}`, `${motivo}. ${CFG.sniperPkRevender ? 'A revenda automática anuncia em seguida.' : 'Revenda automática desligada: anunciar é com você.'}`); }
         else { log(`sniper de pokemon: não levei ${desc} (sorteio perdido, cancelado ou preço mudou)`); snEvento('perdeu', desc, info); }
       }, 20_000);
     }, espera);
