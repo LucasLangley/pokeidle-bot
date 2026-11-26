@@ -587,6 +587,14 @@
   .pedras li { display:flex; align-items:center; gap:var(--e2); font-size:13px; color:var(--sub); }
   .pedras li b { color:var(--txt); font-weight:600; font-variant-numeric:tabular-nums; display:inline-flex; gap:.3em; }
   .pedras .ci { width:20px; height:20px; image-rendering:pixelated; margin:0; }
+  .sn-sub3 { margin:var(--e5) 0 0; font-size:14px; font-weight:600; color:var(--sub); }
+  .vendas-pedras { list-style:none; margin:var(--e2) 0 0; padding:0; max-width:640px; }
+  .vendas-pedras li { display:grid; grid-template-columns:52px minmax(0,1fr) auto; gap:var(--e3); align-items:center; padding:var(--e2) 0; border-top:1px solid var(--div); font-size:13px; }
+  .vendas-pedras li:first-child { border-top:0; }
+  .vendas-pedras li.vazio { display:block; color:var(--fraco); }
+  .vendas-pedras time { color:var(--fraco); font-size:12px; }
+  .vendas-pedras .ci { width:18px; height:18px; image-rendering:pixelated; margin:0 var(--e2) 0 0; vertical-align:-4px; }
+  .vendas-pedras b { color:var(--ok); font-variant-numeric:tabular-nums; }
 
   /* ajustes: recolhidos, abrem quando precisa */
   .sn-ajustes { border-top:1px solid var(--div); padding-top:var(--e4); }
@@ -1086,6 +1094,8 @@
           </div>
           <p class="mini" id="vd-t"></p>
           <ul class="pedras" id="vd-anuncios"></ul>
+          <h3 class="sn-sub3">Últimas vendas</h3>
+          <ol class="vendas-pedras" id="vd-vendas"></ol>
         </section>
 
         <details class="sn-ajustes">
@@ -1680,6 +1690,9 @@ function mostrarSniper(sp, saldo) {
   $('vd-t').textContent = dr.ligado ? `${n(dr.vdAbaixo)} Gema abaixo do mais barato, nunca abaixo de ${n(dr.vdPiso)}% da média de 7 dias; guarda ${n(dr.vdReserva)} de cada para evoluir a equipe.` : 'As pedras ficam na mochila; anunciar é com você.';
   $('vd-hoje').textContent = dr.total ? `vendido hoje ${n(dr.hoje)} · no total ${n(dr.total)} Gemas` : '';
   trocarHtml($('vd-anuncios'), (dr.anuncios ?? []).length ? dr.anuncios.map((a) => `<li>${imgIc(ICON.itens?.[a.itemId])}<span>${esc(a.nome.replace(/ Stone$/, ''))}</span><b>${n(a.qtd)} × ${gemas(a.preco)}</b></li>`).join('') : `<li class="vazio">${dr.ligado ? 'Nenhuma pedra anunciada agora.' : 'Desligada.'}</li>`);
+  // últimas vendas de pedra: hora, o que saiu (com o ícone), e quanto entrou já sem a taxa
+  const idPorNome = (desc) => { const nome = String(desc).replace(/^\d+×\s*/, ''); const a = (dr.anuncios ?? []).find((x) => x.nome === nome); return a?.itemId ?? Object.entries(NOMES ?? {}).find(([, v]) => v === nome)?.[0]; };
+  trocarHtml($('vd-vendas'), (dr.vendas ?? []).length ? dr.vendas.map((v) => `<li><time>${hora(v.em)}</time><span>${imgIc(ICON.itens?.[idPorNome(v.descricao)])}${esc(v.descricao)}${v.bruto ? ` <span class="fraco">por ${n(v.bruto)}</span>` : ''}</span><b>+${gemas(v.valor)}</b></li>`).join('') : '<li class="vazio">Nenhuma pedra vendida ainda. Cada venda aparece aqui, e o celular recebe um aviso (no máximo um a cada 10 min).</li>');
   // ajustes: a régua e os números de configuração
   const rg = sp.regua ?? {}, ul = rg.ultimo;
   $('sn-hoje').innerHTML = kv('Desconto de segurança da régua', `${fx(rg.desconto ?? 0.9, 3)}${ul ? ` · calibrado ${new Date(ul.em).toLocaleDateString('pt-BR')}` : ' · calibra 1× por dia'}`)

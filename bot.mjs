@@ -885,7 +885,7 @@ function snPainel() {
   return { modo: CFG.sniperPk, seg: CFG.sniperPkSeg, max: CFG.sniperPkMax, dia: CFG.sniperPkDia, qtdDia: CFG.sniperPkQtdDia, reserva: CFG.sniperPkReserva, lucro: CFG.sniperPkLucro, vendas: CFG.sniperPkVendas, soShiny: CFG.sniperPkSoShiny,
     regua: { desconto: ACUM.reguaCal?.desconto ?? REGUA.CFG_PADRAO.desconto, ultimo: ACUM.reguaCal?.ultimo ?? null },
     drops: { ligado: CFG.venderDrops, vdReserva: CFG.vdReserva, vdFatia: CFG.vdFatia, vdPiso: CFG.vdPiso, vdAbaixo: CFG.vdAbaixo, hoje: ACUM.vdVendas?.[chaveDia()] ?? 0,
-      total: Object.values(ACUM.vdVendas ?? {}).reduce((t, x) => t + x, 0), anuncios: VD.meus.filter((a) => a.moeda === 'orb').map((a) => ({ itemId: Number(a.itemId), nome: [...ITEM_POR_NOME].find(([, i]) => i === Number(a.itemId))?.[0] ?? `item ${a.itemId}`, qtd: a.qtd, preco: a.preco })) },
+      total: Object.values(ACUM.vdVendas ?? {}).reduce((t, x) => t + x, 0), vendas: (ACUM.vdLog ?? []).slice(0, 12), anuncios: VD.meus.filter((a) => a.moeda === 'orb').map((a) => ({ itemId: Number(a.itemId), nome: [...ITEM_POR_NOME].find(([, i]) => i === Number(a.itemId))?.[0] ?? `item ${a.itemId}`, qtd: a.qtd, preco: a.preco })) },
     revender: CFG.sniperPkRevender, abaixo: CFG.sniperPkAbaixo, margem: CFG.sniperPkMargem, revDias: CFG.sniperPkRevDias,
     // sprite de cada compra (livro de negócios do painel): o da própria ficha, ou o shiny da espécie visto nas vendas
     compras: (ACUM.snCompras ?? []).slice(-20).reverse().map((r) => ({ ...r, lt: r.lt ?? snLookDe(r.nome, r.shiny) })),
@@ -1251,6 +1251,7 @@ function vdPedras() { return [...ITEM_POR_NOME].filter(([n]) => / Stone$/.test(n
 function cuidarDosDrops() {
   if (!CFG.venderDrops || !S.eu || CFG.somenteLer || COLETA) return;
   const agora = Date.now();
+  vdAvisar(); // solta o aviso acumulado quando passar o intervalo
   if (agora - VD.em > 10 * 60_000) { VD.em = agora; VD.pedindoItens = agora; enviar({ t: 'market.itens', elementos: [], categoria: '' }); return; }
   if (agora - VD.meusEm > 10 * 60_000) { VD.meusEm = agora; enviar({ t: 'market.meus' }); return; }
   if (!VD.resumo || !VD.medias || agora - VD.ultimo < 20_000) return;
@@ -1292,11 +1293,21 @@ function aoDropsMercado(m) {
   if (m.aba === 'medias' && m.medias) VD.medias = m.medias;
   if (m.aba === 'meus') { VD.meus = (m.linhas ?? []).filter((a) => a.tipo === 'item').map((a) => ({ id: a.id, tipo: a.tipo, itemId: a.itemId, preco: a.preco, qtd: a.qtd, moeda: a.moeda, estado: a.estado, editavelEm: a.editavelEm ?? 0, editadoEm: VD.meus.find((x) => x.id === a.id)?.editadoEm ?? 0 })); }
 }
+function vdAvisar() {
+  if (!VD.avisoFila?.length || Date.now() - (VD.ultimoAviso ?? 0) < 10 * 60_000) return;
+  const itens = VD.avisoFila.splice(0); VD.ultimoAviso = Date.now();
+  const hoje = ACUM.vdVendas?.[chaveDia()] ?? 0;
+  avisarShiny('mercado', `💎 Pedras vendidas: ${itens.length === 1 ? itens[0] : `${itens.length} vendas`}`, `${itens.length > 1 ? itens.join(', ') + '. ' : ''}Hoje as pedras já renderam ${hoje.toLocaleString('pt-BR')} Gemas.`);
+}
 function aoDropsEvento(ev) {
   if (ev.k === 'marketCriado' && VD.pendente) { VD.pendente = null; VD.meusEm = 0; }
   if (ev.k === 'marketVendido' && ev.moeda === 'orb' && / Stone/.test(ev.descricao ?? '')) {
     const d = (ACUM.vdVendas ??= {}); const dia = chaveDia(); d[dia] = (d[dia] ?? 0) + (Number(ev.valor) || 0);
     log(`drops: vendeu ${ev.descricao} — recebeu ${ev.valor} Gemas (hoje ${d[dia]})`); VD.meusEm = 0;
+    // lista das últimas vendas para o painel
+    (ACUM.vdLog ??= []).unshift({ em: Date.now(), descricao: ev.descricao, valor: Number(ev.valor) || 0, bruto: Number(ev.bruto) || null }); ACUM.vdLog.length = Math.min(ACUM.vdLog.length, 50);
+    // aviso no celular e no painel: no máximo um a cada 10 min; as vendas do meio vão juntas no próximo
+    (VD.avisoFila ??= []).push(`${ev.descricao} (+${ev.valor})`); vdAvisar();
   }
 }
 
