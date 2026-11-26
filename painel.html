@@ -2058,6 +2058,52 @@ function avatar(t) {
   ctx.drawImage(img, f.x, f.y, f.w, f.h, Math.round((cv.width - f.w * e) / 2), Math.round((cv.height - f.h * e) / 2), f.w * e, f.h * e);
 }
 
+// ---- mapa real da hunt no fundo da cena ----
+// O bot entrega em /mapa o recorte da hunt (tiles de 32 px do próprio jogo) e as peças usadas; aqui ele é desenhado
+// uma vez numa tela fora da vista (chão primeiro, depois objetos por profundidade, como no cliente: (x+y)*4096+4x)
+// e cada quadro recorta a área em volta do ponto de início da hunt. Sem mapa, a cena fica como antes.
+const MAPA_CENA = { nome: null, pronto: null, carregando: false };
+function pedirMapaCena(nome) {
+  if (!nome || MAPA_CENA.carregando || MAPA_CENA.nome === nome) return;
+  MAPA_CENA.carregando = true;
+  fetch('/mapa').then((r) => (r.status === 200 ? r.json() : null)).then((m) => {
+    if (!m) { MAPA_CENA.carregando = false; return; }
+    const imgs = {}; let faltam = Object.keys(m.paginas).length;
+    const fim = () => { if (--faltam > 0) return; MAPA_CENA.pronto = preDesenharMapa(m, imgs); MAPA_CENA.nome = m.mapa; MAPA_CENA.carregando = false; };
+    for (const [i, url] of Object.entries(m.paginas)) { const im = new Image(); im.onload = fim; im.onerror = fim; im.src = url; imgs[i] = im; }
+    if (!faltam) fim();
+  }).catch(() => { MAPA_CENA.carregando = false; });
+}
+function preDesenharMapa(m, imgs) {
+  const xs = m.tiles.map((t) => t[0]), ys = m.tiles.map((t) => t[1]);
+  const x0 = Math.min(...xs), y0 = Math.min(...ys), cols = Math.max(...xs) - x0 + 1, rows = Math.max(...ys) - y0 + 1;
+  const cv = document.createElement('canvas'); cv.width = cols * 32; cv.height = rows * 32;
+  const ctx = cv.getContext('2d'); ctx.imageSmoothingEnabled = false;
+  const peca = (id, px, py, elev) => {
+    const p = m.pecas[id]; const im = p && imgs[p.f[0]]; if (!im?.naturalWidth) return 0;
+    const [, fx, fy, fw, fh] = p.f; const d = p.d ?? [0, 0];
+    ctx.drawImage(im, fx, fy, fw, fh, px - (p.w - 32) - d[0], py - (p.h - 32) - d[1] - elev, fw, fh);
+    return p.e || 0;
+  };
+  const ordem = [...m.tiles].sort((a, b) => ((a[0] + a[1]) * 4096 + 4 * a[0]) - ((b[0] + b[1]) * 4096 + 4 * b[0]));
+  for (const t of ordem) if (t[2]) peca(t[2], (t[0] - x0) * 32, (t[1] - y0) * 32, 0); // chão
+  const depois = [];
+  for (const t of ordem) {
+    let elev = 0;
+    for (const id of t[3]) { if (m.pecas[id]?.top) { depois.push([id, t, elev]); continue; } elev += peca(id, (t[0] - x0) * 32, (t[1] - y0) * 32, elev); }
+  }
+  for (const [id, t, elev] of depois) peca(id, (t[0] - x0) * 32, (t[1] - y0) * 32, elev); // o que fica por cima de tudo
+  return { cv, cx: (m.start.x - x0) * 32 + 16, cy: (m.start.y - y0) * 32 + 16 };
+}
+function fundoMapa(ctx, W, H) {
+  const mp = MAPA_CENA.pronto; if (!mp) return false;
+  const esc = 2, w = W / esc, h = H / esc;
+  const sx = Math.max(0, Math.min(mp.cv.width - w, mp.cx - w / 2)), sy = Math.max(0, Math.min(mp.cv.height - h, mp.cy - h / 2));
+  ctx.drawImage(mp.cv, sx, sy, w, h, 0, 0, W, H);
+  ctx.fillStyle = 'rgba(0,0,0,.22)'; ctx.fillRect(0, 0, W, H); // escurece um pouco para os nomes e barras lerem bem
+  return true;
+}
+
 function quadro(t) {
   requestAnimationFrame(quadro);
   avatar(t); desenharBosses(t);
@@ -2067,8 +2113,10 @@ function quadro(t) {
   if (cv.width !== Math.round(W * dpr) || cv.height !== Math.round(H * dpr)) { cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); }
   const ctx = cv.getContext('2d'); ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.imageSmoothingEnabled = false;
   ctx.clearRect(0, 0, W, H);
+  pedirMapaCena(s.mapaCena);
+  const comMapa = !s.noCentro && fundoMapa(ctx, W, H);
 
-  if (estiloCena !== 'pkm') {
+  if (!comMapa && estiloCena !== 'pkm') {
     // linha sutil de chão na arena escura
     ctx.strokeStyle = 'rgba(255,255,255,0.06)'; ctx.lineWidth = 1;
     const hy = Math.round(H * 0.56) + 0.5;

@@ -249,7 +249,12 @@ function mesclarEstado(p) {
 }
 
 function aplicarCampo(m) {
-  if (m.t === 'campo.init') S.mobs.clear();
+  if (m.t === 'campo.init') {
+    S.mobs.clear();
+    // para o painel desenhar o mapa da hunt com os tiles públicos do jogo (/assets/world/maps/<mapa>.json)
+    S.campoInit = { slug: m.slug ?? null, mapa: m.mapa ?? m.slug ?? null, box: m.box ?? null, groundZ: m.groundZ ?? null, centro: m.centro ?? null, andar: m.andar ?? null, em: Date.now() };
+    if (S.ultimoMapaLog !== S.campoInit.mapa) { S.ultimoMapaLog = S.campoInit.mapa; log(`campo: mapa ${S.campoInit.mapa} · recorte ${JSON.stringify(S.campoInit.box)} · andar ${S.campoInit.groundZ ?? '?'}`); }
+  }
   for (const b of m.mobs ?? []) {
     const e = S.mobs.get(b.s) ?? { slot: b.s };
     if (b.n !== undefined) e.nome = b.n;
@@ -945,6 +950,48 @@ function aoHistorico(m) {
     F.fim = true;
     log(`histórico de vendas: cheguei ao fim do que o jogo guarda — ${F.pagina} páginas, ${HV.porId.size} vendas de shiny em Gemas desde ${F.maisVelha ? new Date(F.maisVelha).toLocaleDateString('pt-BR') : '?'}`);
   } else if (F.pagina % 20 === 0) log(`histórico de vendas: página ${F.pagina}, ${HV.porId.size} vendas de shiny guardadas, a mais velha de ${F.maisVelha ? new Date(F.maisVelha).toLocaleString('pt-BR') : '?'}${novas ? '' : ' (página sem nada novo)'}`);
+}
+
+// ---------- mapa da hunt para o fundo da cena do painel ----------
+// Tudo público no próprio jogo (sem login): /assets/world/maps/<mapa>.json (tiles de 32 px: [x, y, z, chão, [[item],…]]),
+// /assets/world/offsets.json e draworder.json, e o atlas map-items (índice de 3,1 MB, guardado em mercado/cache-mapa).
+// O nome do mapa e o recorte da hunt chegam do servidor no campo.init. Ao painel vai só o recorte e as peças usadas.
+const MAPA = { cache: new Map(), base: null };
+async function mapaBase() {
+  if (MAPA.base) return MAPA.base;
+  const host = `https://${CFG.host}`; const ua = { headers: { 'user-agent': 'Mozilla/5.0' } };
+  const pega = async (p) => { const r = await fetch(host + p, ua); if (!r.ok) throw new Error(`${p}: HTTP ${r.status}`); return r.json(); };
+  const ver = await pega('/assets/asset-packs/version.json');
+  const dir = join(AQUI, 'mercado', 'cache-mapa'); mkdirSync(dir, { recursive: true });
+  const arq = join(dir, `map-items-${ver.version}.json`);
+  let man; try { man = JSON.parse(readFileSync(arq, 'utf8')); } catch { man = await pega(`/assets/asset-packs/categories/map-items-${ver.version}.json`); writeFileSync(arq, JSON.stringify(man)); }
+  const off = await pega('/assets/world/offsets.json'); const ord = await pega('/assets/world/draworder.json');
+  const pags = man.categories?.['map-items']?.pages ?? [];
+  MAPA.base = { man, off, top: new Set(ord.top ?? []), bottom: new Set(ord.bottom ?? []),
+    paginas: Object.fromEntries(pags.map((p) => [p.index, host + String(p.image).replace(/^\/assets-packs\//, '/assets/asset-packs/')])) };
+  return MAPA.base;
+}
+async function montarMapa() {
+  const ci = S.campoInit; if (!ci?.mapa) return null;
+  if (MAPA.cache.has(ci.mapa)) return MAPA.cache.get(ci.mapa);
+  const b = await mapaBase();
+  const r = await fetch(`https://${CFG.host}/assets/world/maps/${encodeURIComponent(ci.mapa)}.json`, { headers: { 'user-agent': 'Mozilla/5.0' } });
+  if (!r.ok) throw new Error(`mapa ${ci.mapa}: HTTP ${r.status}`);
+  const m = await r.json();
+  const [bx, by, cols, rows] = ci.box ?? m._meta?.walk ?? [-30, -17, 60, 35]; const margem = 3;
+  const tiles = (m.tiles ?? []).filter((t) => t[0] >= bx - margem && t[0] < bx + cols + margem && t[1] >= by - margem && t[1] < by + rows + margem)
+    .map((t) => [t[0], t[1], t[3] ?? 0, (t[4] ?? []).map((it) => it[0])]);
+  const ids = new Set(); for (const t of tiles) { if (t[2]) ids.add(t[2]); for (const i of t[3]) ids.add(i); }
+  const pecas = {};
+  for (const id of ids) {
+    const a = b.man.assets[String(id)]; if (!a?.frames?.length) continue; const f = a.frames[0];
+    pecas[id] = { w: a.width, h: a.height, f: [f.page, f.x, f.y, f.w, f.h], d: b.off.disp?.[id] ?? null, e: b.off.elev?.[id] ?? 0, top: b.top.has(id) ? 1 : 0, bottom: b.bottom.has(id) ? 1 : 0 };
+  }
+  const usadas = [...new Set(Object.values(pecas).map((p) => p.f[0]))];
+  const out = { mapa: ci.mapa, box: [bx, by, cols, rows], start: m._meta?.start ?? { x: 0, y: 0 }, tiles, pecas, paginas: Object.fromEntries(usadas.map((i) => [i, b.paginas[i]])) };
+  MAPA.cache.set(ci.mapa, out);
+  log(`mapa da cena: ${ci.mapa} — ${tiles.length} tiles, ${Object.keys(pecas).length} peças, ${usadas.length} folhas de imagem`);
+  return out;
 }
 
 // ---------- fotos do Radar para medir quanto tempo um anúncio leva para vender ----------
@@ -2467,7 +2514,7 @@ function instantaneo() {
     nick: CFG.nick, nivel: e.level, xpNivel: e.xpNivel, xpProximo: e.xpProximo, xp: e.xp, progresso: progressoNivel(e), ouro: e.gold, diamantes: e.diamonds, orbs: e.orbs,
     hunt: hunt ? { nome: hunt.nome, nivel: hunt.nivel, area: hunt.area } : null, noCentro: !!e.noCentro, outlandTier: e.outlandTier,
     xph: Math.round((xpAgora - (S.stats.xp0 ?? xpAgora)) / horas), ouroh: Math.round(((e.gold ?? 0) - (S.stats.ouro0 ?? 0) - (S.stats.ouroExtra ?? 0)) / horas), ouroExtra: S.stats.ouroExtra ?? 0,
-    stats: S.stats, minutos: Math.round(onlineMs() / 60000), sniperPk: snPainel(),
+    stats: S.stats, minutos: Math.round(onlineMs() / 60000), sniperPk: snPainel(), mapaCena: S.campoInit?.mapa ?? null,
     equipe: equipe().sort((a, b) => a.slot - b.slot).map((p) => ({ nome: p.nome, nv: p.level, hp: p.hp, mhp: p.maxHp, shiny: p.shiny, q: p.quality, p: p.potencia, nota: p.nota, ativo: p.id === e.activeId, lt: (p.shiny && p.lookShiny) || p.looktype || ESPECIES.get(p.speciesId)?.looktype || LOOK_POR_NOME.get(p.nome) || null })), // mega não está no catálogo de espécies: o looktype vem do próprio pokemon (Mega Charizard Y = 80006)
     bonus: (() => {
       const l = e.loja ?? {}; const agora = Date.now(); const min = (ate) => Math.max(0, Math.round(((Number(ate) || 0) - agora) / 60000));
@@ -2582,7 +2629,7 @@ async function iniciarPainel() {
         res.writeHead(401, { 'www-authenticate': 'Basic realm="PokeIdle", charset="UTF-8"' }); return res.end('senha');
       }
       const rota = new URL(req.url, 'http://x').pathname;
-      if (req.method !== 'GET' || !['/', '/estado', '/eventos', '/sprite', '/icones'].includes(rota)) { res.writeHead(403); return res.end('pela rede o painel é só leitura'); }
+      if (req.method !== 'GET' || !['/', '/estado', '/eventos', '/sprite', '/icones', '/mapa'].includes(rota)) { res.writeHead(403); return res.end('pela rede o painel é só leitura'); }
     }
     if (req.url === '/mercado/coletar') { const ok = coletarMercado('painel'); res.writeHead(ok ? 202 : 409, { 'content-type': 'text/plain; charset=utf-8' }); return res.end(ok ? 'coletando' : 'ocupado ou desconectado'); }
     if ((req.url ?? '').startsWith('/resgatar/') && req.method === 'POST') { const codigo = req.url.slice(10).toUpperCase(); if (!/^[A-Z0-9]{4,20}$/.test(codigo)) { res.writeHead(400); return res.end('codigo invalido'); } S.depurarAte = Date.now() + 20_000; log(`resgatar: enviando código de vínculo (${codigo.length} caracteres)`); enviar({ t: 'convite.resgatar', codigo }); res.writeHead(202, { 'content-type': 'text/plain; charset=utf-8' }); return res.end('enviado; veja o log'); }
@@ -2611,6 +2658,7 @@ async function iniciarPainel() {
       spriteDe(lt).then((s) => { res.writeHead(s ? 200 : 404, { 'content-type': 'application/json', 'cache-control': 'max-age=3600' }); res.end(JSON.stringify(s)); });
       return;
     }
+    if (req.url === '/mapa') { montarMapa().then((m) => { res.writeHead(m ? 200 : 204, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' }); res.end(m ? JSON.stringify(m) : ''); }).catch((e) => { log('mapa da cena falhou:', e.message); res.writeHead(502); res.end(e.message); }); return; }
     if (req.url === '/icones') {
       const base = `https://${CFG.host}`, ui = `${base}/assets/site/assets/ui`;
       res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'max-age=3600' });
