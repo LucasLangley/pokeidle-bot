@@ -9,7 +9,7 @@
 <style>
   /* Design system: superfícies limpas com elevação sutil, menos bordas e rolagem natural. */
   :root {
-    --a:#8b5cf6; --a2:#b89cff; --a-soft:rgba(139,92,246,.14); --a-ring:rgba(139,92,246,.35);
+    --a:#e8589f; --a2:#f39ac4; --a-soft:rgba(232,88,159,.14); --a-ring:rgba(232,88,159,.35);
     --bg:#0b0a12; --side:#100f1a; --card:#151322; --card-hi:#1c1930; --tile:rgba(255,255,255,.032); --tile-hover:rgba(255,255,255,.055);
     --border:rgba(255,255,255,.07); --div:rgba(255,255,255,.055);
     --txt:#f2effc; --sub:#9b94b8; --fraco:#6c658a;
@@ -18,7 +18,11 @@
     --warn:#fbbf24; --warn-soft:rgba(251,191,36,.12);
     --shiny:#f3cf6b; --shiny-fundo:#252010;
     --shadow:0 1px 2px rgba(0,0,0,.28), 0 8px 24px rgba(0,0,0,.18);
-    --r-card:22px; --r-tile:14px; --r-sm:8px; --on-a:#ffffff;
+    --r-card:12px; --r-tile:8px; --r-sm:6px; --on-a:#ffffff;
+    /* moedas do jogo (ícones moeda-gema, moeda-ouro, moeda-diamante) */
+    --gema:#f060b0; --ouro:#f0c040; --diamante:#30d0f0;
+    /* escala de espaço: 4, 8, 12, 16, 24, 32 */
+    --e1:4px; --e2:8px; --e3:12px; --e4:16px; --e5:24px; --e6:32px;
   }
   * { box-sizing:border-box; }
   [hidden] { display:none !important; }
@@ -92,8 +96,8 @@
   .side-toggle:hover { background:var(--tile-hover); color:var(--txt); }
   .app.recolhida .side-toggle svg { transform:rotate(180deg); }
   .nav-grupo {
-    font-size:10.5px; font-weight:600; letter-spacing:.08em;
-    text-transform:uppercase; color:var(--fraco);
+    font-size:12px; font-weight:600;
+    color:var(--fraco);
     padding:12px 10px 4px; white-space:nowrap;
   }
   .nav-grupo:first-of-type { padding-top:4px; }
@@ -145,9 +149,7 @@
     max-width:1800px; width:100%; margin:0 auto;
     padding:12px 24px;
     border-bottom:1px solid var(--div);
-    background:color-mix(in srgb, var(--bg) 86%, transparent);
-    backdrop-filter:blur(14px);
-    -webkit-backdrop-filter:blur(14px);
+    background:var(--bg);
   }
   .top-sep { width:1px; height:16px; background:var(--border); }
   .esp { flex:1 1 0; min-width:0; }
@@ -170,7 +172,7 @@
   }
   .xp-buffs-head {
     display:flex; align-items:center; justify-content:space-between; gap:8px;
-    font-size:11.5px; font-weight:600; letter-spacing:.04em; text-transform:uppercase; color:var(--sub);
+    font-size:13px; font-weight:600; color:var(--sub);
   }
   .chip.twitch { background:var(--twitch-soft, rgba(145,70,255,.16)); border-color:transparent; color:var(--twitch-txt, #c49bff); }
   .chip.twitch b { color:var(--twitch-txt, #c49bff); }
@@ -187,7 +189,7 @@
   .vivo-kpis { display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:14px; }
   .kpi-c {
     background:var(--card); border:1px solid var(--border); border-radius:var(--r-card);
-    padding:16px 18px; min-width:0; box-shadow:var(--shadow);
+    padding:var(--e4); min-width:0;
     display:flex; flex-direction:column; gap:4px;
   }
   .kpi-c .kpi-v { font-size:22px; }
@@ -217,10 +219,9 @@
     background:var(--card);
     border:1px solid var(--border);
     border-radius:var(--r-card);
-    padding:22px 24px;
+    padding:var(--e5);
     min-width:0;
-    display:flex; flex-direction:column; gap:14px;
-    box-shadow:var(--shadow);
+    display:flex; flex-direction:column; gap:var(--e4);
   }
   .card h2 {
     margin:0; font-size:16px; font-weight:600; letter-spacing:-.01em;
@@ -231,17 +232,16 @@
     font-family:'Inter', system-ui, sans-serif;
     font-size:12px; font-weight:500; color:var(--sub);
   }
-  .card-sub { font-size:11.5px; font-weight:600; letter-spacing:.06em; text-transform:uppercase; color:var(--fraco); margin-top:4px; }
+  .card-sub { font-size:12.5px; font-weight:600; color:var(--sub); margin-top:4px; }
 
   /* KPI cards */
   .kpi {
     background:var(--card);
     border:1px solid var(--border);
     border-radius:var(--r-card);
-    padding:16px 18px;
-    display:flex; flex-direction:column; gap:4px;
+    padding:var(--e4) var(--e4);
+    display:flex; flex-direction:column; gap:var(--e1);
     min-width:0;
-    box-shadow:var(--shadow);
   }
   .kpi-l { font-size:12px; font-weight:500; color:var(--sub); display:flex; align-items:center; justify-content:space-between; gap:6px; }
   .kpi-v { font-size:24px; font-weight:700; letter-spacing:-.02em; line-height:1.2; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
@@ -255,12 +255,18 @@
     min-width:0;
     transition:background .15s;
   }
-  .tile:hover { background:var(--tile-hover); }
+
   .tile small { display:block; font-size:11px; color:var(--sub); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .tile strong { display:block; font-size:15px; font-weight:600; margin-top:1px; overflow-wrap:break-word; }
   .item { display:flex; align-items:center; gap:10px; }
   .item > div { min-width:0; }
   .tiles2 { display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:8px; }
+  /* moedas em 3 colunas (ouro, gemas, diamantes); poção e bola embaixo, metade cada */
+  .tiles-moedas { grid-template-columns:repeat(6, minmax(0,1fr)); }
+  .tiles-moedas > .tile { grid-column:span 3; }
+  .tiles-moedas > .tile.moeda { grid-column:span 2; padding:var(--e2); gap:var(--e2); }
+  .tiles-moedas > .tile.moeda .oi { width:18px; height:18px; }
+  .tiles-moedas > .tile.moeda strong { font-size:14px; white-space:nowrap; }
   .tiles3 { display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:8px; }
 
   .big { font-size:28px; font-weight:700; line-height:1.15; letter-spacing:-.02em; }
@@ -273,7 +279,7 @@
   .chip {
     display:inline-flex; align-items:center; gap:5px;
     font-size:12px; font-weight:500;
-    padding:4px 10px; border-radius:999px;
+    padding:4px 10px; border-radius:var(--r-sm);
     background:var(--tile); border:1px solid var(--border);
     color:var(--sub); white-space:nowrap;
   }
@@ -294,7 +300,7 @@
     background:var(--ok-soft); color:var(--ok);
     white-space:nowrap;
   }
-  .pill i { width:7px; height:7px; border-radius:50%; background:var(--ok); display:block; box-shadow:0 0 8px var(--ok); }
+  .pill i { width:7px; height:7px; border-radius:50%; background:var(--ok); display:block; }
   .pill.off { background:var(--bad-soft); color:var(--bad); }
   .pill.off i { background:var(--bad); box-shadow:none; }
 
@@ -335,7 +341,7 @@
 
   /* Barras de progresso e pares chave-valor */
   .bar { height:6px; border-radius:999px; background:var(--tile-hover); overflow:hidden; }
-  .bar i { display:block; height:100%; border-radius:999px; background:linear-gradient(90deg, var(--a), var(--a2)); transition:width .5s ease; }
+  .bar i { display:block; height:100%; border-radius:999px; background:var(--a); transition:width .5s ease; }
   .bar i.ok { background:var(--ok); }
   .bar i.low { background:var(--bad); }
   .bar i.mid { background:var(--warn); }
@@ -361,13 +367,13 @@
 
   /* Card do treinador */
   .heroi {
-    background:linear-gradient(155deg, color-mix(in srgb, var(--a) 11%, var(--card)), var(--card) 58%);
+    background:var(--card);
   }
   .heroi-head { display:flex; align-items:center; gap:14px; }
   .heroi canvas {
-    width:54px; height:54px; border-radius:14px; flex:none;
-    background:radial-gradient(circle at 50% 35%, color-mix(in srgb, var(--a2) 38%, transparent), var(--a-soft) 72%);
-    border:1px solid var(--a-ring);
+    width:54px; height:54px; border-radius:var(--r-tile); flex:none;
+    background:var(--card-hi);
+    border:1px solid var(--border);
     image-rendering:pixelated;
   }
   .xp-box { display:flex; flex-direction:column; gap:6px; }
@@ -431,7 +437,6 @@
   table { width:100%; border-collapse:collapse; font-size:12.5px; }
   th {
     text-align:right; font-size:11px; font-weight:600; color:var(--fraco);
-    text-transform:uppercase; letter-spacing:.04em;
     padding:0 0 8px; border-bottom:1px solid var(--border); white-space:nowrap;
   }
   td { text-align:right; padding:8px 0; border-bottom:1px solid var(--div); }
@@ -459,9 +464,9 @@
   .barras b { font-size:11px; color:var(--sub); font-weight:600; }
   .barras i {
     display:block; width:100%; max-width:38px;
-    border-radius:7px 7px 2px 2px;
-    background:linear-gradient(180deg, var(--a2), var(--a));
-    opacity:.72; transition:opacity .15s, height .35s ease;
+    border-radius:var(--r-sm) var(--r-sm) 2px 2px;
+    background:var(--a);
+    opacity:.55; transition:opacity .15s, height .35s ease;
   }
   .barras > div:hover i, .barras > div:last-child i { opacity:1; }
   .barras > div:last-child b { color:var(--txt); }
@@ -472,13 +477,13 @@
   /* Bosses */
   .palco-boss {
     height:136px; display:flex; align-items:center; justify-content:center;
-    background:radial-gradient(circle at 50% 60%, var(--scene2), var(--scene1));
+    background:var(--scene1);
     border-radius:12px; overflow:hidden;
   }
   .palco-boss canvas { height:128px; width:128px; image-rendering:pixelated; }
   .tp {
     font-size:10.5px; font-weight:600; padding:2px 8px; border-radius:6px;
-    background:var(--tile-hover); color:var(--sub); text-transform:uppercase; letter-spacing:.03em;
+    background:var(--tile-hover); color:var(--sub);
   }
 
   /* Sniper */
@@ -506,15 +511,108 @@
   .sn-sub {
     grid-column:1 / -1; margin-top:6px; padding-top:12px;
     border-top:1px solid var(--div);
-    font-size:11.5px; font-weight:600; letter-spacing:.06em; text-transform:uppercase; color:var(--a2);
+    font-size:13px; font-weight:600; color:var(--sub);
   }
   .lt td.sn-acao { white-space:nowrap; font-weight:600; }
+  /* Sniper: livro-caixa da feira. Sem cartão dentro de cartão; grupos separados por espaço e linha fina. */
+  .aba.sniper.on { display:flex; flex-direction:column; gap:var(--e5); }
+  .sn-cab { display:flex; flex-wrap:wrap; align-items:flex-end; justify-content:space-between; gap:var(--e3) var(--e5); }
+  .sn-cab h1 { margin:0; font-size:22px; font-weight:700; letter-spacing:-.02em; }
+  .sn-cab .mini { margin:var(--e1) 0 0; }
+  .seg button { font-size:13px; padding:6px 12px; }
+  .sn-modo button[data-sn-modo="1"][aria-pressed=true] { background:var(--a); color:var(--on-a); }
+  .sn-rev .seg button[aria-pressed=true][data-sn-rev="1"], .sn-rev .seg button[aria-pressed=true][data-vd="1"] { background:var(--a); color:var(--on-a); }
+
+  /* o dinheiro primeiro: 4 números numa faixa, sem caixas */
+  .sn-resumo {
+    display:grid; grid-template-columns:repeat(4, minmax(0,1fr));
+    border-top:1px solid var(--div); border-bottom:1px solid var(--div);
+  }
+  .sn-num { display:flex; flex-direction:column; gap:2px; padding:var(--e4) var(--e5) var(--e4) 0; min-width:0; }
+  .sn-num + .sn-num { padding-left:var(--e5); border-left:1px solid var(--div); }
+  .sn-num small { font-size:13px; color:var(--sub); }
+  .sn-num strong { font-family:'Space Grotesk', 'Inter', system-ui, sans-serif; font-size:28px; font-weight:700; line-height:1.15; letter-spacing:-.02em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .sn-num > span { font-size:12.5px; color:var(--fraco); }
+  .v-gema { display:inline-flex; align-items:center; gap:.28em; white-space:nowrap; font-variant-numeric:tabular-nums; }
+  .v-gema .mo { width:1em; height:1em; image-rendering:pixelated; flex:none; }
+  .sn-num strong .v-gema .mo { width:.72em; height:.72em; }
+
+  /* corpo: o livro (largo) e o ao vivo (estreito) */
+  .sn-corpo { display:grid; grid-template-columns:minmax(0,1.7fr) minmax(280px,1fr); gap:var(--e6); align-items:start; }
+  .sn-corpo h2, .sn-pedras h2 { margin:0; font-size:16px; font-weight:600; display:flex; align-items:baseline; gap:var(--e3); }
+  .sn-corpo h2 .meta, .sn-pedras h2 .meta { font-size:12.5px; font-weight:500; color:var(--fraco); font-family:'Inter', system-ui, sans-serif; }
+  .sn-tit { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:var(--e3); }
+  .sn-rev { display:flex; align-items:center; gap:var(--e2); }
+  .sn-livro > .mini, .sn-pedras > .mini { margin:var(--e2) 0 0; }
+
+  .livro { list-style:none; margin:var(--e3) 0 0; padding:0; }
+  .neg {
+    display:grid; grid-template-columns:56px minmax(120px,.8fr) minmax(0,2fr) auto; align-items:center; gap:var(--e4);
+    padding:var(--e3) 0; border-top:1px solid var(--div);
+  }
+  .neg:first-child { border-top:0; }
+  .neg .spr { width:56px; height:56px; image-rendering:pixelated; }
+  .neg-id { display:flex; flex-direction:column; min-width:0; }
+  .neg-id b { font-size:14px; }
+  .neg-id span { font-size:12.5px; color:var(--sub); white-space:nowrap; }
+  .neg-fluxo { display:flex; flex-wrap:wrap; align-items:center; gap:var(--e1) var(--e2); font-size:13px; color:var(--sub); }
+  .neg-fluxo .v-gema { color:var(--txt); font-weight:600; }
+  .neg-fluxo .seta { color:var(--fraco); }
+  .neg-res { display:flex; flex-direction:column; align-items:flex-end; gap:2px; min-width:64px; }
+  .neg-res b { font-size:15px; font-variant-numeric:tabular-nums; }
+  .neg-res time { font-size:12px; color:var(--fraco); }
+  .neg.anunciado .neg-id b::after { content:""; display:inline-block; width:6px; height:6px; margin-left:var(--e2); vertical-align:middle; background:var(--gema); }
+
+  .sn-vivo { padding-left:var(--e5); border-left:1px solid var(--div); display:flex; flex-direction:column; gap:var(--e3); }
+  .vivo-lista { list-style:none; margin:0; padding:0; max-height:520px; overflow-y:auto; }
+  .ev { display:grid; grid-template-columns:44px auto; column-gap:var(--e2); padding:var(--e2) 0; border-top:1px solid var(--div); font-size:13px; }
+  .ev:first-child { border-top:0; }
+  .ev time { grid-row:span 3; color:var(--fraco); font-size:12px; padding-top:1px; }
+  .ev b { font-weight:600; color:var(--sub); }
+  .ev.comprou b, .ev.vendeu b { color:var(--ok); }
+  .ev.pedindo b, .ev.anunciando b, .ev.compraria b { color:var(--gema); }
+  .ev small { color:var(--fraco); font-size:12px; }
+  .vazio { list-style:none; }
+
+  /* pedras: uma linha de etiquetas */
+  .sn-pedras { padding-top:var(--e5); border-top:1px solid var(--div); }
+  .pedras { list-style:none; margin:var(--e3) 0 0; padding:0; display:flex; flex-wrap:wrap; gap:var(--e2) var(--e5); }
+  .pedras li { display:flex; align-items:center; gap:var(--e2); font-size:13px; color:var(--sub); }
+  .pedras li b { color:var(--txt); font-weight:600; font-variant-numeric:tabular-nums; display:inline-flex; gap:.3em; }
+  .pedras .ci { width:20px; height:20px; image-rendering:pixelated; margin:0; }
+
+  /* ajustes: recolhidos, abrem quando precisa */
+  .sn-ajustes { border-top:1px solid var(--div); padding-top:var(--e4); }
+  .sn-ajustes summary { cursor:pointer; font-size:14px; font-weight:600; color:var(--sub); list-style-position:inside; }
+  .sn-ajustes[open] summary { color:var(--txt); margin-bottom:var(--e4); }
+  .sn-regua { max-width:560px; margin-bottom:var(--e5); }
+  .sn-ajustes .sn-form { display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:var(--e5); }
+  .sn-ajustes fieldset { border:0; margin:0; padding:0; display:flex; flex-direction:column; gap:var(--e3); min-width:0; }
+  .sn-ajustes legend { font-size:14px; font-weight:600; color:var(--txt); padding:0; margin-bottom:var(--e2); }
+  .sn-ajustes label { display:flex; flex-direction:column; gap:var(--e1); font-size:13px; color:var(--sub); }
+  .sn-ajustes label i { font-style:normal; color:var(--fraco); font-size:12px; margin-left:var(--e1); }
+  .sn-ajustes .sn-check { flex-direction:row; align-items:center; gap:var(--e2); color:var(--txt); }
+  .sn-ajustes .sn-acoes { grid-column:1 / -1; }
+
+  @media (max-width:1100px) {
+    .sn-corpo { grid-template-columns:minmax(0,1fr); }
+    .sn-vivo { padding-left:0; border-left:0; padding-top:var(--e5); border-top:1px solid var(--div); }
+    .sn-ajustes .sn-form { grid-template-columns:minmax(0,1fr); }
+  }
+  @media (max-width:760px) {
+    .sn-resumo { grid-template-columns:repeat(2, minmax(0,1fr)); }
+    .sn-num:nth-child(3) { padding-left:0; border-left:0; }
+    .sn-num:nth-child(n+3) { border-top:1px solid var(--div); }
+    .neg { grid-template-columns:40px minmax(0,1fr) auto; }
+    .neg .spr { width:40px; height:40px; }
+    .neg-fluxo { grid-column:2 / -1; grid-row:2; }
+  }
 
   /* Temas e ajustes */
   #temas { display:flex; flex-wrap:wrap; gap:8px; }
   .sw-btn {
     display:inline-flex; align-items:center; gap:8px;
-    padding:6px 11px 6px 8px; border-radius:999px;
+    padding:6px 12px 6px 8px; border-radius:var(--r-sm);
     background:var(--tile); border:1px solid var(--border);
     color:var(--sub); font:500 12px 'Inter', system-ui, sans-serif;
     cursor:pointer; transition:border-color .15s, color .15s, background .15s;
@@ -651,9 +749,10 @@
                 <div class="bar" title="XP até o próximo nível"><i id="k-xpbar" style="width:0"></i></div>
                 <div class="mini fraco" id="k-falta"></div>
               </div>
-              <div class="tiles2">
-                <div class="tile item"><img id="i-ouro" class="oi" alt=""><div><small>Ouro</small><strong id="k-ouro">—</strong></div></div>
-                <div class="tile item"><img id="i-gema" class="oi" alt=""><div><small>Gemas</small><strong id="k-gemas">—</strong></div></div>
+              <div class="tiles2 tiles-moedas">
+                <div class="tile item moeda"><img id="i-ouro" class="oi" alt=""><div><small>Ouro</small><strong id="k-ouro">—</strong></div></div>
+                <div class="tile item moeda"><img id="i-gema" class="oi" alt=""><div><small>Gemas</small><strong id="k-gemas">—</strong></div></div>
+                <div class="tile item moeda"><img id="i-diamante" class="oi" alt=""><div><small>Diamantes</small><strong id="k-diamantes">—</strong></div></div>
                 <div class="tile item"><img id="i-pocao" class="oi" alt=""><div><small id="k-pocao-n">Poção</small><strong id="k-pocao">—</strong></div></div>
                 <div class="tile item"><img id="i-bola" class="oi" alt=""><div><small id="k-bola-n">Bola</small><strong id="k-bola">—</strong></div></div>
               </div>
@@ -763,7 +862,8 @@
           </div>
         </div>
 
-        <section class="card">
+        <!-- repetia números do topo e de "Por captura e por abate"; fica escondido porque o JS ainda escreve nele -->
+        <section class="card" hidden>
           <h2>
             <span>Resumo econômico</span>
           </h2>
@@ -899,85 +999,114 @@
       </div>
 
       <!-- ==================== SNIPER ==================== -->
-      <div class="aba" data-aba="sniper" role="tabpanel">
-        <div class="page-head">
+      <!-- Livro-caixa da feira: dinheiro no topo, o livro de negócios (com os sprites) como peça principal,
+           decisões ao vivo ao lado, pedras numa linha, e os ajustes recolhidos. -->
+      <div class="aba sniper" data-aba="sniper" role="tabpanel">
+        <header class="sn-cab">
           <div>
             <h1>Sniper do Mercado</h1>
-            <div class="mini">Monitoramento de anúncios de Pokémon em Gemas e regras opcionais de compra/revenda.</div>
+            <p class="mini" id="sn-modo-t"></p>
           </div>
-          <span class="chip" id="sn-modo-chip">—</span>
-        </div>
-
-        <div class="g-2-asym">
-          <div class="col">
-            <section class="card">
-              <h2>Controle</h2>
-              <div>
-                <div class="card-sub" style="margin-bottom:6px">Compra automática</div>
-                <div class="sn-modos" role="group" aria-label="Modo do sniper">
-                  <button type="button" class="btn" data-sn-modo="0">Desligado</button>
-                  <button type="button" class="btn" data-sn-modo="observar">Só observar</button>
-                  <button type="button" class="btn" data-sn-modo="1">Comprar</button>
-                </div>
-                <div class="mini" id="sn-modo-t" style="margin-top:6px"></div>
-              </div>
-              <div>
-                <div class="card-sub" style="margin-bottom:6px">Revenda automática</div>
-                <div class="sn-modos" role="group" aria-label="Revenda automática">
-                  <button type="button" class="btn" data-sn-rev="0">Revenda desligada</button>
-                  <button type="button" class="btn" data-sn-rev="1">Revender sozinho</button>
-                </div>
-                <div class="mini" id="sn-rev-t" style="margin-top:6px"></div>
-              </div>
-              <div id="sn-hoje"></div>
-            </section>
-
-            <section class="card">
-              <h2>Limites e regras</h2>
-              <form id="sn-form" class="sn-form" autocomplete="off">
-                <label><span class="lbl-row"><span>Máximo por pokemon</span><span class="fraco">Gemas</span></span><input type="number" name="max" min="0" step="1"></label>
-                <label><span class="lbl-row"><span>Máximo por dia</span><span class="fraco">Gemas</span></span><input type="number" name="dia" min="0" step="1"></label>
-                <label><span class="lbl-row"><span>Compras por dia</span></span><input type="number" name="qtdDia" min="0" max="50" step="1"></label>
-                <label><span class="lbl-row"><span>Saldo mínimo</span><span class="fraco">Gemas</span></span><input type="number" name="reserva" min="0" step="1"></label>
-                <label><span class="lbl-row"><span>Ganho mínimo</span><span class="fraco">% líq.</span></span><input type="number" name="lucro" min="5" max="500" step="1"></label>
-                <label><span class="lbl-row"><span>Vendas parecidas mín.</span></span><input type="number" name="vendas" min="3" max="100" step="1"></label>
-                <label><span class="lbl-row"><span>Intervalo</span><span class="fraco">seg</span></span><input type="number" name="seg" min="3" max="600" step="1"></label>
-                <label class="sn-check"><input type="checkbox" name="soShiny"> <span>Só shiny <span class="fraco">(sem shiny quase não vende)</span></span></label>
-                <div class="sn-sub">Revenda</div>
-                <label><span class="lbl-row"><span>Abaixo do mercado</span><span class="fraco">Gemas</span></span><input type="number" name="abaixo" min="0" max="10000" step="1"></label>
-                <label><span class="lbl-row"><span>Margem mínima</span><span class="fraco">% líq. (negativo aceita perda)</span></span><input type="number" name="margem" min="-50" max="500" step="1"></label>
-                <label><span class="lbl-row"><span>Dias na vitrine</span><span class="fraco">100k/dia</span></span><input type="number" name="revDias" min="1" max="30" step="1"></label>
-                <div class="sn-sub">Venda dos drops</div>
-                <label><span class="lbl-row"><span>Guardar de cada pedra</span><span class="fraco">p/ evoluir</span></span><input type="number" name="vdReserva" min="0" max="1000" step="1"></label>
-                <label><span class="lbl-row"><span>Tamanho do anúncio</span><span class="fraco">% da venda semanal</span></span><input type="number" name="vdFatia" min="1" max="50" step="1"></label>
-                <label><span class="lbl-row"><span>Preço mínimo</span><span class="fraco">% da média 7 d</span></span><input type="number" name="vdPiso" min="10" max="150" step="1"></label>
-                <label><span class="lbl-row"><span>Abaixo do mais barato</span><span class="fraco">Gemas</span></span><input type="number" name="vdAbaixo" min="0" max="1000" step="1"></label>
-                <div class="sn-acoes"><button type="submit" class="btn pri">Salvar limites</button><span class="mini" id="sn-form-r"></span></div>
-              </form>
-            </section>
+          <div class="seg sn-modo" role="group" aria-label="Modo da compra automática">
+            <button type="button" data-sn-modo="0">Desligado</button>
+            <button type="button" data-sn-modo="observar">Só observar</button>
+            <button type="button" data-sn-modo="1">Comprando</button>
           </div>
+          <span id="sn-modo-chip" hidden></span>
+        </header>
 
-          <div class="col">
-            <section class="card">
-              <h2>Venda dos drops <span class="meta" id="vd-hoje"></span></h2>
-              <div class="sn-modos" role="group" aria-label="Venda automática dos drops">
-                <button type="button" class="btn" data-vd="0">Desligada</button>
-                <button type="button" class="btn" data-vd="1">Vender sozinho</button>
-              </div>
-              <div class="mini" id="vd-t"></div>
-              <div class="scroll" style="max-height:160px"><table class="lt" id="vd-anuncios"></table></div>
-            </section>
-            <section class="card">
-              <h2>Compras e revendas <span class="meta" id="sn-lucro"></span></h2>
-              <div class="scroll" style="max-height:280px"><table class="lt" id="sn-compras"></table></div>
-            </section>
-            <section class="card">
-              <h2>O que ele viu <span class="meta" id="sn-visto"></span></h2>
-              <div class="scroll-lg"><table class="lt" id="sn-eventos"></table></div>
-              <div class="mini">O Mercado segura todo anúncio novo por 2 min e, na liberação, sorteia quem pediu nos 3 primeiros segundos; quem perde não paga.</div>
-            </section>
+        <div class="sn-resumo">
+          <div class="sn-num">
+            <small>Resultado das revendas</small>
+            <strong id="snr-lucro">—</strong>
+            <span id="snr-lucro-s"></span>
+          </div>
+          <div class="sn-num">
+            <small>Saldo</small>
+            <strong class="gema" id="snr-saldo">—</strong>
+            <span id="snr-saldo-s"></span>
+          </div>
+          <div class="sn-num">
+            <small>À venda agora</small>
+            <strong class="gema" id="snr-venda">—</strong>
+            <span id="snr-venda-s"></span>
+          </div>
+          <div class="sn-num">
+            <small>Compras de hoje</small>
+            <strong id="snr-limite">—</strong>
+            <span id="snr-limite-s"></span>
           </div>
         </div>
+
+        <div class="sn-corpo">
+          <section class="sn-livro">
+            <div class="sn-tit">
+              <h2>Livro de negócios <span class="meta" id="sn-lucro"></span></h2>
+              <div class="sn-rev">
+                <span class="mini">Revenda</span>
+                <div class="seg" role="group" aria-label="Revenda automática">
+                  <button type="button" data-sn-rev="0">Manual</button>
+                  <button type="button" data-sn-rev="1">Sozinha</button>
+                </div>
+              </div>
+            </div>
+            <p class="mini" id="sn-rev-t"></p>
+            <ol class="livro" id="sn-compras"></ol>
+          </section>
+
+          <aside class="sn-vivo">
+            <h2>Ao vivo <span class="meta" id="sn-visto"></span></h2>
+            <ol class="vivo-lista" id="sn-eventos"></ol>
+            <p class="mini">Anúncio novo fica 2 min retido. Na liberação, o jogo sorteia quem pediu nos 3 primeiros segundos; quem perde não paga.</p>
+          </aside>
+        </div>
+
+        <section class="sn-pedras">
+          <div class="sn-tit">
+            <h2>Pedras à venda <span class="meta" id="vd-hoje"></span></h2>
+            <div class="sn-rev">
+              <span class="mini">Venda dos drops</span>
+              <div class="seg" role="group" aria-label="Venda automática dos drops">
+                <button type="button" data-vd="0">Desligada</button>
+                <button type="button" data-vd="1">Sozinha</button>
+              </div>
+            </div>
+          </div>
+          <p class="mini" id="vd-t"></p>
+          <ul class="pedras" id="vd-anuncios"></ul>
+        </section>
+
+        <details class="sn-ajustes">
+          <summary>Ajustes da compra, da revenda e das pedras</summary>
+          <div id="sn-hoje" class="sn-regua"></div>
+          <form id="sn-form" class="sn-form" autocomplete="off">
+            <fieldset>
+              <legend>Compra</legend>
+              <label><span>Máximo por pokémon <i>Gemas</i></span><input type="number" name="max" min="0" step="1"></label>
+              <label><span>Máximo por dia <i>Gemas</i></span><input type="number" name="dia" min="0" step="1"></label>
+              <label><span>Compras por dia</span><input type="number" name="qtdDia" min="0" max="50" step="1"></label>
+              <label><span>Saldo que sempre fica <i>Gemas</i></span><input type="number" name="reserva" min="0" step="1"></label>
+              <label><span>Lucro mínimo previsto <i>% sem a taxa</i></span><input type="number" name="lucro" min="5" max="500" step="1"></label>
+              <label><span>Vendas parecidas mínimas</span><input type="number" name="vendas" min="3" max="100" step="1"></label>
+              <label><span>Olhar a cada <i>segundos</i></span><input type="number" name="seg" min="3" max="600" step="1"></label>
+              <label class="sn-check"><input type="checkbox" name="soShiny"> <span>Só shiny <i>sem shiny quase não vende</i></span></label>
+            </fieldset>
+            <fieldset>
+              <legend>Revenda</legend>
+              <label><span>Abaixo do mercado <i>Gemas</i></span><input type="number" name="abaixo" min="0" max="10000" step="1"></label>
+              <label><span>Ganho mínimo sobre o que pagou <i>% sem a taxa; negativo aceita perda</i></span><input type="number" name="margem" min="-50" max="500" step="1"></label>
+              <label><span>Dias na vitrine <i>100 mil de ouro por dia</i></span><input type="number" name="revDias" min="1" max="30" step="1"></label>
+            </fieldset>
+            <fieldset>
+              <legend>Pedras</legend>
+              <label><span>Guardar de cada pedra <i>o bot usa para evoluir</i></span><input type="number" name="vdReserva" min="0" max="1000" step="1"></label>
+              <label><span>Tamanho do anúncio <i>% da venda semanal</i></span><input type="number" name="vdFatia" min="1" max="50" step="1"></label>
+              <label><span>Preço mínimo <i>% da média de 7 dias</i></span><input type="number" name="vdPiso" min="10" max="150" step="1"></label>
+              <label><span>Abaixo do mais barato <i>Gemas</i></span><input type="number" name="vdAbaixo" min="0" max="1000" step="1"></label>
+            </fieldset>
+            <div class="sn-acoes"><button type="submit" class="btn pri">Salvar ajustes</button><span class="mini" id="sn-form-r"></span></div>
+          </form>
+        </details>
       </div>
 
       <!-- ==================== SISTEMA (AJUSTES + LOG) ==================== -->
@@ -1074,10 +1203,13 @@ function trocarIcone(id, url) {
   el.onerror = () => { el.onerror = null; el.src = ICON.generico; };
   el.src = url;
 }
-fetch('/icones').then((r) => r.json()).then((j) => { ICON = { ...ICON, ...j }; trocarIcone('i-ouro', ICON.ouro); trocarIcone('i-gema', ICON.gema); }).catch(() => {});
+fetch('/icones').then((r) => r.json()).then((j) => { ICON = { ...ICON, ...j }; trocarIcone('i-ouro', ICON.ouro); trocarIcone('i-gema', ICON.gema); if (ICON.diamante) trocarIcone('i-diamante', ICON.diamante); }).catch(() => {});
 
 // ---- temas (refinados com superfícies calmas) ----
 const TEMAS = {
+  // Feira (padrão): cores das moedas do jogo — gema #F060B0/#D03080, ouro #F0C040, diamante #30D0F0 — sobre o
+  // quase-preto do contorno da pixel art (#202020). Rosa só em valor em Gemas e no estado ativo.
+  feira:   { nome:'Feira',   a:'#e8589f', a2:'#f39ac4', bg:'#121112', side:'#161416', card:'#1a181a', hi:'#232023', s1:'#151315', s2:'#201c20', ok:'#5ccf86', bad:'#f07171', light:false, txt:'#f1ecee', sub:'#ada3a8', fraco:'#8c8287' },
   roxo:    { nome:'Roxo',    a:'#8b5cf6', a2:'#b89cff', bg:'#0b0a12', side:'#100f1a', card:'#151322', hi:'#1d1a31', s1:'#121024', s2:'#1c1738', ok:'#4ade80', bad:'#f87171', light:false },
   azul:    { nome:'Azul',    a:'#3b82f6', a2:'#8ec5ff', bg:'#080c15', side:'#0c1220', card:'#111829', hi:'#17223a', s1:'#0c1324', s2:'#142140', ok:'#4ade80', bad:'#f87171', light:false },
   verde:   { nome:'Esmeralda',a:'#10b981',a2:'#6ee7b7', bg:'#070f0c', side:'#0b1612', card:'#101e19', hi:'#162a23', s1:'#0b1813', s2:'#122920', ok:'#6ee7b7', bad:'#fb7185', light:false },
@@ -1086,8 +1218,9 @@ const TEMAS = {
   laranja: { nome:'Âmbar',   a:'#f97316', a2:'#fdba74', bg:'#110c07', side:'#18110b', card:'#211710', hi:'#2b1e14', s1:'#19110a', s2:'#2b1c11', ok:'#4ade80', bad:'#fca5a5', light:false },
   claro:   { nome:'Claro',   a:'#7c3aed', a2:'#6d28d9', bg:'#f5f5f9', side:'#ffffff', card:'#ffffff', hi:'#f0edfb', s1:'#edeaf7', s2:'#e2dcf5', ok:'#15803d', bad:'#dc2626', light:true },
 };
-let temaAtual = 'roxo';
-try { const t = localStorage.getItem('pk-tema'); if (TEMAS[t]) temaAtual = t; } catch {}
+let temaAtual = 'feira';
+// o roxo era o padrão antigo: quem nunca escolheu outro tema passa para a Feira uma vez
+try { const t = localStorage.getItem('pk-tema'); if (TEMAS[t] && !(t === 'roxo' && !localStorage.getItem('pk-tema-v2'))) temaAtual = t; localStorage.setItem('pk-tema-v2', '1'); } catch {}
 function luminancia(hex) {
   const c = [1, 3, 5].map((i) => { const x = parseInt(hex.slice(i, i + 2), 16) / 255; return x <= 0.03928 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4; });
   return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
@@ -1097,7 +1230,7 @@ function textoSobre(hex) {
   return 1.05 / (l + 0.05) >= (l + 0.05) / (luminancia('#0b0a12') + 0.05) ? '#ffffff' : '#0b0a12';
 }
 function aplicarTema(k) {
-  const t = TEMAS[k] ?? TEMAS.roxo; temaAtual = TEMAS[k] ? k : 'roxo';
+  const t = TEMAS[k] ?? TEMAS.feira; temaAtual = TEMAS[k] ? k : 'feira';
   const L = t.light;
   const v = {
     a: t.a, a2: t.a2, 'on-a': textoSobre(t.a),
@@ -1108,9 +1241,9 @@ function aplicarTema(k) {
     'tile-hover': L ? 'rgba(18,14,40,.065)' : 'rgba(255,255,255,.058)',
     border: L ? 'rgba(18,14,40,.09)' : 'rgba(255,255,255,.075)',
     div: L ? 'rgba(18,14,40,.065)' : 'rgba(255,255,255,.055)',
-    txt: L ? '#18142b' : '#f2effc',
-    sub: L ? '#575073' : '#9b94b8',
-    fraco: L ? '#847da3' : '#6c658a',
+    txt: t.txt ?? (L ? '#18142b' : '#f2effc'),
+    sub: t.sub ?? (L ? '#575073' : '#9b94b8'),
+    fraco: t.fraco ?? (L ? '#847da3' : '#6c658a'),
     scene1: t.s1, scene2: t.s2,
     ok: t.ok, 'ok-soft': L ? 'rgba(21,128,61,.11)' : 'rgba(74,222,128,.12)',
     bad: t.bad, 'bad-soft': L ? 'rgba(220,38,38,.1)' : 'rgba(248,113,113,.12)',
@@ -1127,7 +1260,7 @@ function aplicarTema(k) {
   for (const [nome, val] of Object.entries(v)) document.documentElement.style.setProperty('--' + nome, val);
   try { localStorage.setItem('pk-tema', temaAtual); } catch {}
   $('temas').innerHTML = Object.entries(TEMAS).map(([id, x]) =>
-    `<button class="sw-btn" type="button" data-t="${id}" aria-pressed="${id === temaAtual}"><span class="sw-dot" style="background:linear-gradient(135deg,${x.a},${x.a2})"></span>${x.nome}</button>`).join('');
+    `<button class="sw-btn" type="button" data-t="${id}" aria-pressed="${id === temaAtual}"><span class="sw-dot" style="background:${x.a}"></span>${x.nome}</button>`).join('');
   desenharGrafico();
 }
 $('temas').addEventListener('click', (e) => { const b = e.target.closest('button[data-t]'); if (b) aplicarTema(b.dataset.t); });
@@ -1344,7 +1477,7 @@ async function atualizar() {
   $('k-eta').textContent = minEta == null ? '—' : minEta < 1 ? '< 1 min' : '≈ ' + (minEta < 60 ? `${Math.round(minEta)} min` : `${Math.floor(minEta / 60)} h ${Math.round(minEta % 60)} min`);
   $('k-falta').textContent = falta != null ? `Faltam ${c(falta)} XP` : '';
   $('k-ouro').textContent = c(s.ouro);
-  $('k-gemas').textContent = n(s.orbs ?? 0);
+  $('k-gemas').textContent = n(s.orbs ?? 0); $('k-diamantes').textContent = n(s.diamantes ?? 0);
 
   const eq = s.equipado ?? {};
   if (eq.pocao) trocarIcone('i-pocao', ICON.itens[eq.pocao]);
@@ -1427,43 +1560,76 @@ async function atualizar() {
 }
 
 // ---- sniper ----
-const SN_ACAO = { compraria: ['compraria', 'var(--a2)'], pedindo: ['pedindo', 'var(--shiny)'], comprou: ['comprou', 'var(--ok)'], perdeu: ['não levou', 'var(--sub)'], barrado: ['barrado', 'var(--sub)'], modo: ['modo', 'var(--sub)'], anunciando: ['anunciou', 'var(--a2)'], vendeu: ['vendeu', 'var(--ok)'] };
-const SN_ESTADO = { comprado: ['na conta', 'var(--sub)'], consultando: ['vendo preço', 'var(--a2)'], anunciando: ['anunciando', 'var(--a2)'], anunciado: ['à venda', 'var(--shiny)'], vendido: ['vendido', 'var(--ok)'], parado: ['parado', 'var(--bad)'] };
+const SN_ACAO = { compraria: 'compraria', pedindo: 'pedindo', comprou: 'comprou', perdeu: 'não levou', barrado: 'barrado', modo: 'modo', anunciando: 'anunciou', vendeu: 'vendeu' };
+const SN_ESTADO = { comprado: 'na conta', consultando: 'vendo preço', anunciando: 'anunciando', anunciado: 'à venda', vendido: 'vendido', parado: 'parado' };
 let snEditando = false;
+// valor em Gemas com o ícone da moeda do jogo (a assinatura da tela)
+const gemas = (v, sinal = false) => `<span class="v-gema"><img src="${esc(ICON.gema ?? '')}" alt="" class="mo">${sinal && v > 0 ? '+' : ''}${n(v)}</span>`;
+const sinalCls = (v) => (v > 0 ? 'up' : v < 0 ? 'down' : '');
+const notaTxt = (v) => (v == null ? '' : Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+// sprite do livro de negócios: primeiro quadro virado para a frente, sem suavizar (pixel art)
+function pintarSpritesLivro(raiz) {
+  raiz.querySelectorAll('canvas[data-lt]').forEach((cv) => {
+    const sp = sprite(Number(cv.dataset.lt)); if (!sp) return;
+    const q = sp.s.dirs[3] ?? sp.s.dirs[2] ?? Object.values(sp.s.dirs)[0]; const f = q?.[0]; const img = f && sp.imgs[f.p];
+    if (!img?.complete || !img.naturalWidth || cv.dataset.ok === '1') return;
+    const ctx = cv.getContext('2d'); ctx.imageSmoothingEnabled = false; ctx.clearRect(0, 0, cv.width, cv.height);
+    const e = Math.max(1, Math.floor(Math.min(cv.width / f.w, cv.height / f.h)));
+    ctx.drawImage(img, f.x, f.y, f.w, f.h, Math.round((cv.width - f.w * e) / 2), cv.height - f.h * e, f.w * e, f.h * e);
+    cv.dataset.ok = '1';
+  });
+}
 function mostrarSniper(sp, saldo) {
   if (!sp) return;
-  const nomeModo = sp.modo === '1' ? 'COMPRANDO' : sp.modo === 'observar' ? 'Só observando' : 'Desligado';
-  const chip = $('sn-modo-chip');
-  chip.className = 'chip ' + (sp.modo === '1' ? 'bad' : sp.modo === 'observar' ? 'accent' : '');
-  chip.innerHTML = `Status: <b>${nomeModo}</b>`;
+  const h = sp.hoje ?? {}, dr = sp.drops ?? {}, cps = sp.compras ?? [];
+  // modo
   document.querySelectorAll('[data-sn-modo]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.snModo === sp.modo)));
-  $('sn-modo-t').textContent = sp.modo === '1' ? 'Compra sozinho com as suas Gemas, dentro dos limites ao lado.' : sp.modo === 'observar' ? 'Só registra o que compraria. Não gasta nada.' : 'Não monitora o Mercado.';
-  const h = sp.hoje ?? {};
-  const rg = sp.regua ?? {}, ul = rg.ultimo;
-  const linhaRegua = kv('Desconto de segurança da régua', `${fx(rg.desconto ?? 0.9, 3)}${ul ? ` · calibrado ${new Date(ul.em).toLocaleDateString('pt-BR')}` : ' · calibra 1× por dia'}`)
-    + (ul ? kv('Última calibração', `${n(ul.medidas)} de ${n(ul.decisoes)} decisões conferidas${ul.erro != null ? ` · erro do lucro ${n(ul.erro)}%` : ''}`) : '');
-  $('sn-hoje').innerHTML = linhaRegua + kv('Gasto hoje', `${n(h.gasto ?? 0)} de ${n(sp.dia)} Gemas`) + kv('Compras hoje', `${n(h.compras ?? 0)} de ${n(sp.qtdDia)}`) + (h.pendente ? kv('Aguardando sorteio', `${n(h.pendente)} Gemas`) : '') + kv('Seu saldo', `${n(saldo ?? 0)} Gemas`) + kv('Vendas para referência', n(sp.comparaveis ?? 0));
-  $('sn-visto').textContent = sp.modo === '0' ? '' : `${n(sp.vistos ?? 0)} avaliados${sp.ultimaResposta ? ' · ' + hora(sp.ultimaResposta) : ''}`;
-  tabela($('sn-eventos'), (sp.eventos ?? []).map((e) => {
-    const [rot, corA] = SN_ACAO[e.acao] ?? [e.acao, 'var(--sub)'];
-    const det = e.preco != null ? `${n(e.preco)} Gemas · ref. ${n(e.ref)} · ganho ~${n(e.ganho)} (${e.pct}%)${e.barra ? ' · ' + esc(e.barra) : ''}` : '';
-    return `<tr><td class="sn-acao" style="color:${corA}">${rot}</td><td>${esc(e.desc)}<div class="fraco" title="${esc(e.motivo ?? '')}">${det}</div></td><td>${hora(e.em)}</td></tr>`;
-  }), sp.modo === '0' ? 'desligado' : 'nada relevante ainda');
+  $('sn-modo-t').textContent = sp.modo === '1' ? `Compra sozinho com as suas Gemas: até ${n(sp.max)} por pokémon, ${n(sp.dia)} por dia, ${n(sp.qtdDia)} compras.` : sp.modo === 'observar' ? 'Só registra o que compraria. Não gasta nada.' : 'Não olha o Mercado.';
+  $('sn-modo-chip').textContent = sp.modo;
+  // resumo: o dinheiro primeiro
+  const vendidos = cps.filter((x) => x.estado === 'vendido'), aVenda = cps.filter((x) => x.estado === 'anunciado');
+  const lucro = vendidos.reduce((t, x) => t + (x.lucro ?? 0), 0);
+  const el = $('snr-lucro'); el.innerHTML = vendidos.length ? gemas(lucro, true) : '—'; el.className = sinalCls(lucro);
+  $('snr-lucro-s').textContent = vendidos.length ? `${n(vendidos.length)} vendido${vendidos.length > 1 ? 's' : ''} · já sem a taxa` : 'nenhuma revenda fechada';
+  $('snr-saldo').innerHTML = gemas(saldo ?? 0);
+  $('snr-saldo-s').textContent = sp.reserva ? `sempre guarda ${n(sp.reserva)}` : 'sem reserva mínima';
+  const pedrasV = (dr.anuncios ?? []).reduce((t, a) => t + a.qtd * a.preco, 0), pedrasQ = (dr.anuncios ?? []).reduce((t, a) => t + a.qtd, 0);
+  $('snr-venda').innerHTML = gemas(aVenda.reduce((t, x) => t + (x.preco ?? 0), 0) + pedrasV);
+  $('snr-venda-s').textContent = [aVenda.length ? `${aVenda.length} pokémon` : '', pedrasQ ? `${n(pedrasQ)} pedras` : ''].filter(Boolean).join(' · ') || 'nada anunciado';
+  $('snr-limite').textContent = `${n(h.compras ?? 0)} de ${n(sp.qtdDia)}`;
+  $('snr-limite-s').innerHTML = `${n(h.gasto ?? 0)} de ${n(sp.dia)} Gemas gastas${h.pendente ? ` · ${n(h.pendente)} no sorteio` : ''}`;
+  // livro de negócios
+  $('sn-lucro').textContent = cps.length ? `${n(cps.length)} negócio${cps.length > 1 ? 's' : ''}` : '';
   document.querySelectorAll('[data-sn-rev]').forEach((b) => b.setAttribute('aria-pressed', String((b.dataset.snRev === '1') === !!sp.revender)));
-  $('sn-rev-t').textContent = sp.revender ? `Anuncia automaticamente ${n(sp.abaixo)} Gemas abaixo do mercado, respeitando o piso.` : 'O que comprar fica na conta; anunciar fica por sua conta.';
-  const cps = sp.compras ?? [];
-  const lucro = cps.filter((x) => x.estado === 'vendido').reduce((t, x) => t + (x.lucro ?? 0), 0);
-  $('sn-lucro').textContent = cps.some((x) => x.estado === 'vendido') ? `lucro ${lucro >= 0 ? '+' : ''}${n(lucro)} Gemas` : '';
-  tabela($('sn-compras'), cps.map((x) => {
-    const [rot, corE] = SN_ESTADO[x.estado] ?? [x.estado, 'var(--sub)'];
-    const det = `pagou ${n(x.custo)}${x.preco ? ' · anunciado ' + n(x.preco) : ''}${x.estado === 'vendido' ? ' · recebeu ' + n(x.recebido) + ' (' + (x.lucro >= 0 ? '+' : '') + n(x.lucro) + ')' : ''}${x.obs ? ' · ' + esc(x.obs) : ''}`;
-    return `<tr><td class="sn-acao" style="color:${corE}">${rot}</td><td>${x.shiny ? '✨ ' : ''}${esc(x.nome)} Nv ${n(x.nivel)}<div class="fraco">${det}</div></td><td>${hora(x.em)}</td></tr>`;
-  }), 'nenhuma compra ainda');
-  const dr = sp.drops ?? {};
+  $('sn-rev-t').textContent = sp.revender ? `Anuncia o que o sniper comprou ${n(sp.abaixo)} Gemas abaixo do mercado, sem descer do piso (ganho mínimo de ${n(sp.margem)}%).` : 'O que o sniper compra fica na conta; anunciar é com você.';
+  const livro = cps.map((x) => {
+    const fim = x.estado === 'vendido' ? `<span>recebeu ${gemas(x.recebido)}</span>` : x.estado === 'anunciado' ? `<span class="fraco">aguardando comprador</span>` : `<span class="fraco">${esc(SN_ESTADO[x.estado] ?? x.estado)}</span>`;
+    const res = x.estado === 'vendido' ? `<b class="${sinalCls(x.lucro)}">${x.lucro > 0 ? '+' : ''}${n(x.lucro)}</b>` : x.estado === 'anunciado' && x.preco ? `<b class="fraco">≈ ${n(x.preco)}</b>` : '<b class="fraco">—</b>';
+    return `<li class="neg ${esc(x.estado)}">
+      <canvas class="spr" width="64" height="64" ${x.lt ? `data-lt="${x.lt}"` : ''} aria-hidden="true"></canvas>
+      <div class="neg-id"><b>${esc(x.nome)}</b><span>Nv ${n(x.nivel)} · nota ${notaTxt(x.nota)}${x.shiny ? ' · shiny' : ''}</span></div>
+      <div class="neg-fluxo"><span>pagou ${gemas(x.custo)}</span><span class="seta">→</span>${x.preco ? `<span>${x.estado === 'vendido' ? 'vendeu' : 'à venda'} ${gemas(x.preco)}</span><span class="seta">→</span>` : ''}${fim}</div>
+      <div class="neg-res">${res}<time>${hora(x.em)}</time></div>
+    </li>`;
+  });
+  const lv = $('sn-compras'); trocarHtml(lv, livro.length ? livro.join('') : '<li class="vazio">Nenhum negócio ainda. Quando o sniper comprar, cada pokémon aparece aqui com o que pagou, por quanto foi anunciado e o que recebeu.</li>');
+  pintarSpritesLivro(lv);
+  // ao vivo
+  $('sn-visto').textContent = sp.modo === '0' ? '' : `${n(sp.vistos ?? 0)} anúncios avaliados${sp.ultimaResposta ? ' · última olhada ' + hora(sp.ultimaResposta) : ''}`;
+  trocarHtml($('sn-eventos'), (sp.eventos ?? []).length ? sp.eventos.slice(0, 25).map((e) => {
+    const det = e.preco != null ? `${n(e.preco)} Gemas${e.ganho != null ? ` · ganho previsto ${e.ganho > 0 ? '+' : ''}${n(e.ganho)}` : ''}${e.barra ? ' · ' + esc(e.barra) : ''}` : '';
+    return `<li class="ev ${esc(e.acao)}"><time>${hora(e.em)}</time><b>${esc(SN_ACAO[e.acao] ?? e.acao)}</b><span>${esc(e.desc)}</span>${det ? `<small title="${esc(e.motivo ?? '')}">${det}</small>` : ''}</li>`;
+  }).join('') : `<li class="vazio">${sp.modo === '0' ? 'Desligado.' : 'Nada que valha a pena ainda.'}</li>`);
+  // pedras
   document.querySelectorAll('[data-vd]').forEach((b) => b.setAttribute('aria-pressed', String((b.dataset.vd === '1') === !!dr.ligado)));
-  $('vd-t').textContent = dr.ligado ? `Anuncia as pedras em Gemas, ${n(dr.vdAbaixo)} abaixo do mais barato, nunca abaixo de ${n(dr.vdPiso)}% da média, guardando ${n(dr.vdReserva)} de cada.` : 'As pedras ficam na mochila; anunciar é com você.';
-  $('vd-hoje').textContent = dr.total ? `hoje +${n(dr.hoje)} · total +${n(dr.total)} Gemas` : '';
-  tabela($('vd-anuncios'), (dr.anuncios ?? []).map((a) => `<tr><td>${esc(a.nome)}</td><td class="num">${n(a.qtd)} × ${n(a.preco)}</td></tr>`), dr.ligado ? 'nenhum anúncio de pedra agora' : '—');
+  $('vd-t').textContent = dr.ligado ? `${n(dr.vdAbaixo)} Gema abaixo do mais barato, nunca abaixo de ${n(dr.vdPiso)}% da média de 7 dias; guarda ${n(dr.vdReserva)} de cada para evoluir a equipe.` : 'As pedras ficam na mochila; anunciar é com você.';
+  $('vd-hoje').textContent = dr.total ? `vendido hoje ${n(dr.hoje)} · no total ${n(dr.total)} Gemas` : '';
+  trocarHtml($('vd-anuncios'), (dr.anuncios ?? []).length ? dr.anuncios.map((a) => `<li>${imgIc(ICON.itens?.[a.itemId])}<span>${esc(a.nome.replace(/ Stone$/, ''))}</span><b>${n(a.qtd)} × ${gemas(a.preco)}</b></li>`).join('') : `<li class="vazio">${dr.ligado ? 'Nenhuma pedra anunciada agora.' : 'Desligada.'}</li>`);
+  // ajustes: a régua e os números de configuração
+  const rg = sp.regua ?? {}, ul = rg.ultimo;
+  $('sn-hoje').innerHTML = kv('Desconto de segurança da régua', `${fx(rg.desconto ?? 0.9, 3)}${ul ? ` · calibrado ${new Date(ul.em).toLocaleDateString('pt-BR')}` : ' · calibra 1× por dia'}`)
+    + (ul ? kv('Última calibração', `${n(ul.medidas)} de ${n(ul.decisoes)} decisões conferidas${ul.erro != null ? ` · erro do lucro ${n(ul.erro)}%` : ''}`) : '')
+    + kv('Vendas de shiny para comparar', n(sp.comparaveis ?? 0));
   if (!snEditando) {
     const f = $('sn-form');
     for (const k of ['max', 'dia', 'qtdDia', 'reserva', 'lucro', 'vendas', 'seg', 'abaixo', 'margem', 'revDias']) if (document.activeElement !== f.elements[k]) f.elements[k].value = sp[k];

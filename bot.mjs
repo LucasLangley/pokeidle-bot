@@ -871,13 +871,19 @@ function snMudar(pedido) {
   }
   return { ok: true, mudou };
 }
+function snLookDe(nome, shiny) {
+  for (const l of SN.vendas.values()) if (l.ficha?.nome === nome) { const lt = shiny ? l.ficha.lookShiny : l.ficha.looktype; if (lt) return lt; }
+  return shiny ? null : (LOOK_POR_NOME.get(nome) ?? null);
+}
 function snPainel() {
   const g = snDia();
   return { modo: CFG.sniperPk, seg: CFG.sniperPkSeg, max: CFG.sniperPkMax, dia: CFG.sniperPkDia, qtdDia: CFG.sniperPkQtdDia, reserva: CFG.sniperPkReserva, lucro: CFG.sniperPkLucro, vendas: CFG.sniperPkVendas, soShiny: CFG.sniperPkSoShiny,
     regua: { desconto: ACUM.reguaCal?.desconto ?? REGUA.CFG_PADRAO.desconto, ultimo: ACUM.reguaCal?.ultimo ?? null },
     drops: { ligado: CFG.venderDrops, vdReserva: CFG.vdReserva, vdFatia: CFG.vdFatia, vdPiso: CFG.vdPiso, vdAbaixo: CFG.vdAbaixo, hoje: ACUM.vdVendas?.[chaveDia()] ?? 0,
-      total: Object.values(ACUM.vdVendas ?? {}).reduce((t, x) => t + x, 0), anuncios: VD.meus.filter((a) => a.moeda === 'orb').map((a) => ({ nome: [...ITEM_POR_NOME].find(([, i]) => i === Number(a.itemId))?.[0] ?? `item ${a.itemId}`, qtd: a.qtd, preco: a.preco })) },
-    revender: CFG.sniperPkRevender, abaixo: CFG.sniperPkAbaixo, margem: CFG.sniperPkMargem, revDias: CFG.sniperPkRevDias, compras: (ACUM.snCompras ?? []).slice(-20).reverse(),
+      total: Object.values(ACUM.vdVendas ?? {}).reduce((t, x) => t + x, 0), anuncios: VD.meus.filter((a) => a.moeda === 'orb').map((a) => ({ itemId: Number(a.itemId), nome: [...ITEM_POR_NOME].find(([, i]) => i === Number(a.itemId))?.[0] ?? `item ${a.itemId}`, qtd: a.qtd, preco: a.preco })) },
+    revender: CFG.sniperPkRevender, abaixo: CFG.sniperPkAbaixo, margem: CFG.sniperPkMargem, revDias: CFG.sniperPkRevDias,
+    // sprite de cada compra (livro de negócios do painel): o da própria ficha, ou o shiny da espécie visto nas vendas
+    compras: (ACUM.snCompras ?? []).slice(-20).reverse().map((r) => ({ ...r, lt: r.lt ?? snLookDe(r.nome, r.shiny) })),
     hoje: { gasto: g.gasto, compras: g.compras, pendente: g.pendente }, comparaveis: SN.vendas.size, olhadas: SN.olhadas, vistos: SN.vistos, ultimaResposta: SN.ultimaResposta || null, eventos: SN.eventos };
 }
 const SEQ_SNIPER = 900_000;
@@ -1141,7 +1147,7 @@ function snSeguir(a, f, d) {
         solta(); SN.aguardando = (SN.aguardando ?? []).filter((x) => x !== espero);
         const g = snDia(); const pagou = espero.ok;
         if (pagou) { g.gasto += a.preco; g.compras += 1; snEvento('comprou', desc, info);
-          (ACUM.snCompras ??= []).push({ pokemonId: a.pokemonId ?? f.id ?? null, nome: f.nome, nivel: f.level, potencia: f.potencia ?? 1, shiny: !!f.shiny, aoe: !!f.tmAoe, nota: f.nota, custo: a.preco, ref, em: Date.now(), estado: 'comprado', tentativas: 0 }); avisarShiny('mercado', `🛒 Sniper comprou ${desc}`, `${motivo}. Anunciar para revender é com você.`); }
+          (ACUM.snCompras ??= []).push({ lt: (f.shiny ? f.lookShiny : f.looktype) ?? null, pokemonId: a.pokemonId ?? f.id ?? null, nome: f.nome, nivel: f.level, potencia: f.potencia ?? 1, shiny: !!f.shiny, aoe: !!f.tmAoe, nota: f.nota, custo: a.preco, ref, em: Date.now(), estado: 'comprado', tentativas: 0 }); avisarShiny('mercado', `🛒 Sniper comprou ${desc}`, `${motivo}. Anunciar para revender é com você.`); }
         else { log(`sniper de pokemon: não levei ${desc} (sorteio perdido, cancelado ou preço mudou)`); snEvento('perdeu', desc, info); }
       }, 20_000);
     }, espera);
@@ -2428,7 +2434,7 @@ function instantaneo() {
     hunt: hunt ? { nome: hunt.nome, nivel: hunt.nivel, area: hunt.area } : null, noCentro: !!e.noCentro, outlandTier: e.outlandTier,
     xph: Math.round((xpAgora - (S.stats.xp0 ?? xpAgora)) / horas), ouroh: Math.round(((e.gold ?? 0) - (S.stats.ouro0 ?? 0) - (S.stats.ouroExtra ?? 0)) / horas), ouroExtra: S.stats.ouroExtra ?? 0,
     stats: S.stats, minutos: Math.round(onlineMs() / 60000), sniperPk: snPainel(),
-    equipe: equipe().sort((a, b) => a.slot - b.slot).map((p) => ({ nome: p.nome, nv: p.level, hp: p.hp, mhp: p.maxHp, shiny: p.shiny, q: p.quality, p: p.potencia, nota: p.nota, ativo: p.id === e.activeId, lt: (p.shiny && p.lookShiny) || ESPECIES.get(p.speciesId)?.looktype || LOOK_POR_NOME.get(p.nome) || null })),
+    equipe: equipe().sort((a, b) => a.slot - b.slot).map((p) => ({ nome: p.nome, nv: p.level, hp: p.hp, mhp: p.maxHp, shiny: p.shiny, q: p.quality, p: p.potencia, nota: p.nota, ativo: p.id === e.activeId, lt: (p.shiny && p.lookShiny) || p.looktype || ESPECIES.get(p.speciesId)?.looktype || LOOK_POR_NOME.get(p.nome) || null })), // mega não está no catálogo de espécies: o looktype vem do próprio pokemon (Mega Charizard Y = 80006)
     bonus: (() => {
       const l = e.loja ?? {}; const agora = Date.now(); const min = (ate) => Math.max(0, Math.round(((Number(ate) || 0) - agora) / 60000));
       return {
@@ -2567,7 +2573,7 @@ async function iniciarPainel() {
     if (req.url === '/icones') {
       const base = `https://${CFG.host}`, ui = `${base}/assets/site/assets/ui`;
       res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'max-age=3600' });
-      return res.end(JSON.stringify({ ouro: `${ui}/moeda-ouro.png`, gema: `${base}/img/moeda-gema.png`, generico: `${ui}/menu-bolsa.png`, bolas: { 1: `${ui}/ball-poke.png`, 2: `${ui}/ball-great.png`, 3: `${base}/img/ball-super.png`, 4: `${ui}/ball-ultra.png`, 5: `${base}/img/ball-beast.png` }, itens: ICONES_ITEM }));
+      return res.end(JSON.stringify({ ouro: `${ui}/moeda-ouro.png`, gema: `${base}/img/moeda-gema.png`, diamante: `${base}/img/moeda-diamante.png`, generico: `${ui}/menu-bolsa.png`, bolas: { 1: `${ui}/ball-poke.png`, 2: `${ui}/ball-great.png`, 3: `${base}/img/ball-super.png`, 4: `${ui}/ball-ultra.png`, 5: `${base}/img/ball-beast.png` }, itens: ICONES_ITEM }));
     }
     if (req.url === '/estado') { res.writeHead(200, { 'content-type': 'application/json' }); return res.end(JSON.stringify(instantaneo())); }
     if (req.url === '/eventos') {
