@@ -69,15 +69,28 @@ Disable-ScheduledTask 'PokeIdle Bot'      # desligar o agendamento
 Enable-ScheduledTask 'PokeIdle Bot'       # religar o agendamento
 ```
 
-## Painel ao vivo
+## Painel ao vivo (Dashboard & Configurações)
 
-Com o bot rodando, abra http://localhost:8787. Ele mostra nível, XP/h, ouro/h, equipe, os selvagens do campo, mochila, drops, capturas e o log em tempo real. Só aceita acesso da própria máquina.
+Com o bot rodando, abra http://localhost:8787. Ele funciona como central de **dashboards, métricas, indicativos e configurações ao vivo**:
+- **Dashboard:** XP/h, ouro/h líquido, abates/h, capturas, desmaios, multiplicador de XP, gráfico da última hora, indicativos da conta (PvP, Pokédex, Bosses, Chocadeira, Casa, Passe) e faixa de **Pausa Seletiva**.
+- **Configurações sem reiniciar (*Sistema → Configurações*):** altere captura, margem de nível, HP limiar, equipe, evolução, Auto Venda, Prey, PvP, Sacrifício, Bosses e Raid ao vivo (com opção de gravar no `.env` e botão **⭐ Padrão ideal**).
+- Ações e configurações são aceitas apenas de `localhost` com cabeçalho `x-painel: 1`. Pela rede local (`PAINEL_REDE=1`), o acesso é estritamente só leitura com senha.
 
-O bot não toca em Mercado, Orbs, diamantes, venda de pokemon nem em nada que envolva dinheiro real.
+## Extensão do Navegador — Modo Híbrido (jogar junto com o bot sem 4001)
+
+A pasta `extensao/` traz uma extensão local (Manifest V3, para Brave / Chrome / Edge) que acopla o jogo oficial (`https://pokeidle.io/app`) ao `bot.mjs` pela **mesma sessão única** (via ponte `ws://127.0.0.1:8787/ponte`):
+
+1. Abra `brave://extensions` (ou `chrome://extensions`) e ative o **Modo do desenvolvedor**.
+2. Clique em **Carregar sem compactação** (*Load unpacked*) e selecione a pasta `extensao/` deste repositório.
+3. Abra (ou dê `F5` em) **`https://pokeidle.io/app`**:
+   - O bot cede automaticamente o socket 24h e passa a ler/enviar pela sessão da aba (zero conflito `4001`).
+   - Um botão discreto **`🟢 Bot ativo · XP/h`** aparece ao lado do nome/nível da hunt com métricas rápidas, **Pausa Seletiva** e **Configurações ao vivo**.
+   - **Pausa Seletiva automática:** se você trocar de hunt, mexer na equipe, ir ao Centro ou mudar Automações no jogo, o bot pausa só aquela parte para não brigar com você (com botão para devolver ao bot quando quiser).
+   - Ao fechar a aba do jogo, o bot aguarda 6 s e reassume automaticamente em modo 24h em segundo plano.
 
 ## Uma conexão por conta
 
-O servidor mantém uma sessão por conta. Abrir o jogo no navegador derruba o bot (código 4001), e o bot então **para sozinho**. Para voltar a farmar, feche a aba e rode o bot de novo.
+Sem a extensão, abrir o jogo em outro lugar encerra a sessão do bot (`4001`) e o coloca em pausa mantendo o painel no ar (para voltar, basta dar `F5` no jogo com a extensão ou clicar em **Ligar bot** no painel).
 
 ## Configurar
 

@@ -684,6 +684,56 @@
   .subview { display:none; flex-direction:column; gap:20px; }
   .subview.on { display:flex; }
 
+  /* Dashboard analítico & configurações ao vivo */
+  .dash-hero {
+    display:flex; align-items:center; justify-content:space-between; gap:14px; flex-wrap:wrap;
+  }
+  .dash-hero-l { display:flex; flex-direction:column; gap:4px; min-width:0; }
+  .dash-hero-r { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  .dash-manual {
+    display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;
+    padding:10px 14px; border-radius:var(--r-tile);
+    background:var(--warn-soft); border:1px solid var(--warn);
+    font-size:12.5px;
+  }
+  .dash-manual-itens { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  .dash-kpis-6 {
+    display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:12px;
+  }
+  .dash-ind-grid {
+    display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:10px;
+  }
+  .dash-ind {
+    padding:10px 12px; border-radius:var(--r-tile); background:var(--tile);
+    border:1px solid var(--border); display:flex; flex-direction:column; gap:3px;
+  }
+  .dash-ind small { font-size:11.5px; color:var(--sub); }
+  .dash-ind strong { font-size:14.5px; font-weight:700; }
+  .dash-ind span { font-size:11.5px; color:var(--fraco); }
+  .cfg-grid {
+    display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:14px;
+  }
+  .cfg-blk {
+    display:flex; flex-direction:column; gap:10px; padding:12px;
+    border-radius:var(--r-tile); background:var(--tile); border:1px solid var(--border);
+  }
+  .cfg-blk h3 { margin:0; font-size:12.5px; color:var(--sub); text-transform:uppercase; letter-spacing:.04em; }
+  .cfg-row { display:flex; align-items:center; justify-content:space-between; gap:8px; font-size:13px; }
+  .cfg-row input[type=number], .cfg-row select {
+    width:128px; padding:6px 8px; border-radius:var(--r-sm);
+    background:var(--card); color:var(--txt); border:1px solid var(--border); font:inherit;
+  }
+  .cfg-chk { display:flex; align-items:center; gap:8px; font-size:13px; cursor:pointer; }
+  .cfg-foot { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-top:12px; }
+  @media (max-width:1120px) {
+    .dash-kpis-6, .dash-ind-grid, .cfg-grid { grid-template-columns:repeat(2, minmax(0, 1fr)); }
+  }
+  @media (max-width:640px) {
+    .dash-kpis-6, .dash-ind-grid, .cfg-grid { grid-template-columns:minmax(0, 1fr); }
+  }
+  html.t-classico .dash-manual { background:#fff8d8; border:3px solid var(--ink); color:var(--ink); }
+  html.t-classico .dash-ind, html.t-classico .cfg-blk { background:var(--creme); border:2px solid #ddd3b4; }
+
   /* Responsivo */
   @media (max-width:1120px) {
     .app, .app.recolhida { grid-template-columns:minmax(0,1fr); }
@@ -869,11 +919,12 @@
       <span class="chip accent" id="h-vip" hidden></span>
       <span class="esp"></span>
       <span class="mini" id="h-pausa-msg" hidden></span>
-      <button type="button" class="btn sm pausa" id="btn-bot-pausa" title="Pausar o bot e liberar a sessão para abrir o jogo">
+      <button type="button" class="btn sm pausa" id="btn-bot-pausa" title="Pausar o bot e liberar a sessão">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg>
         <span>Pausar bot</span>
       </button>
-      <button type="button" class="btn sm" data-ir="ajustes" data-sub="config" id="h-avisos">Avisos</button>
+      <a class="btn sm pri" href="https://pokeidle.io/app" target="_blank" rel="noopener" title="Abrir o jogo oficial com a extensão acoplada">Abrir jogo ↗</a>
+      <button type="button" class="btn sm" data-ir="ajustes" data-sub="config" id="h-avisos">Ajustes</button>
     </header>
 
     <main class="views">
@@ -929,25 +980,28 @@
             </section>
           </div>
 
-          <!-- Coluna direita: simulação, KPIs e ritmo de XP -->
+          <!-- Coluna direita: central de status, KPIs, ritmo de XP e indicativos -->
           <div class="vivo-dir">
-            <section class="card" aria-label="No jogo agora">
-              <div class="cena-head">
-                <div class="cena-titulo">
-                  <span class="card-sub" style="margin:0">No jogo agora</span>
+            <section class="card" aria-label="Status da operação">
+              <div class="dash-hero">
+                <div class="dash-hero-l">
+                  <span class="card-sub" style="margin:0" id="d-modo-label">Operação ao vivo</span>
                   <h1 class="hero-alvo" id="k-alvo">—</h1>
                 </div>
-                <div class="chips">
+                <div class="dash-hero-r">
+                  <span class="chip" id="d-ponte-chip">—</span>
                   <span class="chip shiny" id="evento" hidden><span id="ev-t"></span> <b id="ev-fim"></b></span>
                   <span class="chip accent" id="h-xp" hidden>XP <b id="ev-x"></b></span>
                   <span class="chips" id="k-chips"></span>
-                  <button type="button" class="btn sm ghost" id="btn-cena-estilo" title="Alternar visual da arena"></button>
                 </div>
               </div>
-              <div class="palco" id="palco-wrap"><canvas id="cena" aria-label="Seu pokemon ativo e os selvagens do campo"></canvas></div>
+              <div class="dash-manual" id="d-manual-bar" hidden style="margin-top:12px">
+                <div class="dash-manual-itens" id="d-manual-itens"></div>
+                <button type="button" class="btn sm" id="d-manual-tudo">Devolver tudo ao bot</button>
+              </div>
             </section>
 
-            <div class="vivo-kpis">
+            <div class="dash-kpis-6">
               <div class="kpi-c">
                 <span class="kpi-l">XP / h</span>
                 <strong class="kpi-v" id="m-xph">—</strong>
@@ -968,11 +1022,21 @@
                 <strong class="kpi-v" id="m-cap">—</strong>
                 <span class="kpi-s" id="m-cap-s"></span>
               </div>
+              <div class="kpi-c">
+                <span class="kpi-l">Multiplicador de XP</span>
+                <strong class="kpi-v" id="d-xp-mult">—</strong>
+                <span class="kpi-s" id="d-xp-mult-s">soma dos buffs ativos</span>
+              </div>
+              <div class="kpi-c">
+                <span class="kpi-l">Sniper & Patrimônio</span>
+                <strong class="kpi-v" id="d-sn-lucro">—</strong>
+                <span class="kpi-s" id="d-sn-pat">carregando…</span>
+              </div>
             </div>
 
             <section class="card">
               <h2>
-                <span>Ritmo de XP</span>
+                <span>Ritmo de XP (última hora)</span>
                 <span class="g-stats" id="g-chip">coletando…</span>
               </h2>
               <div class="gwrap" id="gwrap">
@@ -980,6 +1044,14 @@
                 <div class="g-tip" id="g-tip" hidden></div>
               </div>
               <div class="linha mini fraco"><span>há 60 min</span><span>agora</span></div>
+            </section>
+
+            <section class="card">
+              <h2>
+                <span>Indicativos da conta</span>
+                <button type="button" class="btn sm ghost" data-ir="ajustes" data-sub="config">Configurar bot →</button>
+              </h2>
+              <div class="dash-ind-grid" id="d-indicativos"></div>
             </section>
           </div>
         </div>
@@ -1276,12 +1348,75 @@
         </div>
 
         <div class="subview on" data-subview="ajustes:config">
+          <section class="card">
+            <h2>
+              <span>Configurações do Bot ao vivo <span class="mini fraco" style="font-weight:400">(aplica sem reiniciar)</span></span>
+              <span style="display:flex;gap:6px;flex-wrap:wrap">
+                <button type="button" class="btn sm ok" id="cfg-ideal" title="Preencher e aplicar o perfil recomendado para máxima progressão">⭐ Padrão ideal</button>
+                <button type="button" class="btn sm ghost" id="cfg-reload">Recarregar</button>
+              </span>
+            </h2>
+            <form id="cfg-form">
+              <div class="cfg-grid">
+                <div class="cfg-blk">
+                  <h3>Modo & Captura</h3>
+                  <label class="cfg-chk"><input type="checkbox" name="somenteLer"> <span>Modo Só Leitura (só observa)</span></label>
+                  <label class="cfg-row"><span>Captura</span>
+                    <select name="modoCaptura">
+                      <option value="vip">VIP (Auto-Catch servidor)</option>
+                      <option value="sempre">Sempre</option>
+                      <option value="time">Time</option>
+                      <option value="rajada">Rajada</option>
+                      <option value="nao">Desligada</option>
+                    </select>
+                  </label>
+                  <label class="cfg-row"><span>Poção abaixo de (%)</span><input type="number" name="hpLimiarPct" min="10" max="95" step="1"></label>
+                  <label class="cfg-row"><span>Nota mín. Coleção</span><input type="number" name="colecaoNotaMin" min="1" max="5" step="0.1"></label>
+                  <label class="cfg-chk"><input type="checkbox" name="autoVenda"> <span>Auto Venda no Depot</span></label>
+                </div>
+
+                <div class="cfg-blk">
+                  <h3>Hunt & Equipe</h3>
+                  <label class="cfg-row"><span>Margem de nível</span><input type="number" name="margemNivel" min="0" max="100" step="1"></label>
+                  <label class="cfg-row"><span>Hunt acima do Pokémon</span><input type="number" name="huntAcimaPokemon" min="0" max="200" step="1"></label>
+                  <label class="cfg-row"><span>Máx. na equipe</span><input type="number" name="equipeMax" min="1" max="5" step="1"></label>
+                  <label class="cfg-chk"><input type="checkbox" name="gerirEquipe"> <span>Gerir equipe automaticamente</span></label>
+                  <label class="cfg-chk"><input type="checkbox" name="timeForte"> <span>Time Forte (1 de cada espécie)</span></label>
+                  <label class="cfg-chk"><input type="checkbox" name="evoluir"> <span>Evoluir equipe automaticamente</span></label>
+                </div>
+
+                <div class="cfg-blk">
+                  <h3>Rotinas Automáticas</h3>
+                  <label class="cfg-chk"><input type="checkbox" name="prey"> <span>Prey grátis diário</span></label>
+                  <label class="cfg-chk"><input type="checkbox" name="pvp"> <span>PvP Ranqueado automático</span></label>
+                  <label class="cfg-chk"><input type="checkbox" name="sacrificio"> <span>Sacrifício (+20% XP)</span></label>
+                  <label class="cfg-chk"><input type="checkbox" name="bosses"> <span>Bosses automáticos</span></label>
+                  <label class="cfg-chk"><input type="checkbox" name="raid"> <span>Inscrever na Raid semanal</span></label>
+                  <label class="cfg-chk"><input type="checkbox" name="topCatch"> <span>Rota Top Catch semanal</span></label>
+                </div>
+              </div>
+              <div class="cfg-foot">
+                <label class="cfg-chk"><input type="checkbox" id="cfg-salvar-env" checked> <span>Salvar também no arquivo <code>.env</code></span></label>
+                <div style="display:flex;align-items:center;gap:10px">
+                  <span class="mini" id="cfg-msg"></span>
+                  <button type="submit" class="btn pri">Aplicar configurações</button>
+                </div>
+              </div>
+            </form>
+          </section>
+
           <div class="g-2">
             <div class="col">
               <section class="card">
                 <h2>Aparência</h2>
                 <div class="mini">Escolha a paleta de cores do painel.</div>
                 <div id="temas" role="group" aria-label="Escolher cor do painel"></div>
+              </section>
+
+              <section class="card">
+                <h2>Extensão do Navegador (Modo Híbrido) <span class="chip" id="aj-ponte">—</span></h2>
+                <div class="mini">Permite jogar no <b>pokeidle.io/app</b> real com o bot rodando na mesma sessão única. Quando a aba fecha, o bot reassume em modo 24h em 6 s.</div>
+                <div class="mini" style="margin-top:6px">Pasta da extensão: <code>extensao/</code></div>
               </section>
 
               <section class="card">
@@ -1425,24 +1560,11 @@ function aplicarTema(k) {
 $('temas').addEventListener('click', (e) => { const b = e.target.closest('button[data-t]'); if (b) aplicarTema(b.dataset.t); });
 const cor = (nome) => getComputedStyle(document.documentElement).getPropertyValue('--' + nome).trim();
 
-// ---- estilo da cena: integrado (padrão) ou clássico ----
-let estiloCena = 'dark';
-try { if (localStorage.getItem('pk-cena') === 'pkm') estiloCena = 'pkm'; } catch {}
-function atualizarEstiloCena() {
-  $('palco-wrap').classList.toggle('classico', estiloCena === 'pkm');
-  $('btn-cena-estilo').textContent = estiloCena === 'pkm' ? 'Arena escura' : 'Arena clássica';
-}
 $('btn-avisos').onclick = () => {
   const f = $('faixa'), aberto = f.classList.toggle('aberto');
   $('btn-avisos').setAttribute('aria-expanded', String(aberto));
   $('btn-avisos').textContent = aberto ? 'Recolher' : 'Ver todos';
 };
-$('btn-cena-estilo').onclick = () => {
-  estiloCena = estiloCena === 'pkm' ? 'dark' : 'pkm';
-  try { localStorage.setItem('pk-cena', estiloCena); } catch {}
-  atualizarEstiloCena();
-};
-atualizarEstiloCena();
 
 // ---- listas & utilitários ----
 function linhaHp({ nome, extra, hp, mhp, classes = '', direita }) {
@@ -1655,7 +1777,8 @@ async function atualizar() {
     $('pilula-t').textContent = pm > 0 ? `Pausado há ${fmtMin(pm)}` : 'Pausado';
   } else {
     $('pilula').className = 'pill' + (s.conectado ? '' : ' off');
-    $('pilula-t').textContent = `${s.somenteLer ? 'Só leitura · ' : ''}${s.conectado ? 'Online' : 'Reconectando'} · ${tempo}`;
+    const via = s.modoConexao === 'navegador' ? 'Navegador · ' : s.modoConexao === 'navegador-aguardando' ? 'Aguardando aba · ' : '';
+    $('pilula-t').textContent = `${s.somenteLer ? 'Só leitura · ' : ''}${via}${s.conectado ? 'Online' : 'Reconectando'} · ${tempo}`;
   }
   atualizarBotaoPausa(!!s.pausado);
   $('side-tempo').textContent = tempo;
@@ -1758,6 +1881,151 @@ async function atualizar() {
   }).join('') : '<tr><td class="vazio" colspan="6">o primeiro dia aparece em até 1 min</td></tr>';
 
   mostrarBonus(s); mostrarExtras(s); mostrarGanhos(s); mostrarBosses(s); mostrarAvisos(s); mostrarAjustes(s); mostrarAlertas(s.alertas); mostrarSniper(s.sniperPk, s.orbs); amostrar(s);
+  mostrarDashboardExtra(s);
+}
+
+// ---- Indicativos do Dashboard + Pausa Seletiva + Configurações ao vivo ----
+function mostrarDashboardExtra(s) {
+  const chip = $('d-ponte-chip');
+  if (chip) {
+    if (s.modoConexao === 'navegador') { chip.className = 'chip on'; chip.textContent = '🟢 Navegador (Sessão compartilhada)'; }
+    else if (s.pausado) { chip.className = 'chip warn'; chip.textContent = '⏸ Pausado'; }
+    else if (s.conectado) { chip.className = 'chip accent'; chip.textContent = '🤖 Modo 24h (Segundo plano)'; }
+    else { chip.className = 'chip bad'; chip.textContent = 'Offline / Reconectando'; }
+  }
+  const ajP = $('aj-ponte');
+  if (ajP) {
+    ajP.className = s.modoConexao === 'navegador' ? 'chip on' : 'chip';
+    ajP.textContent = s.modoConexao === 'navegador' ? 'Conectada à aba' : 'Aguardando aba (bot em 24h)';
+  }
+
+  // Faixa de pausa seletiva
+  const man = s.manual ?? {};
+  const partes = [];
+  if (man.hunt) partes.push(`<span class="chip accent">Hunt fixa</span><button type="button" class="btn sm ghost" data-lib="hunt">Liberar</button>`);
+  if (man.equipeMin > 0) partes.push(`<span class="chip warn">Equipe manual (${man.equipeMin}m)</span><button type="button" class="btn sm ghost" data-lib="equipe">Liberar</button>`);
+  if (man.centroMin > 0) partes.push(`<span class="chip warn">No Centro (${man.centroMin}m)</span><button type="button" class="btn sm ghost" data-lib="centro">Liberar</button>`);
+  if (man.autoMin > 0) partes.push(`<span class="chip warn">Automações (${man.autoMin}m)</span><button type="button" class="btn sm ghost" data-lib="auto">Liberar</button>`);
+  const bar = $('d-manual-bar');
+  if (bar) {
+    bar.hidden = !partes.length;
+    if (partes.length) {
+      $('d-manual-itens').innerHTML = `<strong>✋ Pausa seletiva ativa:</strong> ${partes.join(' ')}`;
+      $('d-manual-itens').querySelectorAll('[data-lib]').forEach((b) => {
+        b.onclick = () => liberarManual(b.dataset.lib);
+      });
+    }
+  }
+
+  // KPI 5: Multiplicador de XP
+  const bx = s.extras?.bonusXp;
+  $('d-xp-mult').textContent = bx?.tr ? `${Number(bx.tr).toLocaleString('pt-BR', { maximumFractionDigits: 2 })}×` : '1,00×';
+  $('d-xp-mult-s').textContent = bx?.partes?.length ? `${bx.partes.length} buff${bx.partes.length > 1 ? 's' : ''} ativo${bx.partes.length > 1 ? 's' : ''}` : 'sem bônus extra';
+
+  // KPI 6: Sniper & Patrimônio
+  const cps = s.sniperPk?.compras ?? [];
+  const vend = cps.filter((x) => x.estado === 'vendido');
+  const lucro = vend.reduce((t, x) => t + (x.lucro ?? 0), 0);
+  $('d-sn-lucro').innerHTML = vend.length ? `${lucro > 0 ? '+' : ''}${n(lucro)} Gemas` : `Sniper: ${esc(s.sniperPk?.modo ?? '0')}`;
+  $('d-sn-lucro').className = 'kpi-v ' + (vend.length ? (lucro > 0 ? 'up' : lucro < 0 ? 'down' : '') : '');
+  const pat = s.extras?.patrimonio;
+  $('d-sn-pat').textContent = pat?.total ? `Patrimônio ~${c(pat.total)} ouro` : `${n(s.orbs ?? 0)} Gemas em caixa`;
+
+  // Grade de Indicativos Rápidos
+  const ex = s.extras ?? {};
+  const pvp = ex.pvp;
+  const dex = ex.pokedex;
+  const dexPct = dex?.total ? ((dex.capturadas / dex.total) * 100).toFixed(1) + '%' : '—';
+  const bss = ex.bosses;
+  const bssProntos = (bss?.equipe ?? []).filter((x) => x.pronto).length;
+  const inds = [
+    { l: 'PvP Ranqueado', v: pvp ? `${esc(pvp.tier ?? '—')} · ${n(pvp.pontos)} PR` : '—', s: pvp ? `${n(pvp.vitorias)}V / ${n(pvp.derrotas)}D · #${n(pvp.posicao)}` : 'sem dados' },
+    { l: 'Pokédex', v: dex ? `${n(dex.capturadas)} / ${n(dex.total ?? 1025)}` : '—', s: dex ? `${dexPct} · ${n(dex.abates)} abates` : '' },
+    { l: 'Pokémon na conta', v: n(s.totalPokemons ?? 0), s: `${s.equipe?.length ?? 0} na equipe · ${n(s.extras?.coroas ?? 0)} coroas` },
+    { l: 'Bosses Lendários', v: bss ? `${esc(bss.regiao)} (Nv ${n(bss.nivelMin)})` : '—', s: bss ? (bss.liberado ? `${bssProntos} prontos na equipe` : 'bloqueado por nível') : '' },
+    { l: 'Chocadeira & Casa', v: `${n(ex.chocadeira?.ovos ?? 0)}/${n(ex.chocadeira?.total ?? 0)} ovos`, s: ex.casa ? `Casa: ${n(ex.casa.emUso)}/${n(ex.casa.max)} slots` : '' },
+    { l: 'Passe & Top Catch', v: ex.passeDegrau != null ? `Passe degrau ${n(ex.passeDegrau)}` : 'Passe —', s: ex.topCatch ? `Top Catch: ${n(ex.topCatch.n)}/${n(ex.topCatch.m)}` : 'Top Catch inativo' },
+  ];
+  const grid = $('d-indicativos');
+  if (grid) grid.innerHTML = inds.map((i) => `<div class="dash-ind"><small>${i.l}</small><strong>${i.v}</strong><span>${i.s}</span></div>`).join('');
+}
+
+async function liberarManual(parte) {
+  try {
+    await fetch('/jogo/acao', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-painel': '1' },
+      body: JSON.stringify({ acao: 'manual.liberar', parte }),
+    });
+    atualizar();
+  } catch {}
+}
+if ($('d-manual-tudo')) $('d-manual-tudo').onclick = () => liberarManual('tudo');
+
+// ---- Configurações do Bot ao vivo (GET/POST /bot/config) ----
+async function carregarBotConfig() {
+  const f = $('cfg-form'); if (!f) return;
+  try {
+    const cfg = await (await fetch('/bot/config')).json();
+    for (const [k, v] of Object.entries(cfg)) {
+      const inp = f.elements[k]; if (!inp) continue;
+      if (inp.type === 'checkbox') inp.checked = !!v;
+      else inp.value = v;
+    }
+    if (f.elements.hpLimiarPct && cfg.hpLimiar != null) f.elements.hpLimiarPct.value = Math.round(cfg.hpLimiar * 100);
+  } catch {}
+}
+if ($('cfg-reload')) $('cfg-reload').onclick = carregarBotConfig;
+const CFG_PERFIL_IDEAL = {
+  somenteLer: false, modoCaptura: 'vip', margemNivel: 0, huntAcimaPokemon: 20, hpLimiar: 0.6,
+  gerirEquipe: true, equipeMax: 5, timeForte: false, evoluir: true,
+  autoVenda: true, colecaoNotaMin: 3.5, prey: true, pvp: true,
+  sacrificio: true, bosses: true, raid: true, topCatch: false,
+};
+if ($('cfg-ideal')) {
+  $('cfg-ideal').onclick = async () => {
+    const f = $('cfg-form'), msg = $('cfg-msg'); if (!f) return;
+    for (const [k, v] of Object.entries(CFG_PERFIL_IDEAL)) {
+      const inp = f.elements[k]; if (!inp) continue;
+      if (inp.type === 'checkbox') inp.checked = !!v; else inp.value = v;
+    }
+    if (f.elements.hpLimiarPct) f.elements.hpLimiarPct.value = Math.round(CFG_PERFIL_IDEAL.hpLimiar * 100);
+    msg.textContent = 'Aplicando padrão ideal…';
+    try {
+      const salvarEnv = !!$('cfg-salvar-env')?.checked;
+      const r = await fetch('/bot/config', { method: 'POST', headers: { 'content-type': 'application/json', 'x-painel': '1' }, body: JSON.stringify({ ...CFG_PERFIL_IDEAL, salvarEnv }) });
+      const j = await r.json().catch(() => null);
+      if (!r.ok || !j?.ok) throw new Error(j?.erro || 'HTTP ' + r.status);
+      msg.textContent = `⭐ Padrão ideal aplicado${salvarEnv ? ' e salvo no .env' : ''}!`;
+      atualizar();
+    } catch (err) { msg.textContent = 'Erro: ' + err.message; }
+  };
+}
+if ($('cfg-form')) {
+  $('cfg-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const f = e.currentTarget, msg = $('cfg-msg');
+    const body = { salvarEnv: !!$('cfg-salvar-env')?.checked };
+    for (const k of ['somenteLer', 'gerirEquipe', 'timeForte', 'evoluir', 'autoVenda', 'prey', 'pvp', 'sacrificio', 'bosses', 'raid', 'topCatch']) {
+      if (f.elements[k]) body[k] = f.elements[k].checked;
+    }
+    for (const k of ['margemNivel', 'huntAcimaPokemon', 'equipeMax', 'colecaoNotaMin']) {
+      if (f.elements[k]) body[k] = Number(f.elements[k].value);
+    }
+    if (f.elements.modoCaptura) body.modoCaptura = f.elements.modoCaptura.value;
+    if (f.elements.hpLimiarPct) body.hpLimiar = Math.round(Number(f.elements.hpLimiarPct.value)) / 100;
+    msg.textContent = 'Salvando…';
+    try {
+      const r = await fetch('/bot/config', { method: 'POST', headers: { 'content-type': 'application/json', 'x-painel': '1' }, body: JSON.stringify(body) });
+      const j = await r.json().catch(() => null);
+      if (!r.ok || !j?.ok) throw new Error(j?.erro || (r.status === 403 ? 'só pode alterar neste PC' : 'HTTP ' + r.status));
+      msg.textContent = j.mudancas?.length ? `Aplicado (${j.mudancas.length} ajuste${j.mudancas.length > 1 ? 's' : ''})${body.salvarEnv ? ' e salvo no .env' : ''}!` : 'Nenhuma alteração pendente.';
+      atualizar();
+    } catch (err) {
+      msg.textContent = 'Erro: ' + err.message;
+    }
+  });
+  carregarBotConfig();
 }
 
 // ---- sniper ----
@@ -2257,56 +2525,6 @@ function fundoMapa(ctx, W, H) {
 function quadro(t) {
   requestAnimationFrame(quadro);
   avatar(t); desenharBosses(t);
-  const cv = $('cena'), s = ultimoEstado; if (!cv || !s) return;
-  const dpr = window.devicePixelRatio || 1, W = cv.clientWidth, H = cv.clientHeight;
-  if (!W || !H) return;
-  if (cv.width !== Math.round(W * dpr) || cv.height !== Math.round(H * dpr)) { cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); }
-  const ctx = cv.getContext('2d'); ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.imageSmoothingEnabled = false;
-  ctx.clearRect(0, 0, W, H);
-  pedirMapaCena(s.mapaCena);
-  const comMapa = !s.noCentro && fundoMapa(ctx, W, H);
-
-  if (!comMapa && estiloCena !== 'pkm') {
-    // linha sutil de chão na arena escura
-    ctx.strokeStyle = 'rgba(255,255,255,0.06)'; ctx.lineWidth = 1;
-    const hy = Math.round(H * 0.56) + 0.5;
-    ctx.beginPath(); ctx.moveTo(0, hy); ctx.lineTo(W, hy); ctx.stroke();
-  }
-
-  if (s.pausado) {
-    ctx.fillStyle = cor('warn'); ctx.font = '600 14px Inter, system-ui'; ctx.textAlign = 'center';
-    ctx.fillText('Bot pausado — sessão liberada', W / 2, H / 2 - 8);
-    ctx.fillStyle = cor('sub'); ctx.font = '500 12.5px Inter, system-ui';
-    ctx.fillText('Clique em "Ligar bot" no topo para retomar o farm', W / 2, H / 2 + 14);
-    return;
-  }
-  if (s.noCentro) {
-    ctx.fillStyle = cor('sub'); ctx.font = '500 13.5px Inter, system-ui'; ctx.textAlign = 'center';
-    ctx.fillText('No Centro Pokémon, curando a equipe…', W / 2, H / 2);
-    return;
-  }
-  const eu = s.equipe.find((p) => p.ativo);
-  const escEu = H < 250 ? 2.2 : 2.9;
-  if (eu) desenhar(ctx, eu, 2, Math.max(76, W * 0.19), H * 0.68, escEu, t, { treme: levouDano('eu', eu.hp) });
-
-  const todos = [...s.campo].sort((a, b) => (a.morto - b.morto) || (b.shiny - a.shiny) || (a.slot ?? 0) - (b.slot ?? 0));
-  const baixo = H < 210, mobs = todos.slice(0, baixo ? (W < 420 ? 2 : 3) : 6).sort((a, b) => (a.slot ?? 0) - (b.slot ?? 0));
-  const area = { x: W * 0.42, w: W * 0.54 }, cols = baixo ? Math.max(1, mobs.length) : Math.min(3, Math.max(1, Math.ceil(mobs.length / 2))), linhas = Math.ceil(mobs.length / cols) || 1;
-  mobs.forEach((m, i) => {
-    const col = i % cols, l = Math.floor(i / cols);
-    const cx = area.x + (col + 0.5) * area.w / cols + (l % 2 ? area.w / cols / 5 : 0);
-    const chao = linhas > 1 ? H * 0.14 + (l + 1) * (H * 0.72 / linhas) - 18 : H * 0.68;
-    desenhar(ctx, m, 4, cx, chao, H < 260 ? 1.8 : 2.3, t, { compacto: linhas > 1 || baixo, morto: m.morto, treme: !m.morto && levouDano('m' + m.slot, m.hp), fase: i });
-  });
-  if (todos.length > mobs.length) {
-    ctx.fillStyle = estiloCena === 'pkm' ? '#12361a' : cor('sub');
-    ctx.font = '600 11px Inter, system-ui'; ctx.textAlign = 'right';
-    ctx.fillText(`+ ${todos.length - mobs.length} no campo`, W - 12, 18);
-  }
-  if (!mobs.length) {
-    ctx.fillStyle = cor('fraco'); ctx.font = '500 13px Inter, system-ui'; ctx.textAlign = 'center';
-    ctx.fillText('aguardando selvagens…', W * 0.68, H * 0.6);
-  }
 }
 requestAnimationFrame(quadro);
 

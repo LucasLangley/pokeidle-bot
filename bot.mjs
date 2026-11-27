@@ -15,11 +15,10 @@
 // e o bot então para, em vez de brigar pela sessão.
 
 import { readFileSync, existsSync, appendFileSync, writeFileSync, statSync, unlinkSync, mkdirSync, readdirSync } from 'node:fs';
-import { randomUUID } from 'node:crypto';
+import { randomUUID, timingSafeEqual, createHash } from 'node:crypto';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { timingSafeEqual } from 'node:crypto';
 import { networkInterfaces } from 'node:os';
 import * as REGUA from './regua-sniper.mjs';
 import { gzipSync } from 'node:zlib';
@@ -131,8 +130,8 @@ const CFG = {
   sacrificio: bool('SACRIFICIO', '1'),           // nota 3,5 até SACRIFICIO_NOTA_MAX vira pontos de +20% XP
   sacNotaMax: num('SACRIFICIO_NOTA_MAX', 5),     // nota >= isso fica guardada (pode valer Gemas no Mercado)
   sacResgatarPts: num('SACRIFICIO_RESGATAR_PTS', 1000), // resgata só no nível 5 (14 dias, o que rende mais por ponto)
-  equipeMax: num('EQUIPE_MAX', 1),               // só o ativo luta; reserva ocupa vaga e trava a captura no Depot
-  timeForte: bool('TIME_FORTE', '0'),            // 1 = equipe com o mais forte de cada espécie; o bot vende no Depot as capturas mais fracas
+  equipeMax: num('EQUIPE_MAX', 5),               // mantém 5/5 na equipe para PvP, Torneios e Bosses (ativo mais forte luta na hunt)
+  timeForte: bool('TIME_FORTE', '0'),            // 0 = Auto Venda nativa no servidor (ouro na hora, sem lotar Depot); 1 = venda manual em lotes no Depot
   vendaNotaMax: Math.min(3.5, num('VENDA_NOTA_MAX', 3.5)), // com TIME_FORTE só vai ao NPC nota abaixo disto (o Mercado aceita 3,5+)
   vendaLote: Math.max(1, num('VENDA_LOTE', 20)),  // com TIME_FORTE, só se o servidor não vender na hora: vai ao Centro ao juntar tantas
   vendaMaxMin: Math.max(1, num('VENDA_MAX_MIN', 60)), // ...ou depois de tantos minutos, se houver pelo menos uma
@@ -222,6 +221,15 @@ const S = {
   capturados: [],      // últimos capturados
   shinyVistos: new Set(), // slots de campo já avisados
   alertas: [],         // avisos de shiny (painel)
+  chat: [],            // últimas mensagens do chat do jogo (painel Modo Jogo)
+  chatFormatoLogado: false,
+  batalhaFeed: [],     // últimos eventos de batalha para o Modo Jogo
+  manual: { hunt: false, equipeAte: 0, centroAte: 0, autoAte: 0 }, // pausa seletiva por subsistema quando o dono age
+  ponte: null,         // ponte WebSocket local com a extensão do navegador (1 sessão só)
+  ponteWsAberta: false,
+  ponteTimers: null,
+  ponteReconectar: null,
+  enviosMin: [],       // orçamento compartilhado de envios (<= 45/min entre jogador e bot)
   maxEquipe: 5,
   mortes: [],         // timestamps de desmaio do nosso time
   ultimaTrocaHunt: 0,
@@ -290,10 +298,18 @@ const xpAtualDe = (e) => Number(e?.xp ?? 0);
 const progressoNivel = (e) => { const a = Number(e?.xpNivel ?? 0), b = Number(e?.xpProximo ?? 0), x = Number(e?.xp ?? 0); return b > a ? Math.max(0, Math.min(1, (x - a) / (b - a))) : 0; };
 const xpTotal = (L) => (L <= 1 ? 0 : Math.round((50 / 3) * (L ** 3 - 6 * L ** 2 + 17 * L - 12)));
 
-// ---------- envio com espaçamento (o servidor segura rajadas) ----------
+// ---------- envio com espaçamento (o servidor segura rajadas; <= 45/min compartilhado) ----------
+const conexaoAtiva = () => (!!(S.ponte?.aberta && S.ponteWsAberta)) || S.ws?.readyState === 1;
+const registrarEnvio = () => {
+  const agora = Date.now();
+  S.enviosMin.push(agora);
+  const lim = agora - 60_000;
+  while (S.enviosMin.length && S.enviosMin[0] < lim) S.enviosMin.shift();
+};
 const fila = [];
 let enviando = false;
 function enviar(obj, { forcar = false, urgente = false } = {}) {
+  if (S.pausado) return;
   if (CFG.somenteLer && !forcar) { log('(somente-ler) enviaria', JSON.stringify(obj)); return; }
   if (urgente) fila.unshift(obj); else fila.push(obj);
   if (!enviando) drenar();
@@ -301,9 +317,23 @@ function enviar(obj, { forcar = false, urgente = false } = {}) {
 async function drenar() {
   enviando = true;
   while (fila.length) {
+    if (S.pausado) { fila.length = 0; break; }
     if (Date.now() < (S.devagarAte ?? 0)) { await new Promise((r) => setTimeout(r, S.devagarAte - Date.now())); continue; }
+    const lim = Date.now() - 60_000;
+    while (S.enviosMin.length && S.enviosMin[0] < lim) S.enviosMin.shift();
+    if (S.enviosMin.length >= 45) {
+      const espera = Math.max(400, (S.enviosMin[0] + 60_500) - Date.now());
+      await new Promise((r) => setTimeout(r, Math.min(espera, 3000)));
+      continue;
+    }
     const o = fila.shift();
-    if (S.ws?.readyState === 1) S.ws.send(JSON.stringify(o));
+    if (S.ponte?.aberta && S.ponteWsAberta) {
+      registrarEnvio();
+      S.ponte.enviar({ t: 'ponte.enviar', msg: o });
+    } else if (S.ws?.readyState === 1) {
+      registrarEnvio();
+      S.ws.send(JSON.stringify(o));
+    }
     await new Promise((r) => setTimeout(r, 350));
   }
   enviando = false;
@@ -504,6 +534,7 @@ function huntAlvo() {
 function cuidarDaHunt() {
   if (S.eu?.boss?.arena || S.eu?.boss?.auto) return; // em boss: o servidor cuida
   if (Date.now() < (S.noDepotAte ?? 0)) return; // vendendo no Depot do Centro
+  if (S.eu?.noCentro && Date.now() < (S.manual?.centroAte ?? 0)) return; // dono foi ao Centro manualmente: não puxar de volta
   if (S.eu?.noCentro && !timeCaido()) { S.centroDesde ??= Date.now(); if (Date.now() - S.centroDesde > 60_000 && S.eu.huntSlug && Date.now() - (S.ultimaSaidaCentro ?? 0) > 30_000) { S.ultimaSaidaCentro = Date.now(); log('parado no Centro há mais de 1 min; voltando para a hunt'); enviar({ t: 'hunt.select', slug: S.eu.huntSlug }); } } else S.centroDesde = null;
   const agora = Date.now();
   if (timeCaido()) {
@@ -938,7 +969,7 @@ function hvGuardar(linhas) {
   return novas;
 }
 function cuidarDoHistorico() {
-  if (!S.eu || COLETA || S.ws?.readyState !== 1) return;
+  if (!S.eu || COLETA || !conexaoAtiva()) return;
   const agora = Date.now(); const F = (ACUM.histFundo ??= { pagina: 0, fim: false });
   if (!F.fim) {
     if (agora - (HV.ultimoFundo ?? 0) < 5_000 || (HV.esperando && agora - HV.esperando < 30_000)) return;
@@ -1527,7 +1558,7 @@ function pacoteAuto(a, patch) {
 
 function garantirAutomacoes() {
   const a = S.eu?.automation;
-  if (!a) return;
+  if (!a || Date.now() < (S.manual?.autoAte ?? 0)) return;
   // Auto Venda do Depot: vende ao NPC o capturado comum; o jogo nunca vende
   // shiny, lendário, mega, P5, inicial nem equipe (coleção padrão guarda P4+).
   if (CFG.timeForte && a.autoVendaDepot === true && Date.now() - (S.ultimoAutoVenda ?? 0) > 60_000) {
@@ -1670,6 +1701,43 @@ function vistaBatalha(ev) {
     Object.assign(x, { hp: 0, morto: true, fim: agora, visto: agora, nome: ev.nome ?? x.nome }); v.set(ev.slot, x);
   } else if (ev.k === 'fugiu') { for (const [k, x] of v) if (!x.morto) v.delete(k); }
 }
+function registrarFeedBatalha(tipo, texto, extra = {}) {
+  const item = { em: Date.now(), tipo, texto, ...extra };
+  S.batalhaFeed.unshift(item);
+  if (S.batalhaFeed.length > 40) S.batalhaFeed.length = 40;
+}
+function normalizarChatItem(x, canalPadrao = 'global') {
+  if (!x || typeof x !== 'object') return null;
+  const texto = String(x.texto ?? x.msg ?? x.text ?? x.mensagem ?? x.body ?? '').trim();
+  if (!texto) return null;
+  const nick = String(x.nick ?? x.autor ?? x.usuario ?? x.username ?? x.de ?? x.from ?? x.sender ?? x.nome ?? (x.sistema ? 'Sistema' : '')).trim() || 'Sistema';
+  const canal = String(x.canal ?? x.channel ?? x.sala ?? x.room ?? canalPadrao ?? 'global').toLowerCase();
+  const em = Number(x.em ?? x.ts ?? x.timestamp ?? (x.createdAt ? Date.parse(x.createdAt) : 0)) || Date.now();
+  const badge = x.badge ?? x.cargo ?? x.role ?? (x.vip ? 'VIP' : null) ?? null;
+  return { id: x.id ?? `${em}-${nick}-${texto.slice(0, 16)}`, canal, nick, texto, em, badge, sistema: !!(x.sistema || x.system || nick === 'Sistema') };
+}
+function aoChat(m) {
+  if (!S.chatFormatoLogado) {
+    S.chatFormatoLogado = true;
+    const amostra = Array.isArray(m.mensagens ?? m.msgs ?? m.historico ?? m.lista) ? (m.mensagens ?? m.msgs ?? m.historico ?? m.lista)[0] : m;
+    depurar({ t: 'chat(schema)', chavesTopo: Object.keys(m), chavesItem: amostra && typeof amostra === 'object' ? Object.keys(amostra) : null });
+  }
+  const lista = Array.isArray(m.mensagens) ? m.mensagens : Array.isArray(m.msgs) ? m.msgs : Array.isArray(m.historico) ? m.historico : Array.isArray(m.lista) ? m.lista : [m];
+  const canalPadrao = m.canal ?? m.channel ?? 'global';
+  const novos = [];
+  for (const raw of lista) {
+    const item = normalizarChatItem(raw, canalPadrao);
+    if (!item) continue;
+    if (S.chat.some((c) => c.id === item.id)) continue;
+    S.chat.push(item);
+    novos.push(item);
+  }
+  if (S.chat.length > 120) S.chat.splice(0, S.chat.length - 120);
+  if (novos.length) {
+    const payload = `event: chat\ndata: ${JSON.stringify(novos)}\n\n`;
+    for (const r of SSE) { try { r.write(payload); } catch {} }
+  }
+}
 function aoEvento(ev) {
   vistaBatalha(ev);
   if (Date.now() < (S.depurarAte ?? 0) && !['dano','golpe','abate','bola','xp','spawn','cura','pocao','morteSelvagem','ataque'].includes(ev.k)) log('[depurar ev]', JSON.stringify(ev).slice(0, 300));
@@ -1680,19 +1748,24 @@ function aoEvento(ev) {
     case 'morte':
       if (ev.quem === 'selvagem') {
         S.stats.abates++; ACUM.abates++; hoje().abates++; huntSessao().abates++;
+        const dropNomes = [];
         for (const d of ev.drops ?? []) {
           const nome = d.nome ?? `item ${d.itemId}`;
-          S.drops.set(nome, (S.drops.get(nome) ?? 0) + (Number(d.qtd) || 1));
-          ACUM.drops[nome] = (ACUM.drops[nome] ?? 0) + (Number(d.qtd) || 1);
-          hoje().drops[nome] = (hoje().drops[nome] ?? 0) + (Number(d.qtd) || 1);
+          const qtd = Number(d.qtd) || 1;
+          dropNomes.push(qtd > 1 ? `${qtd}× ${nome}` : nome);
+          S.drops.set(nome, (S.drops.get(nome) ?? 0) + qtd);
+          ACUM.drops[nome] = (ACUM.drops[nome] ?? 0) + qtd;
+          hoje().drops[nome] = (hoje().drops[nome] ?? 0) + qtd;
           if (!/potion|ball/i.test(nome) && !S.dropsVistos.has(nome)) { S.dropsVistos.add(nome); log(`drop novo: ${nome}`); }
         }
-      } else { S.stats.desmaios++; ACUM.desmaios++; hoje().desmaios++; S.mortes.push(Date.now()); (S.mortesHunt ??= []).push([Date.now(), S.eu?.huntSlug]); S.mortesHunt = S.mortesHunt.slice(-30); ACUM.mortesRecentes = S.mortes.slice(-20); log(`desmaiou! (${S.eu?.huntSlug ?? '?'})`); }
+        if (dropNomes.length || ev.nome) registrarFeedBatalha(dropNomes.length ? 'drop' : 'abate', `${ev.nome ?? 'Selvagem'} derrotado${dropNomes.length ? ` · +${dropNomes.join(', ')}` : ''}`);
+      } else { S.stats.desmaios++; ACUM.desmaios++; hoje().desmaios++; S.mortes.push(Date.now()); (S.mortesHunt ??= []).push([Date.now(), S.eu?.huntSlug]); S.mortesHunt = S.mortesHunt.slice(-30); ACUM.mortesRecentes = S.mortes.slice(-20); log(`desmaiou! (${S.eu?.huntSlug ?? '?'})`); registrarFeedBatalha('desmaio', `Seu Pokémon desmaiou em ${S.eu?.huntSlug ?? 'hunt'}`); }
       break;
     case 'capturado':
       S.stats.capturas++; ACUM.capturas++; hoje().capturas++; if (ev.pokemon?.shiny) { ACUM.shinyCapturados++; hoje().shiny++; }
       S.capturados.unshift({ em: Date.now(), ...ev.pokemon }); S.capturados.length = Math.min(S.capturados.length, 30);
       log(`capturou ${ev.pokemon?.shiny ? '✨ ' : ''}${ev.pokemon?.nome} Nv${ev.pokemon?.level} Q${ev.pokemon?.quality}${ev.vendidoAuto ? ` · Auto Venda ${Number(ev.vendidoAuto).toLocaleString('pt-BR')} de ouro` : ''}`);
+      registrarFeedBatalha(ev.pokemon?.shiny ? 'shiny' : 'captura', `Capturou ${ev.pokemon?.shiny ? '✨ ' : ''}${ev.pokemon?.nome} Nv${ev.pokemon?.level} (Q${ev.pokemon?.quality ?? '?'}${ev.pokemon?.potencia ? ` · P${ev.pokemon.potencia}` : ''})`);
       if (Number(ev.vendidoAuto) > 0) { S.ultimoVendidoAuto = { valor: Number(ev.vendidoAuto), em: Date.now() }; registrarVenda(Number(ev.vendidoAuto), 'auto'); }
       if (ev.pokemon?.shiny) {
         const p = precoShiny(ev.pokemon.nome);
@@ -1702,6 +1775,7 @@ function aoEvento(ev) {
       break;
     case 'fugiu':
       if (ev.shiny) { ACUM.shinyEscapou = (ACUM.shinyEscapou ?? 0) + 1; hoje().shinyEscapou = (hoje().shinyEscapou ?? 0) + 1;
+        registrarFeedBatalha('shiny', `✨ Shiny ${ev.nome ?? '?'} Nv${ev.level ?? '?'} escapou!`);
         avisarShiny('escapou', `✨ Shiny escapou: ${ev.nome ?? '?'} Nv${ev.level ?? '?'}`, `A bola${S.ultimaBola ? ' ' + ({ 1: 'Poke', 2: 'Great', 3: 'Super', 4: 'Ultra', 5: 'Beast' }[S.ultimaBola] ?? S.ultimaBola) : ''} não segurou.`, { nome: ev.nome, level: ev.level }); }
       break;
     case 'bola': {
@@ -1711,14 +1785,14 @@ function aoEvento(ev) {
       const pb = (ACUM.porBola[ev.ballId ?? '?'] ??= { lancadas: 0, sucesso: 0 }); pb.lancadas++; if (ev.sucesso) pb.sucesso++;
       break;
     }
-    case 'bossEntrou': log(`boss: entrou em ${ev.nome} Nv${ev.nivel ?? '?'}${ev.auto ? ' (auto)' : ''}`); break;
-    case 'bossMorto': { const d = (ev.drops ?? []).map((x) => `${x.qtd ?? 1}× ${x.nome ?? x.itemId}`).join(', '); log(`boss: venceu ${ev.nome}${d ? ` — drops: ${d}` : ''}`); for (const x of ev.drops ?? []) { const n = x.nome ?? `item ${x.itemId}`; ACUM.drops[n] = (ACUM.drops[n] ?? 0) + (Number(x.qtd) || 1); } break; }
-    case 'bossPerdeu': log(`boss: perdeu para ${ev.nome}`); break;
-    case 'levelup': log('level up:', ev.quem ?? ''); if (ev.quem === 'treinador' && ev.level % 50 === 0) aviso('nivel', `Treinador chegou ao Nv ${ev.level}`, '', true); break;
-    case 'evolucao': log('evolução!', JSON.stringify(ev).slice(0, 160)); break;
+    case 'bossEntrou': log(`boss: entrou em ${ev.nome} Nv${ev.nivel ?? '?'}${ev.auto ? ' (auto)' : ''}`); registrarFeedBatalha('boss', `Entrou no Boss ${ev.nome} Nv${ev.nivel ?? '?'}`); break;
+    case 'bossMorto': { const d = (ev.drops ?? []).map((x) => `${x.qtd ?? 1}× ${x.nome ?? x.itemId}`).join(', '); log(`boss: venceu ${ev.nome}${d ? ` — drops: ${d}` : ''}`); registrarFeedBatalha('boss', `Venceu Boss ${ev.nome}${d ? ` · ${d}` : ''}`); for (const x of ev.drops ?? []) { const n = x.nome ?? `item ${x.itemId}`; ACUM.drops[n] = (ACUM.drops[n] ?? 0) + (Number(x.qtd) || 1); } break; }
+    case 'bossPerdeu': log(`boss: perdeu para ${ev.nome}`); registrarFeedBatalha('desmaio', `Perdeu para Boss ${ev.nome}`); break;
+    case 'levelup': log('level up:', ev.quem ?? ''); registrarFeedBatalha('levelup', `Level up! ${ev.quem === 'treinador' ? `Treinador Nv ${ev.level ?? ''}` : (ev.nome ?? ev.quem ?? 'Pokémon')}`); if (ev.quem === 'treinador' && ev.level % 50 === 0) aviso('nivel', `Treinador chegou ao Nv ${ev.level}`, '', true); break;
+    case 'evolucao': log('evolução!', JSON.stringify(ev).slice(0, 160)); registrarFeedBatalha('levelup', `Evolução: ${ev.de ?? ''} → ${ev.nome ?? ''}`); break;
     case 'hunt': if (ev.trocaLivreEm) S.eu.trocaLivreEm = ev.trocaLivreEm; break;
     case 'autoHuntSemItens': log('sem itens para a automação — vai comprar'); S.ultimaCompra = 0; break;
-    case 'centro': log('foi ao Centro:', ev.motivo ?? ''); break;
+    case 'centro': log('foi ao Centro:', ev.motivo ?? ''); registrarFeedBatalha('info', `Centro Pokémon${ev.motivo ? `: ${ev.motivo}` : ''}`); break;
     case 'venda': { // venda ao NPC (Depot); a da Auto Venda já veio no 'capturado'
       const v = Number(ev.ganho) || 0; const u = S.ultimoVendidoAuto;
       if (!(u && u.valor === v && Date.now() - u.em < 3000)) registrarVenda(v, 'npc');
@@ -1818,6 +1892,7 @@ function aoMensagem(m) {
     case 'pvp': guardarTorneio('pvp', m); aoPvp(m); break;
     case 'campo.init': case 'campo': aplicarCampo(m); break;
     case 'batalha': for (const ev of m.ev ?? []) aoEvento(ev); break;
+    case 'chat': try { aoChat(m); } catch (e) { logErro('chat', e); } break;
     case 'sessao.renovada': if (m.token) { CFG.token = m.token; salvarToken(m.token); } break;
     case 'erro':
       log('erro do servidor:', m.chave ?? m.msg ?? JSON.stringify(m).slice(0, 200));
@@ -1834,30 +1909,40 @@ function pausarBot(pausar) {
     S.pausado = true;
     S.pausadoEm = Date.now();
     clearTimeout(S.reconectarTimer); S.reconectarTimer = null;
+    clearTimeout(S.ponteReconectar); S.ponteReconectar = null;
     clearTimeout(S.alarmeQueda); S.alarmeQueda = null; S.avisouQueda = false;
     fila.length = 0;
-    S.welcome = false;
-    S.offDesde ??= Date.now();
-    if (S.ws && (S.ws.readyState === 0 || S.ws.readyState === 1)) {
-      try { S.ws.close(1000, 'pausado pelo painel'); } catch {}
+    if (!S.ponte?.aberta) {
+      S.welcome = false;
+      S.offDesde ??= Date.now();
+      if (S.ws && (S.ws.readyState === 0 || S.ws.readyState === 1)) {
+        try { S.ws.close(1000, 'pausado pelo painel'); } catch {}
+      }
+      log('bot pausado pelo painel (sessão liberada)');
+      aviso('pausa', 'Bot pausado pelo painel', 'Você pode abrir o jogo no navegador normalmente.');
+    } else {
+      log('bot pausado em modo navegador (só observando — nenhuma ação será enviada)');
     }
-    log('bot pausado pelo painel (sessão liberada)');
-    aviso('pausa', 'Bot pausado pelo painel', 'Você pode abrir o jogo no navegador normalmente.');
     return { ok: true, pausado: true, pausadoEm: S.pausadoEm };
   }
   S.pausado = false;
   S.pausadoEm = null;
   S.tentativas = 0;
   clearTimeout(S.reconectarTimer); S.reconectarTimer = null;
+  clearTimeout(S.ponteReconectar); S.ponteReconectar = null;
   try { if (existsSync(ARQ_PAUSA)) unlinkSync(ARQ_PAUSA); } catch {}
-  log('bot ligado pelo painel; conectando…');
-  aviso('voltou', 'Bot ligado pelo painel');
-  conectar();
+  if (S.ponte?.aberta) {
+    log('bot religado sobre a sessão do navegador');
+  } else {
+    log('bot ligado pelo painel; conectando…');
+    aviso('voltou', 'Bot ligado pelo painel');
+    conectar();
+  }
   return { ok: true, pausado: false, pausadoEm: null };
 }
 
 function conectar() {
-  if (S.parar || S.pausado) return;
+  if (S.parar || S.pausado || S.ponte?.aberta) return;
   if (S.ws && (S.ws.readyState === 0 || S.ws.readyState === 1)) return;
   const url = `wss://${CFG.host}`;
   let ws;
@@ -1889,16 +1974,24 @@ function conectar() {
   ws.onerror = (e) => log('erro de socket:', e?.message ?? '');
   ws.onclose = async (ev) => {
     clearInterval(ping); clearInterval(watchdog); clearInterval(loop); clearInterval(rel); clearInterval(capt);
+    if (S.ponte?.aberta) {
+      log(`socket 24h encerrado (${ev.code}) — sessão entregue ao navegador`);
+      return;
+    }
     S.welcome = false;
     S.offDesde ??= Date.now();
     log(`desconectado (código ${ev.code}${ev.reason ? `, ${ev.reason}` : ''})`);
     if (S.pausado || S.parar) return;
     if (ev.code === 4001) {
-      log(`sessão tomada por outra conexão (o jogo foi aberto em outro lugar). Pausando por ${CFG.pausaHoras} h — apague o arquivo PAUSADO para voltar antes.`);
-      try { writeFileSync(ARQ_PAUSA, new Date().toISOString()); } catch {}
-      S.parar = true;
-      await Promise.race([aviso('caiu', 'Bot pausado: o jogo foi aberto em outro lugar', `Volta sozinho em ${CFG.pausaHoras} h, ou apague o arquivo PAUSADO.`, true), new Promise((r) => setTimeout(r, 5000))]);
-      process.exit(0);
+      log('sessão tomada por outra conexão (4001): entrando em pausa sem desligar o painel — recarregue a aba com a extensão ou clique em "Ligar bot" no painel.');
+      S.pausado = true;
+      S.pausadoPor4001 = true;
+      S.pausadoEm = Date.now();
+      clearTimeout(S.reconectarTimer); S.reconectarTimer = null;
+      clearTimeout(S.alarmeQueda); S.alarmeQueda = null; S.avisouQueda = false;
+      fila.length = 0;
+      aviso('pausa', 'Bot pausado (sessão aberta em outro lugar)', 'O painel continua no ar: dê F5 no jogo com a extensão ou clique em "Ligar bot".');
+      return;
     }
     if (ev.code === 4003) { log('servidor recusou a conexão (bloqueio). Parando.'); S.parar = true;
       await Promise.race([aviso('caiu', 'Bot parado: o servidor recusou a conexão', '', true), new Promise((r) => setTimeout(r, 5000))]); process.exit(1); }
@@ -2104,7 +2197,7 @@ function cuidarDaVenda() {
   venderNoDepot(vendaveisTimeForte().slice(0, 60), 'venda dos fracos');
 }
 function cuidarDaEquipe() {
-  if (!CFG.gerirEquipe || !S.eu || S.equipePendente || Date.now() - (S.ultimaEquipe ?? 0) < 12_000) return;
+  if (!CFG.gerirEquipe || !S.eu || S.equipePendente || Date.now() < (S.manual?.equipeAte ?? 0) || Date.now() - (S.ultimaEquipe ?? 0) < 12_000) return;
   const max = CFG.timeForte ? S.maxEquipe ?? 5 : Math.min(S.maxEquipe ?? 5, Math.max(1, CFG.equipeMax));
   const todos = [...S.pokemons.values()].filter((p) => !S.vendendo?.has(p.id));
   const ordenados = todos.filter((p) => podeUsar(p) && !p.shiny).sort((a, b) => (b.poder ?? 0) - (a.poder ?? 0));
@@ -2159,7 +2252,7 @@ const EVO_RAMIFICADAS = {"25":[{"para":26,"nivel":80},{"para":4026,"nivel":43100
 const tentativasEvo = new Set();
 let cotacaoPedra = null; // { seq, itemId, nome }
 function cuidarDaEvolucao() {
-  if (!CFG.evoluir || !S.eu || !ESPECIES.size || Date.now() - (S.ultimaEvo ?? 0) < 30_000) return;
+  if (!CFG.evoluir || !S.eu || !ESPECIES.size || Date.now() < (S.manual?.equipeAte ?? 0) || Date.now() - (S.ultimaEvo ?? 0) < 30_000) return;
   if (cotacaoPedra && Date.now() - cotacaoPedra.em > 30_000) cotacaoPedra = null; // cotação sem resposta
   const equipeAtual = [...S.pokemons.values()].filter((p) => p.slot != null && !p.shiny && (!CFG.timeForte || p.id === S.eu.activeId)).sort((a, b) => (b.poder ?? 0) - (a.poder ?? 0));
   for (const p of equipeAtual) {
@@ -2453,7 +2546,7 @@ function escreverHistorico() {
 function salvarAcum() {
   const agora = Date.now();
   const seg = Math.round((agora - acumTick) / 1000);
-  if (S.ws?.readyState === 1) { ACUM.segundosOnline += seg; hoje().segundosOnline += seg; }
+  if (conexaoAtiva()) { ACUM.segundosOnline += seg; hoje().segundosOnline += seg; }
   acumTick = agora;
   if (S.eu?.level != null) { const d = hoje(); d.nivelIni ??= S.eu.level; d.nivelFim = S.eu.level; d.ouroIni ??= S.eu.gold ?? 0; d.ouroFim = S.eu.gold ?? 0; }
   contaDoDia(); resumoDeOntem();
@@ -2501,7 +2594,7 @@ function avisarCelular(tipo, titulo, texto) {
 const PEDIDO_POKEMON = { tipo: 'pokemon', busca: '', ordem: 'recentes', criterios: [], elementos: [], tiposUnidos: true, categoria: '', soShiny: false, soP5: false, soMega: false, soLendario: false, soTmElemental: false, soTmAoe: false, semOutland: false, pagina: 0, especieId: 0 };
 let COLETA = null;
 function coletarMercado(motivo = 'manual') {
-  if (COLETA || S.ws?.readyState !== 1) return false;
+  if (COLETA || !conexaoAtiva()) return false;
   COLETA = { inicio: new Date().toISOString(), motivo, respostas: [] };
   let seq = 1;
   const pedidos = [{ t: 'market.medias' }];
@@ -2562,12 +2655,21 @@ function instantaneo() {
   const xpAgora = e.level ? xpAtualDe(e) : 0;
   const hunt = S.hunts.find((h) => h.slug === e.huntSlug);
   return {
-    agora: Date.now(), conectado: S.ws?.readyState === 1, pausado: !!S.pausado, pausadoEm: S.pausadoEm ?? null, somenteLer: CFG.somenteLer,
+    agora: Date.now(), conectado: conexaoAtiva(), modoConexao: S.ponte?.aberta ? (S.ponteWsAberta ? 'navegador' : 'navegador-aguardando') : (S.ws?.readyState === 1 ? 'headless' : 'offline'), pausado: !!S.pausado, pausadoEm: S.pausadoEm ?? null, somenteLer: CFG.somenteLer,
     nick: CFG.nick, nivel: e.level, xpNivel: e.xpNivel, xpProximo: e.xpProximo, xp: e.xp, progresso: progressoNivel(e), ouro: e.gold, diamantes: e.diamonds, orbs: e.orbs,
-    hunt: hunt ? { nome: hunt.nome, nivel: hunt.nivel, area: hunt.area } : null, noCentro: !!e.noCentro, outlandTier: e.outlandTier,
+    hunt: hunt ? { slug: hunt.slug, nome: hunt.nome, nivel: hunt.nivel, area: hunt.area, manual: !!CFG.huntFixa, pendente: S.huntPendente ? { slug: S.huntPendente.slug, nome: S.hunts.find((h) => h.slug === S.huntPendente.slug)?.nome ?? S.huntPendente.slug } : null } : null, noCentro: !!e.noCentro, outlandTier: e.outlandTier,
     xph: Math.round((xpAgora - (S.stats.xp0 ?? xpAgora)) / horas), ouroh: Math.round(((e.gold ?? 0) - (S.stats.ouro0 ?? 0) - (S.stats.ouroExtra ?? 0)) / horas), ouroExtra: S.stats.ouroExtra ?? 0,
     stats: S.stats, minutos: Math.round(onlineMs() / 60000), sniperPk: snPainel(), mapaCena: S.campoInit?.mapa ?? null,
-    equipe: equipe().sort((a, b) => a.slot - b.slot).map((p) => ({ nome: p.nome, nv: p.level, hp: p.hp, mhp: p.maxHp, shiny: p.shiny, q: p.quality, p: p.potencia, nota: p.nota, ativo: p.id === e.activeId, lt: (p.shiny && p.lookShiny) || p.looktype || ESPECIES.get(p.speciesId)?.looktype || LOOK_POR_NOME.get(p.nome) || null })), // mega não está no catálogo de espécies: o looktype vem do próprio pokemon (Mega Charizard Y = 80006)
+    maxEquipe: S.maxEquipe ?? 5,
+    equipe: equipe().sort((a, b) => a.slot - b.slot).map((p) => ({ id: p.id, slot: p.slot, speciesId: p.speciesId, nome: p.nome, nv: p.level, hp: p.hp, mhp: p.maxHp, xpNivel: p.xpNivel ?? 0, xpProximo: p.xpProximo ?? 0, poder: p.poder ?? 0, tipos: p.tipos ?? [], shiny: p.shiny, q: p.quality, p: p.potencia, nota: p.nota, ativo: p.id === e.activeId, tmElemental: p.tmElemental ?? null, tmAoe: p.tmAoe ?? null, heldItemId: p.heldItemId ?? null, lt: (p.shiny && p.lookShiny) || p.looktype || ESPECIES.get(p.speciesId)?.looktype || LOOK_POR_NOME.get(p.nome) || null })), // mega não está no catálogo de espécies: o looktype vem do próprio pokemon (Mega Charizard Y = 80006)
+    bolasCat: (S.bolas ?? []).map((b) => ({ id: b.id, nome: b.nome, catchRate: b.catchRate, preco: b.priceGold, compravel: !!b.compravel })),
+    batalhaFeed: S.batalhaFeed.slice(0, 25),
+    manual: {
+      hunt: !!(CFG.huntFixa || S.manual?.hunt),
+      equipeMin: Math.max(0, Math.ceil(((S.manual?.equipeAte ?? 0) - Date.now()) / 60000)),
+      centroMin: Math.max(0, Math.ceil(((S.manual?.centroAte ?? 0) - Date.now()) / 60000)),
+      autoMin: Math.max(0, Math.ceil(((S.manual?.autoAte ?? 0) - Date.now()) / 60000)),
+    },
     bonus: (() => {
       const l = e.loja ?? {}; const agora = Date.now(); const min = (ate) => Math.max(0, Math.round(((Number(ate) || 0) - agora) / 60000));
       return {
@@ -2665,14 +2767,489 @@ function extrasPainel(e) {
   };
 }
 
+function nomeItemDe(id) {
+  if (id == null) return null;
+  for (const [nome, iid] of ITEM_POR_NOME) if (iid === id) return nome;
+  return `Item ${id}`;
+}
+function dadosDepot() {
+  const e = S.eu ?? {};
+  const travados = new Set(e.automation?.pokemonTravado ?? []);
+  const lista = [...S.pokemons.values()].map((p) => {
+    const esp = ESPECIES.get(p.speciesId);
+    const evo = esp?.evolvesToId ? ESPECIES.get(esp.evolvesToId) : null;
+    const ram = EVO_RAMIFICADAS[p.speciesId]?.map((o) => ({ para: o.para, nome: ESPECIES.get(o.para)?.nome ?? `#${o.para}`, nivel: o.nivel })) ?? null;
+    return {
+      id: p.id, speciesId: p.speciesId, nome: p.nome,
+      lt: (p.shiny && p.lookShiny) || p.looktype || esp?.looktype || LOOK_POR_NOME.get(p.nome) || null,
+      tipos: (p.tipos?.length ? p.tipos : [esp?.type1, esp?.type2]).filter(Boolean),
+      level: p.level ?? 1, xpNivel: p.xpNivel ?? 0, xpProximo: p.xpProximo ?? 0,
+      hp: p.hp ?? 0, maxHp: p.maxHp ?? 1, poder: p.poder ?? 0,
+      quality: p.quality ?? null, potencia: p.potencia ?? null, nota: p.nota ?? null,
+      shiny: !!p.shiny, starter: !!p.starter, legendary: !!p.legendary, mega: !!p.mega,
+      slot: p.slot ?? null, ativo: p.id === e.activeId, podeUsar: podeUsar(p),
+      travado: travados.has(p.id), doSniper: doSniper(p), capturadoPorMim: capturadoPorMim(p),
+      ivs: p.ivs ?? null, stats: p.stats ?? null, refino: p.refino ?? null, refinoTotal: p.refinoTotal ?? 0,
+      tmElemental: p.tmElemental ?? null, tmAoe: p.tmAoe ?? null,
+      heldItemId: p.heldItemId ?? null, heldItemNome: nomeItemDe(p.heldItemId),
+      rarity: esp?.rarity ?? null, bst: esp?.bst ?? null,
+      evolvesToId: esp?.evolvesToId ?? null, evolvesToNome: evo?.nome ?? null, evolveLevel: esp?.evolveLevel ?? null,
+      evoRamificadas: ram, caughtAt: p.caughtAt ?? null, caughtBy: p.caughtBy ?? null,
+    };
+  }).sort((a, b) => (b.ativo - a.ativo) || ((b.slot != null) - (a.slot != null)) || ((a.slot ?? 99) - (b.slot ?? 99)) || (b.poder - a.poder));
+  return {
+    total: lista.length, maxEquipe: S.maxEquipe ?? 5, activeId: e.activeId ?? null,
+    treinadorNivel: e.level ?? 1, noCentro: !!e.noCentro,
+    pokemons: lista,
+  };
+}
+function dadosPokedex() {
+  const dex = S.eu?.pokedex ?? {};
+  const spawnsPorEsp = new Map();
+  for (const h of S.hunts) {
+    for (const sp of h.especies ?? []) {
+      const id = Number(sp.pokeId);
+      let arr = spawnsPorEsp.get(id);
+      if (!arr) { arr = []; spawnsPorEsp.set(id, arr); }
+      if (arr.length < 4) arr.push({ slug: h.slug, nome: h.nome, area: h.area, nivel: h.nivel });
+    }
+  }
+  const especies = [...ESPECIES.entries()].sort((a, b) => a[0] - b[0]).map(([id, esp]) => {
+    const d = dex[id] ?? dex[String(id)] ?? null;
+    const evo = esp.evolvesToId ? ESPECIES.get(esp.evolvesToId) : null;
+    return {
+      id, nome: esp.nome, type1: esp.type1 ?? null, type2: esp.type2 ?? null,
+      lt: esp.looktype ?? null, bst: esp.bst ?? 0, rarity: esp.rarity ?? null,
+      evolvesToId: esp.evolvesToId ?? null, evolvesToNome: evo?.nome ?? null, evolveLevel: esp.evolveLevel ?? null,
+      k: d?.k ?? 0, c: d?.c ?? 0, hunts: spawnsPorEsp.get(id) ?? [],
+    };
+  });
+  const base1025 = especies.filter((x) => x.id <= 1025);
+  return {
+    capturadas: especies.filter((x) => x.c > 0).length,
+    vistas: especies.filter((x) => x.k > 0 || x.c > 0).length,
+    totalBase: base1025.length,
+    totalCatalogo: especies.length,
+    abates: especies.reduce((t, x) => t + x.k, 0),
+    especies,
+  };
+}
+function dadosHunts() {
+  const e = S.eu ?? {};
+  const lv = e.level ?? 1;
+  const pk = S.pokemons.get(e.activeId);
+  const tetoPk = pk?.level ? pk.level + CFG.huntAcimaPokemon : Infinity;
+  const teto = Math.min(lv - CFG.margemNivel, tetoPk);
+  const hunts = S.hunts.map((h) => ({
+    slug: h.slug, nome: h.nome, area: h.area, nivel: h.nivel, totalSpawns: h.totalSpawns ?? 0,
+    liberada: (h.nivel ?? 0) <= lv,
+    tipoNota: pk && S.tabelaTipos && ESPECIES.size ? +notaDaHunt(h, pk).toFixed(2) : null,
+    especies: (h.especies ?? []).slice(0, 6).map((sp) => {
+      const esp = ESPECIES.get(Number(sp.pokeId));
+      return { id: Number(sp.pokeId), nome: esp?.nome ?? `#${sp.pokeId}`, lt: esp?.looktype ?? null, pontos: sp.pontos ?? 1 };
+    }),
+  }));
+  return {
+    atual: e.huntSlug ?? null, manual: !!CFG.huntFixa, huntFixa: CFG.huntFixa || null,
+    pendente: S.huntPendente ? { slug: S.huntPendente.slug, nome: S.hunts.find((h) => h.slug === S.huntPendente.slug)?.nome ?? S.huntPendente.slug } : null,
+    nivelTreinador: lv, ativoNome: pk?.nome ?? null, ativoNivel: pk?.level ?? null,
+    teto, regioesAtivas: regioesAtivas(), hunts,
+  };
+}
+function dadosLoja() {
+  const e = S.eu ?? {};
+  let extras = [];
+  try {
+    const wc = JSON.parse(readFileSync(join(AQUI, 'mercado', 'welcome-catalogos.json'), 'utf8'));
+    extras = (wc.itensCompraveis ?? []).map((x) => ({ id: x.itemId, nome: x.nome, preco: x.preco, kind: 'item', qtd: e.items?.[x.itemId] ?? 0, icone: ICONES_ITEM[x.itemId] ?? null }));
+  } catch {}
+  const NOMES_P = { 200: 'Small Potion', 201: 'Great Potion', 202: 'Ultra Potion', 203: 'Hyper Potion', 204: 'Ultimate Potion', 205: 'Revive' };
+  const pocoes = [...POCOES.map((p) => ({ id: p.id, nome: NOMES_P[p.id] ?? nomeItemDe(p.id), cura: p.cura, preco: p.preco, kind: 'item', qtd: e.items?.[p.id] ?? 0, icone: ICONES_ITEM[p.id] ?? null })),
+    { id: REVIVE.id, nome: NOMES_P[REVIVE.id], cura: null, preco: REVIVE.preco, kind: 'item', qtd: e.items?.[REVIVE.id] ?? 0, icone: ICONES_ITEM[REVIVE.id] ?? null }];
+  const bolas = (S.bolas ?? []).filter((b) => b.compravel !== false).map((b) => ({ id: b.id, nome: b.nome, catchRate: b.catchRate, preco: b.priceGold, kind: 'ball', qtd: e.balls?.[b.id] ?? 0 }));
+  return { ouro: e.gold ?? 0, diamantes: e.diamonds ?? 0, orbs: e.orbs ?? 0, bolas, pocoes, extras };
+}
+function executarAcaoJogo(body) {
+  if (!body || typeof body !== 'object') return { ok: false, erro: 'requisição inválida' };
+  const acao = String(body.acao ?? '');
+  if (acao === 'manual.liberar') {
+    const parte = String(body.parte ?? 'tudo');
+    if (parte === 'hunt' || parte === 'tudo') { CFG.huntFixa = ''; S.manual.hunt = false; S.huntPendente = null; }
+    if (parte === 'equipe' || parte === 'tudo') S.manual.equipeAte = 0;
+    if (parte === 'centro' || parte === 'tudo') S.manual.centroAte = 0;
+    if (parte === 'auto' || parte === 'tudo') S.manual.autoAte = 0;
+    log(`controle manual liberado (${parte})`);
+    return { ok: true, msg: `Controle (${parte}) devolvido ao bot` };
+  }
+  if (S.pausado) return { ok: false, erro: 'Bot pausado — ligue o bot antes de enviar ações ao jogo' };
+  if (!conexaoAtiva() || !S.eu) return { ok: false, erro: 'Sem conexão ativa com o servidor do jogo' };
+  if (CFG.somenteLer) return { ok: false, erro: 'Bot em modo SOMENTE_LER (somente leitura)' };
+  const vivoNoCampo = () => [...S.mobs.values()].some((m) => !m.treinador && !m.morto) && S.eu?.huntSlug && !S.eu?.noCentro;
+  switch (acao) {
+    case 'hunt.select': {
+      const slug = String(body.slug ?? '').trim();
+      const h = S.hunts.find((x) => x.slug === slug);
+      if (!h) return { ok: false, erro: 'Hunt não encontrada' };
+      if ((h.nivel ?? 0) > (S.eu.level ?? 0)) return { ok: false, erro: `Exige treinador Nv ${h.nivel} (você está no Nv ${S.eu.level})` };
+      CFG.huntFixa = h.slug;
+      S.manual.hunt = true;
+      S.manual.centroAte = 0;
+      S.huntPendente = null;
+      if (!vivoNoCampo()) {
+        enviar({ t: 'hunt.select', slug: h.slug });
+        log(`Modo Jogo: indo para hunt ${h.nome} (Nv ${h.nivel}, ${h.area}) [controle manual]`);
+        return { ok: true, msg: `Indo para ${h.nome} Nv ${h.nivel} (Auto-Hunt pausado)` };
+      }
+      S.huntPendente = { slug: h.slug, nivel: h.nivel, desde: Date.now(), tentativas: 0 };
+      log(`Modo Jogo: agendou troca para ${h.nome} (Nv ${h.nivel}, ${h.area}) assim que a onda terminar [controle manual]`);
+      return { ok: true, pendente: true, msg: `Troca para ${h.nome} agendada (Auto-Hunt pausado)` };
+    }
+    case 'hunt.auto': {
+      CFG.huntFixa = '';
+      S.manual.hunt = false;
+      S.huntPendente = null;
+      log('Modo Jogo: voltou para escolha automática de hunt');
+      return { ok: true, msg: 'Auto-Hunt devolvido ao bot' };
+    }
+    case 'team.active': {
+      const p = S.pokemons.get(body.pokemonId);
+      if (!p) return { ok: false, erro: 'Pokémon não encontrado' };
+      if (p.slot == null) return { ok: false, erro: 'Coloque o Pokémon na equipe antes de ativá-lo' };
+      if (!podeUsar(p)) return { ok: false, erro: `Nível do Pokémon (${p.level}) acima do limite do treinador (${(S.eu.level ?? 0) + 5})` };
+      if ((p.hp ?? 1) <= 0) return { ok: false, erro: `${p.nome} está sem HP — cure no Centro primeiro` };
+      S.manual.equipeAte = Date.now() + 15 * 60_000;
+      enviar({ t: 'team.active', pokemonId: p.id });
+      log(`Modo Jogo: ativo → ${p.nome} Nv${p.level} (gestão automática de equipe pausada por 15 min)`);
+      return { ok: true, msg: `${p.nome} ativado (equipe sob seu controle por 15 min)` };
+    }
+    case 'team.move': {
+      const p = S.pokemons.get(body.pokemonId);
+      if (!p) return { ok: false, erro: 'Pokémon não encontrado' };
+      const max = S.maxEquipe ?? 5;
+      const slot = body.slot === null || body.slot === '' ? null : Number(body.slot);
+      if (slot !== null && (!Number.isInteger(slot) || slot < 0 || slot >= max)) return { ok: false, erro: `Slot inválido (0 a ${max - 1})` };
+      if (slot === null) {
+        if (p.id === S.eu.activeId) return { ok: false, erro: 'Troque o Pokémon ativo antes de enviar este ao Depot' };
+        if (equipe().length <= 1) return { ok: false, erro: 'Você precisa manter pelo menos 1 Pokémon na equipe' };
+      } else if (!podeUsar(p)) {
+        return { ok: false, erro: `${p.nome} Nv${p.level} excede o limite do treinador (Nv ${(S.eu.level ?? 0) + 5})` };
+      }
+      S.manual.equipeAte = Date.now() + 15 * 60_000;
+      const cmd = { t: 'team.move', pokemonId: p.id, slot };
+      if (!vivoNoCampo()) {
+        enviar(cmd);
+        log(`Modo Jogo: ${p.nome} → ${slot === null ? 'Depot' : `Slot ${slot + 1}`} (equipe manual 15 min)`);
+        return { ok: true, msg: `${p.nome} movido para ${slot === null ? 'o Depot' : `o slot ${slot + 1}`} (equipe manual 15 min)` };
+      }
+      pendurarEquipe(cmd);
+      log(`Modo Jogo: agendou mover ${p.nome} → ${slot === null ? 'Depot' : `Slot ${slot + 1}`} ao fim da onda (equipe manual 15 min)`);
+      return { ok: true, pendente: true, msg: `Movimento de ${p.nome} agendado para o fim da onda` };
+    }
+    case 'centro.curar': {
+      enviar({ t: 'centro.curar' }); S.ultimaCura = Date.now();
+      log('Modo Jogo: curando equipe no Centro');
+      return { ok: true, msg: 'Pedido de cura enviado ao Centro' };
+    }
+    case 'centro.ir': {
+      S.manual.centroAte = Date.now() + 15 * 60_000;
+      enviar({ t: 'centro.ir' });
+      log('Modo Jogo: indo ao Centro Pokémon (permanece lá por até 15 min ou até você voltar)');
+      return { ok: true, msg: 'Indo ao Centro Pokémon (bot não vai te puxar de volta)' };
+    }
+    case 'centro.voltar': {
+      S.manual.centroAte = 0;
+      if (!S.eu.huntSlug) return { ok: false, erro: 'Nenhuma hunt anterior para retornar' };
+      enviar({ t: 'hunt.select', slug: S.eu.huntSlug });
+      log(`Modo Jogo: voltando do Centro para ${S.eu.huntSlug}`);
+      return { ok: true, msg: 'Voltando para a hunt' };
+    }
+    case 'ball.throw': {
+      const ballId = Number(body.ballId);
+      if (!Number.isInteger(ballId) || (S.eu.balls?.[ballId] ?? 0) <= 0) return { ok: false, erro: 'Você não tem essa Pokébola em estoque' };
+      const mobsVivos = [...S.mobs.values()].filter((m) => !m.treinador && !m.morto);
+      const alvo = body.slot != null ? mobsVivos.find((m) => m.slot === Number(body.slot)) : mobsVivos[0];
+      if (!alvo) return { ok: false, erro: 'Nenhum selvagem vivo no campo agora' };
+      enviar({ t: 'ball.throw', ballId, slot: alvo.slot });
+      S.stats.bolas++;
+      log(`Modo Jogo: lançou bola #${ballId} em ${alvo.nome ?? 'selvagem'} (slot ${alvo.slot})`);
+      return { ok: true, msg: `Bola lançada em ${alvo.nome ?? 'selvagem'}` };
+    }
+    case 'shop.buy': {
+      const kind = body.kind === 'ball' ? 'ball' : body.kind === 'item' ? 'item' : null;
+      const id = Number(body.id), qty = Number(body.qty);
+      if (!kind || !Number.isInteger(id) || !Number.isInteger(qty) || qty < 1 || qty > 999) return { ok: false, erro: 'Parâmetros de compra inválidos (qtd 1..999)' };
+      const loja = dadosLoja();
+      const prod = [...loja.bolas, ...loja.pocoes, ...loja.extras].find((x) => x.kind === kind && x.id === id);
+      if (prod && (S.eu.gold ?? 0) < prod.preco * qty) return { ok: false, erro: `Ouro insuficiente (precisa ${(prod.preco * qty).toLocaleString('pt-BR')})` };
+      enviar({ t: 'shop.buy', kind, id, qty });
+      log(`Modo Jogo: comprou ${qty}× ${prod?.nome ?? `${kind}#${id}`}`);
+      return { ok: true, msg: `Comprou ${qty}× ${prod?.nome ?? id}` };
+    }
+    case 'shop.sellPokemon': {
+      if (body.confirmar !== true) return { ok: false, erro: 'Confirmação obrigatória' };
+      const p = S.pokemons.get(body.pokemonId);
+      if (!p) return { ok: false, erro: 'Pokémon não encontrado' };
+      const travados = new Set(S.eu.automation?.pokemonTravado ?? []);
+      if (p.id === S.eu.activeId || p.slot != null) return { ok: false, erro: 'Remova o Pokémon da equipe (envie ao Depot) antes de vender' };
+      if (p.starter || p.shiny || p.legendary || p.mega || p.heldItemId || travados.has(p.id) || doSniper(p)) {
+        return { ok: false, erro: 'Protegido: não é permitido vender shiny, inicial, lendário, mega, travado, com item ou comprado pelo sniper' };
+      }
+      enviar({ t: 'shop.sellPokemon', pokemonId: p.id });
+      log(`Modo Jogo: vendeu ${p.nome} Nv${p.level} ao NPC`);
+      return { ok: true, msg: `Venda de ${p.nome} Nv${p.level} enviada ao NPC` };
+    }
+    case 'pokemon.evoluir': {
+      const p = S.pokemons.get(body.pokemonId);
+      const alvoId = Number(body.alvoId);
+      if (!p || !ESPECIES.has(alvoId)) return { ok: false, erro: 'Pokémon ou evolução inválida' };
+      enviar({ t: 'pokemon.evoluir', pokemonId: p.id, alvoId });
+      log(`Modo Jogo: pediu evolução de ${p.nome} → ${ESPECIES.get(alvoId)?.nome ?? alvoId}`);
+      return { ok: true, msg: `Evolução de ${p.nome} solicitada` };
+    }
+    default:
+      return { ok: false, erro: `Ação desconhecida: ${acao}` };
+  }
+}
+
+// ---------- Configurações editáveis em tempo real (sem reiniciar, sem expor segredos) ----------
+const CFG_EDITAVEIS = [
+  { k: 'somenteLer', env: 'SOMENTE_LER', tipo: 'bool' },
+  { k: 'modoCaptura', env: 'CAPTURAR', tipo: 'enum', valores: ['vip', 'sempre', 'time', 'rajada', 'nao'] },
+  { k: 'margemNivel', env: 'MARGEM_NIVEL', tipo: 'int', min: 0, max: 100 },
+  { k: 'huntAcimaPokemon', env: 'HUNT_ACIMA_POKEMON', tipo: 'int', min: 0, max: 200 },
+  { k: 'hpLimiar', env: 'HP_LIMIAR', tipo: 'float', min: 0.1, max: 0.95 },
+  { k: 'gerirEquipe', env: 'GERIR_EQUIPE', tipo: 'bool' },
+  { k: 'equipeMax', env: 'EQUIPE_MAX', tipo: 'int', min: 1, max: 5 },
+  { k: 'timeForte', env: 'TIME_FORTE', tipo: 'bool' },
+  { k: 'evoluir', env: 'EVOLUIR', tipo: 'bool' },
+  { k: 'autoVenda', env: 'AUTO_VENDA', tipo: 'bool' },
+  { k: 'colecaoNotaMin', env: 'COLECAO_NOTA_MIN', tipo: 'float', min: 1, max: 5 },
+  { k: 'prey', env: 'PREY', tipo: 'bool' },
+  { k: 'pvp', env: 'PVP', tipo: 'bool' },
+  { k: 'sacrificio', env: 'SACRIFICIO', tipo: 'bool' },
+  { k: 'bosses', env: 'BOSSES', tipo: 'bool' },
+  { k: 'raid', env: 'RAID', tipo: 'bool' },
+  { k: 'topCatch', env: 'TOP_CATCH', tipo: 'bool' },
+];
+function lerCfgEditavel() {
+  const out = {};
+  for (const c of CFG_EDITAVEIS) out[c.k] = CFG[c.k];
+  return out;
+}
+function aplicarCfgEditavel(body) {
+  if (!body || typeof body !== 'object') return { ok: false, erro: 'JSON inválido' };
+  const mudancas = [];
+  const envPatch = [];
+  for (const c of CFG_EDITAVEIS) {
+    if (!Object.hasOwn(body, c.k)) continue;
+    const raw = body[c.k];
+    let val;
+    if (c.tipo === 'bool') val = !!raw;
+    else if (c.tipo === 'enum') {
+      const s = String(raw).toLowerCase();
+      if (!c.valores.includes(s)) return { ok: false, erro: `${c.k} inválido` };
+      val = s;
+    } else if (c.tipo === 'int') {
+      val = Math.round(Number(raw));
+      if (!Number.isFinite(val) || val < c.min || val > c.max) return { ok: false, erro: `${c.k} fora do limite (${c.min}..${c.max})` };
+    } else if (c.tipo === 'float') {
+      val = +Number(raw).toFixed(2);
+      if (!Number.isFinite(val) || val < c.min || val > c.max) return { ok: false, erro: `${c.k} fora do limite (${c.min}..${c.max})` };
+    }
+    if (CFG[c.k] !== val) {
+      CFG[c.k] = val;
+      mudancas.push(`${c.k}=${val}`);
+      envPatch.push([c.env, c.tipo === 'bool' ? (val ? '1' : '0') : String(val)]);
+    }
+  }
+  if (body.salvarEnv && envPatch.length) {
+    try {
+      const p = join(AQUI, '.env');
+      let txt = existsSync(p) ? readFileSync(p, 'utf8') : '';
+      for (const [k, v] of envPatch) {
+        const re = new RegExp(`^\\s*${k}=.*$`, 'm');
+        txt = re.test(txt) ? txt.replace(re, `${k}=${v}`) : `${txt.trimEnd()}\n${k}=${v}\n`;
+      }
+      writeFileSync(p, txt);
+    } catch (e) { log('falha ao gravar .env:', e.message); }
+  }
+  if (mudancas.length) log(`config ao vivo: ${mudancas.join(', ')}${body.salvarEnv ? ' (salvo no .env)' : ''}`);
+  return { ok: true, mudancas, config: lerCfgEditavel() };
+}
+
+// ---------- Ponte WebSocket local (RFC 6455 sem dependências) para a extensão do navegador ----------
+// Permite rodar o jogo 100% real em pokeidle.io/app com UMA única sessão: quando a aba abre, o bot cede
+// seu socket 24h e passa a ler/enviar pelo WebSocket da própria aba; ao fechar a aba, reassume em 6 s.
+function wsMontarFrame(texto, opcode = 0x1) {
+  const payload = typeof texto === 'string' ? Buffer.from(texto, 'utf8') : texto;
+  const n = payload.length;
+  let head;
+  if (n < 126) { head = Buffer.from([0x80 | opcode, n]); }
+  else if (n < 65536) { head = Buffer.alloc(4); head[0] = 0x80 | opcode; head[1] = 126; head.writeUInt16BE(n, 2); }
+  else { head = Buffer.alloc(10); head[0] = 0x80 | opcode; head[1] = 127; head.writeBigUInt64BE(BigInt(n), 2); }
+  return Buffer.concat([head, payload]);
+}
+function aoAcaoDoUsuario(msg) {
+  if (!msg || typeof msg !== 'object' || !msg.t) return;
+  registrarEnvio();
+  switch (msg.t) {
+    case 'hunt.select':
+      if (msg.slug) {
+        CFG.huntFixa = msg.slug;
+        S.manual.hunt = true;
+        S.manual.centroAte = 0;
+        S.huntPendente = null;
+        log(`ponte: você escolheu a hunt ${msg.slug} no jogo → Auto-Hunt pausado até você devolver`);
+      }
+      break;
+    case 'team.active':
+    case 'team.move':
+    case 'pokemon.evoluir':
+    case 'pokemon.mega':
+      S.manual.equipeAte = Date.now() + 15 * 60_000;
+      log(`ponte: você mexeu na equipe no jogo (${msg.t}) → gestão automática pausada por 15 min`);
+      break;
+    case 'centro.ir':
+      S.manual.centroAte = Date.now() + 15 * 60_000;
+      log('ponte: você foi ao Centro no jogo → bot não vai te puxar de volta por 15 min');
+      break;
+    case 'auto.set':
+    case 'shop.autoVendaDepot':
+    case 'shop.autoColecao':
+      S.manual.autoAte = Date.now() + 30 * 60_000;
+      log(`ponte: você alterou Automações no jogo (${msg.t}) → bot respeita por 30 min`);
+      break;
+  }
+}
+function aceitarPonteWs(req, socket) {
+  const key = req.headers['sec-websocket-key'];
+  if (!key) { socket.destroy(); return; }
+  const accept = createHash('sha1').update(key + '258EAFA5-E914-47DA-95CA-C5AB0DC85B11').digest('base64');
+  socket.write(
+    'HTTP/1.1 101 Switching Protocols\r\n'
+    + 'Upgrade: websocket\r\n'
+    + 'Connection: Upgrade\r\n'
+    + `Sec-WebSocket-Accept: ${accept}\r\n\r\n`
+  );
+  // Encerra ponte anterior se existir e cede o socket 24h imediatamente (evita 4001)
+  clearTimeout(S.ponteReconectar); S.ponteReconectar = null;
+  clearTimeout(S.reconectarTimer); S.reconectarTimer = null;
+  clearTimeout(S.alarmeQueda); S.alarmeQueda = null; S.avisouQueda = false;
+  if (S.pausadoPor4001) {
+    S.pausado = false; S.pausadoPor4001 = false; S.pausadoEm = null;
+    try { if (existsSync(ARQ_PAUSA)) unlinkSync(ARQ_PAUSA); } catch {}
+  }
+  if (S.ponte?.fechar) { try { S.ponte.fechar(true); } catch {} }
+  const ponte = {
+    socket, aberta: true, substituida: false,
+    enviar(obj) { if (this.aberta && !socket.destroyed) try { socket.write(wsMontarFrame(JSON.stringify(obj))); } catch {} },
+    fechar(sub = false) { this.substituida = sub; this.aberta = false; try { socket.end(wsMontarFrame(Buffer.alloc(0), 0x8)); } catch {} },
+  };
+  S.ponte = ponte;
+  S.ponteWsAberta = false;
+  if (S.ws && (S.ws.readyState === 0 || S.ws.readyState === 1)) {
+    try { S.ws.close(1000, 'cedendo sessao para navegador'); } catch {}
+  }
+  if (S.ponteTimers) { clearInterval(S.ponteTimers.loop); clearInterval(S.ponteTimers.capt); clearInterval(S.ponteTimers.rel); }
+  S.ponteTimers = {
+    loop: setInterval(() => { if (S.ponte?.aberta && S.ponteWsAberta && !S.pausado) tique(); }, 3_000),
+    capt: setInterval(() => { if (S.ponte?.aberta && S.ponteWsAberta && !S.pausado && S.welcome && S.eu) { cuidarDaCaptura(); tentarTrocaPendente(); } }, 250),
+    rel: setInterval(() => { if (S.ponte?.aberta && S.ponteWsAberta) resumo(); }, 60_000),
+  };
+  log('ponte navegador conectada: sessão 24h cedida para a aba do pokeidle.io/app');
+  ponte.enviar({ t: 'ponte.pronto', nick: CFG.nick });
+
+  let buf = Buffer.alloc(0), frags = [];
+  const aoTexto = (txt) => {
+    let m; try { m = JSON.parse(txt); } catch { return; }
+    switch (m.t) {
+      case 'ponte.ping': ponte.enviar({ t: 'ponte.pong', em: Date.now() }); break;
+      case 'ponte.ws.open':
+        S.ponteWsAberta = true;
+        log('ponte navegador: WebSocket do jogo aberto (sessão única compartilhada ativa!)');
+        break;
+      case 'ponte.ws.close':
+        S.ponteWsAberta = false; S.welcome = false;
+        log(`ponte navegador: WebSocket do jogo fechou (${m.code ?? '?'})`);
+        break;
+      case 'ponte.in': {
+        let gm = m.msg;
+        if (gm == null && typeof m.raw === 'string') { try { gm = JSON.parse(m.raw); } catch { return; } }
+        if (!gm || typeof gm !== 'object') return;
+        S.ponteWsAberta = true;
+        try { aoMensagem(gm); } catch (e) { logErro(`ponte mensagem ${gm?.t ?? '?'}`, e); }
+        break;
+      }
+      case 'ponte.out': {
+        let gm = m.msg;
+        if (gm == null && typeof m.raw === 'string') { try { gm = JSON.parse(m.raw); } catch { return; } }
+        try { aoAcaoDoUsuario(gm); } catch {}
+        break;
+      }
+    }
+  };
+  socket.on('data', (chunk) => {
+    buf = Buffer.concat([buf, chunk]);
+    if (buf.length > 16 * 1024 * 1024) { socket.destroy(); return; }
+    while (buf.length >= 2) {
+      const b0 = buf[0], b1 = buf[1];
+      const fin = (b0 & 0x80) !== 0, opcode = b0 & 0x0f, masked = (b1 & 0x80) !== 0;
+      let len = b1 & 0x7f, off = 2;
+      if (len === 126) { if (buf.length < 4) break; len = buf.readUInt16BE(2); off = 4; }
+      else if (len === 127) { if (buf.length < 10) break; len = Number(buf.readBigUInt64BE(2)); off = 10; }
+      const maskLen = masked ? 4 : 0;
+      if (buf.length < off + maskLen + len) break;
+      let payload = buf.subarray(off + maskLen, off + maskLen + len);
+      if (masked) {
+        const mask = buf.subarray(off, off + 4);
+        const out = Buffer.allocUnsafe(len);
+        for (let i = 0; i < len; i++) out[i] = payload[i] ^ mask[i & 3];
+        payload = out;
+      }
+      buf = buf.subarray(off + maskLen + len);
+      if (opcode === 0x8) { socket.end(); break; }
+      if (opcode === 0x9) { try { socket.write(wsMontarFrame(payload, 0xa)); } catch {} continue; }
+      if (opcode === 0xa) continue;
+      if (opcode === 0x1 || opcode === 0x0) {
+        frags.push(payload);
+        if (fin) { const msg = Buffer.concat(frags).toString('utf8'); frags = []; aoTexto(msg); }
+      }
+    }
+  });
+  const encerrar = () => {
+    if (!ponte.aberta) return;
+    ponte.aberta = false;
+    if (S.ponte !== ponte) return;
+    S.ponte = null;
+    S.ponteWsAberta = false;
+    S.welcome = false;
+    if (S.ponteTimers) { clearInterval(S.ponteTimers.loop); clearInterval(S.ponteTimers.capt); clearInterval(S.ponteTimers.rel); S.ponteTimers = null; }
+    if (ponte.substituida || S.parar || S.pausado) return;
+    log('ponte navegador fechada — aguardando 6 s para reassumir em modo 24h');
+    clearTimeout(S.ponteReconectar);
+    S.ponteReconectar = setTimeout(() => {
+      S.ponteReconectar = null;
+      if (!S.ponte?.aberta && !S.pausado && !S.parar) {
+        log('reassumindo em modo 24h (segundo plano)…');
+        conectar();
+      }
+    }, 6_000);
+  };
+  socket.on('close', encerrar);
+  socket.on('error', encerrar);
+}
+
 async function iniciarPainel() {
   const { createServer } = await import('node:http');
   const html = () => { try { return readFileSync(join(AQUI, 'painel.html'), 'utf8'); } catch (e) { return 'painel.html ilegível: ' + e.message; } };
+  const lerEst = (arq) => { try { return readFileSync(join(AQUI, arq), 'utf8'); } catch (e) { return null; } };
   const falhas = new Map(); // ip → { n, ate }
   const daqui = (ip) => ip === '127.0.0.1' || ip === '::1' || ip === '::ffff:127.0.0.1';
+  const origemLocal = (org) => !org || /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(org) || /^chrome-extension:\/\/[a-z]{32}$/.test(org);
   const confere = (cab) => { const m = /^Basic (.+)$/.exec(cab ?? ''); if (!m) return false; const dado = Buffer.from(Buffer.from(m[1], 'base64').toString().replace(/^[^:]*:/, '')), certo = Buffer.from(CFG.painelSenha); return dado.length === certo.length && timingSafeEqual(dado, certo); };
   const srv = createServer((req, res) => {
     const ip = req.socket.remoteAddress ?? '';
+    const rota = new URL(req.url, 'http://x').pathname;
     if (!daqui(ip)) {
       const f = falhas.get(ip);
       if (f && f.n >= 10 && Date.now() < f.ate) { res.writeHead(429); return res.end('muitas tentativas; espere 10 minutos'); }
@@ -2680,23 +3257,38 @@ async function iniciarPainel() {
         if (req.headers.authorization) falhas.set(ip, { n: (f && Date.now() < f.ate ? f.n : 0) + 1, ate: Date.now() + 600_000 });
         res.writeHead(401, { 'www-authenticate': 'Basic realm="PokeIdle", charset="UTF-8"' }); return res.end('senha');
       }
-      const rota = new URL(req.url, 'http://x').pathname;
-      if (req.method !== 'GET' || !['/', '/estado', '/eventos', '/sprite', '/icones', '/mapa'].includes(rota)) { res.writeHead(403); return res.end('pela rede o painel é só leitura'); }
+      if (req.method !== 'GET' || !['/', '/estado', '/eventos', '/sprite', '/icones', '/mapa', '/jogo/depot', '/jogo/pokedex', '/jogo/hunts', '/jogo/chat', '/jogo/loja', '/bot/config'].includes(rota)) { res.writeHead(403); return res.end('pela rede o painel é só leitura'); }
+    }
+    if (rota === '/jogo/depot' && req.method === 'GET') { res.writeHead(200, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' }); return res.end(JSON.stringify(dadosDepot())); }
+    if (rota === '/jogo/pokedex' && req.method === 'GET') { res.writeHead(200, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' }); return res.end(JSON.stringify(dadosPokedex())); }
+    if (rota === '/jogo/hunts' && req.method === 'GET') { res.writeHead(200, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' }); return res.end(JSON.stringify(dadosHunts())); }
+    if (rota === '/jogo/chat' && req.method === 'GET') { res.writeHead(200, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' }); return res.end(JSON.stringify({ mensagens: S.chat.slice(-100) })); }
+    if (rota === '/jogo/loja' && req.method === 'GET') { res.writeHead(200, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' }); return res.end(JSON.stringify(dadosLoja())); }
+    if (rota === '/bot/config' && req.method === 'GET') { res.writeHead(200, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' }); return res.end(JSON.stringify(lerCfgEditavel())); }
+    if (rota === '/bot/config' && req.method === 'POST') {
+      if (!daqui(ip) || req.headers['x-painel'] !== '1' || !origemLocal(req.headers.origin) || !/json/.test(req.headers['content-type'] ?? '')) { res.writeHead(403); return res.end('só pelo painel deste PC'); }
+      let corpo = ''; req.on('data', (d) => { corpo += d; if (corpo.length > 4000) req.destroy(); });
+      req.on('end', () => { let r; try { r = aplicarCfgEditavel(JSON.parse(corpo)); } catch (e) { r = { ok: false, erro: 'JSON inválido' }; } res.writeHead(r.ok ? 200 : 400, { 'content-type': 'application/json; charset=utf-8' }); res.end(JSON.stringify(r)); });
+      return;
+    }
+    if (rota === '/jogo/acao' && req.method === 'POST') {
+      if (!daqui(ip) || req.headers['x-painel'] !== '1' || !origemLocal(req.headers.origin) || !/json/.test(req.headers['content-type'] ?? '')) { res.writeHead(403); return res.end('só pelo painel deste PC'); }
+      let corpo = ''; req.on('data', (d) => { corpo += d; if (corpo.length > 4000) req.destroy(); });
+      req.on('end', () => { let r; try { r = executarAcaoJogo(JSON.parse(corpo)); } catch (e) { r = { ok: false, erro: 'JSON inválido: ' + e.message }; } res.writeHead(r.ok ? 200 : 400, { 'content-type': 'application/json; charset=utf-8' }); res.end(JSON.stringify(r)); });
+      return;
     }
     if (req.url === '/mercado/coletar') { const ok = coletarMercado('painel'); res.writeHead(ok ? 202 : 409, { 'content-type': 'text/plain; charset=utf-8' }); return res.end(ok ? 'coletando' : 'ocupado ou desconectado'); }
     if ((req.url ?? '').startsWith('/resgatar/') && req.method === 'POST') { const codigo = req.url.slice(10).toUpperCase(); if (!/^[A-Z0-9]{4,20}$/.test(codigo)) { res.writeHead(400); return res.end('codigo invalido'); } S.depurarAte = Date.now() + 20_000; log(`resgatar: enviando código de vínculo (${codigo.length} caracteres)`); enviar({ t: 'convite.resgatar', codigo }); res.writeHead(202, { 'content-type': 'text/plain; charset=utf-8' }); return res.end('enviado; veja o log'); }
     // ajustes do sniper (gasta Gemas): só deste PC, só pelo próprio painel. O cabeçalho próprio força o navegador a
     // pedir licença (CORS) antes, e a origem tem de ser o painel; assim outro site aberto no navegador não muda nada.
     if (req.url === '/bot/pausa' && req.method === 'POST') {
-      const org = req.headers.origin; const okOrg = !org || /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(org);
-      if (!daqui(ip) || req.headers['x-painel'] !== '1' || !okOrg || !/json/.test(req.headers['content-type'] ?? '')) { res.writeHead(403); return res.end('só pelo painel deste PC'); }
+      if (!daqui(ip) || req.headers['x-painel'] !== '1' || !origemLocal(req.headers.origin) || !/json/.test(req.headers['content-type'] ?? '')) { res.writeHead(403); return res.end('só pelo painel deste PC'); }
       let corpo = ''; req.on('data', (d) => { corpo += d; if (corpo.length > 1000) req.destroy(); });
       req.on('end', () => { let body = {}; try { body = corpo ? JSON.parse(corpo) : {}; } catch {} const r = pausarBot(body.pausar); res.writeHead(200, { 'content-type': 'application/json; charset=utf-8' }); res.end(JSON.stringify(r)); });
       return;
     }
     if (req.url === '/sniper' && req.method === 'POST') {
-      const org = req.headers.origin; const okOrg = !org || /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(org);
-      if (!daqui(ip) || req.headers['x-painel'] !== '1' || !okOrg || !/json/.test(req.headers['content-type'] ?? '')) { res.writeHead(403); return res.end('só pelo painel deste PC'); }
+      if (!daqui(ip) || req.headers['x-painel'] !== '1' || !origemLocal(req.headers.origin) || !/json/.test(req.headers['content-type'] ?? '')) { res.writeHead(403); return res.end('só pelo painel deste PC'); }
       let corpo = ''; req.on('data', (d) => { corpo += d; if (corpo.length > 4000) req.destroy(); });
       req.on('end', () => { let r; try { r = snMudar(JSON.parse(corpo)); } catch { r = { ok: false, erros: ['JSON inválido'] }; } res.writeHead(r.ok ? 200 : 400, { 'content-type': 'application/json; charset=utf-8' }); res.end(JSON.stringify({ ...r, sniperPk: snPainel() })); });
       return;
@@ -2724,6 +3316,16 @@ async function iniciarPainel() {
     }
     res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }); res.end(html());
   });
+  srv.on('upgrade', (req, socket) => {
+    const ip = req.socket.remoteAddress ?? '';
+    const rota = new URL(req.url ?? '/', 'http://x').pathname;
+    if (!daqui(ip) || rota !== '/ponte') {
+      socket.write('HTTP/1.1 403 Forbidden\r\n\r\n');
+      socket.destroy();
+      return;
+    }
+    aceitarPonteWs(req, socket);
+  });
   srv.on('error', (e) => log('painel indisponível:', e.message));
   S.painelNaRede = CFG.painelRede && CFG.painelSenha.length >= 8;
   if (CFG.painelRede && !S.painelNaRede) log('PAINEL_REDE=1 ignorado: defina PAINEL_SENHA com 8 caracteres ou mais no .env');
@@ -2745,4 +3347,5 @@ if (CFG.manterAcordado && process.platform === 'win32') {
 
 process.on('SIGINT', () => { log('encerrando'); resumo(); S.parar = true; S.ws?.close(1000); setTimeout(() => process.exit(0), 300); });
 log(`PokeIdle bot — ${CFG.nick}${CFG.somenteLer ? ' (SOMENTE_LER)' : ''} · regiões ${CFG.regioesAuto ? 'auto' : CFG.regioes.join(',')} · captura ${CFG.modoCaptura}`);
-conectar();
+// Aguarda 3,5 s antes de abrir socket 24h: se a aba do pokeidle.io/app já estiver aberta com a extensão, ela acopla sem 4001
+setTimeout(() => { if (!S.ponte?.aberta && !S.pausado && !S.parar) conectar(); }, 3500);

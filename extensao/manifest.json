@@ -1,0 +1,30 @@
+{
+  "manifest_version": 3,
+  "name": "PokeIdle Bot — Ponte Local",
+  "version": "1.0.0",
+  "description": "Compartilha a sessão única do pokeidle.io/app com o seu bot local (127.0.0.1:8787) com HUD de métricas, pausa seletiva e ajustes ao vivo.",
+  "permissions": [],
+  "host_permissions": [
+    "https://pokeidle.io/*",
+    "http://127.0.0.1:8787/*",
+    "http://localhost:8787/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://pokeidle.io/app*"],
+      "js": ["page-hook.js"],
+      "run_at": "document_start",
+      "world": "MAIN"
+    },
+    {
+      "matches": ["https://pokeidle.io/app*"],
+      "js": ["content.js"],
+      "css": ["hud.css"],
+      "run_at": "document_start",
+      "world": "ISOLATED"
+    }
+  ]
+}
